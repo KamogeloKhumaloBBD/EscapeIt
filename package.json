@@ -1,0 +1,45 @@
+{
+  "name": "context-layer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": "24.18.0",
+    "pnpm": "11.21.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "db:down": "docker compose down",
+    "db:info": "tsx scripts/flyway.ts info",
+    "db:logs": "docker compose logs -f postgres",
+    "db:migrate": "tsx scripts/flyway.ts migrate",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:validate": "tsx scripts/flyway.ts validate",
+    "dev:api": "dotenv -e .env -- pnpm --filter @context-layer/api dev",
+    "dev:full": "pnpm db:up && concurrently --kill-others-on-fail --names api,web --prefix-colors magenta,cyan \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:web": "dotenv -e .env -- pnpm --filter @context-layer/web dev",
+    "docker:build": "docker build -f apps/api/Dockerfile -t context-layer-api . && docker build -f apps/web/Dockerfile -t context-layer-web .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.13.3",
+    "concurrently": "10.0.4",
+    "dotenv-cli": "11.0.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.0",
+    "globals": "17.9.0",
+    "husky": "9.1.7",
+    "prettier": "3.9.6",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0"
+  }
+}

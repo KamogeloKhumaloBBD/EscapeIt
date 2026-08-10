@@ -1,0 +1,40 @@
+services:
+  flyway:
+    image: redgate/flyway:12.6.0
+    profiles:
+      - tools
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/context_layer
+      FLYWAY_USER: ${POSTGRES_USER:-context_layer}
+    volumes:
+      - ./packages/db/migrations:/flyway/sql:ro
+
+  postgres:
+    image: postgres:17.7
+    environment:
+      POSTGRES_DB: context_layer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_USER: ${POSTGRES_USER:-context_layer}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - context_layer_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-context_layer} -d context_layer",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  context_layer_postgres_data:
+    name: context_layer_postgres_data
