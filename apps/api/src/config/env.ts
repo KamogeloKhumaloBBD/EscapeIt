@@ -10,6 +10,7 @@ const apiEnvironmentSchema = z.object({
   }),
   NODE_ENV: z.enum(["development", "production"]).default("development"),
   PUBLIC_APP_URL: z.url(),
+  PORT: z.coerce.number().int().min(1).max(65_535).optional(),
   AUTH_EMAIL_FROM: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),
 });
@@ -50,7 +51,7 @@ export function parseApiConfig(
     credentialEncryptionKey: parsed.CREDENTIAL_ENCRYPTION_KEY,
     database: parseDatabaseConfig(environment),
     nodeEnvironment: parsed.NODE_ENV,
-    port: parsed.API_PORT,
+    port: parsed.PORT ?? parsed.API_PORT,
     publicAppUrl: parsed.PUBLIC_APP_URL,
     resendApiKey: parsed.RESEND_API_KEY,
   };

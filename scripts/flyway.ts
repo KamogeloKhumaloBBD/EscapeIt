@@ -5,6 +5,7 @@ import path from "node:path";
 
 const supportedCommands = new Set(["info", "migrate", "validate"]);
 const command = process.argv[2] ?? "info";
+const usesRailway = process.argv.includes("--railway");
 const migrationsDirectory = path.join(
   process.cwd(),
   "packages",
@@ -45,10 +46,62 @@ if (!(await hasSqlMigrations(migrationsDirectory))) {
   process.exit(0);
 }
 
-const flyway = spawn("docker", ["compose", "run", "--rm", "flyway", command], {
-  shell: process.platform === "win32",
-  stdio: "inherit",
-});
+function railwayFlyway() {
+  const connectionString = process.env.DATABASE_PUBLIC_URL;
+
+  if (connectionString === undefined) {
+    throw new Error(
+      "DATABASE_PUBLIC_URL is required. Run this command through `railway run --service Postgres`.",
+    );
+  }
+
+  const databaseUrl = new URL(connectionString);
+
+  if (!["postgres:", "postgresql:"].includes(databaseUrl.protocol)) {
+    throw new Error("DATABASE_PUBLIC_URL must use a PostgreSQL scheme.");
+  }
+
+  const jdbcUrl = new URL(
+    `postgresql://${databaseUrl.hostname}:${databaseUrl.port || "5432"}${databaseUrl.pathname}`,
+  );
+  jdbcUrl.searchParams.set("sslmode", "require");
+
+  return spawn(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-e",
+      "FLYWAY_LOCATIONS",
+      "-e",
+      "FLYWAY_PASSWORD",
+      "-e",
+      "FLYWAY_URL",
+      "-e",
+      "FLYWAY_USER",
+      "-v",
+      `${migrationsDirectory}:/flyway/migrations:ro`,
+      "redgate/flyway:12.6.0",
+      command,
+    ],
+    {
+      env: {
+        ...process.env,
+        FLYWAY_LOCATIONS: "filesystem:/flyway/migrations",
+        FLYWAY_PASSWORD: decodeURIComponent(databaseUrl.password),
+        FLYWAY_URL: `jdbc:${jdbcUrl.toString()}`,
+        FLYWAY_USER: decodeURIComponent(databaseUrl.username),
+      },
+      stdio: "inherit",
+    },
+  );
+}
+
+const flyway = usesRailway
+  ? railwayFlyway()
+  : spawn("docker", ["compose", "run", "--rm", "flyway", command], {
+      stdio: "inherit",
+    });
 
 flyway.on("exit", (code, signal) => {
   if (signal !== null) {

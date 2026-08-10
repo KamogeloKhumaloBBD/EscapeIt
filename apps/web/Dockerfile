@@ -1,13 +1,11 @@
 FROM node:24.18.0-alpine AS base
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
+RUN npm install --global pnpm@11.21.0
 WORKDIR /repo
 
 FROM base AS build
 ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
-COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
 COPY apps/web apps/web
 COPY packages/db packages/db
@@ -15,9 +13,11 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @context-layer/web build
 
 FROM node:24.18.0-alpine AS runtime
+ARG API_INTERNAL_URL=http://api:4000
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
 WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=build --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./

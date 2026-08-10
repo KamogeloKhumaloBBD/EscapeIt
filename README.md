@@ -1,80 +1,109 @@
 # Context Layer
 
-Context Layer is a pnpm monorepo with an independently deployable Next.js frontend, Express API, shared PostgreSQL infrastructure, and explicit Flyway migrations.
+Context Layer is a pnpm monorepo containing an independently deployable Next.js frontend, Express API, and PostgreSQL infrastructure. Better Auth owns the current auth schema; Flyway is the only migration path.
 
-This foundation contains only the Better Auth core schema managed through Flyway. Product tables, integration tables, MCP token tables, and seed data are intentionally not present yet.
-
-## Prerequisites
+## Requirements
 
 - Node.js 24.18.0 LTS
 - pnpm 11.21.0
 - Docker Desktop or another Compose-compatible runtime
+- A Resend API key and verified sender for passwordless sign-in
 
-## Workspace
-
-```text
-apps/web       Next.js frontend (port 3000)
-apps/api       Express API (port 4000)
-packages/db    PostgreSQL connection utilities and Flyway migrations
-```
-
-The browser uses relative `/api/*` paths. Next.js proxies those requests to the Express API through `API_INTERNAL_URL`.
-
-## First launch
+## Start locally
 
 ```sh
-corepack enable
-corepack prepare pnpm@11.21.0 --activate
 pnpm install
 cp .env.example .env
-pnpm db:up
 pnpm db:migrate
 pnpm dev:full
 ```
 
-On PowerShell, use `Copy-Item .env.example .env` instead of `cp` if desired. Replace every placeholder secret before starting the applications. Corepack is optional but useful for activating the pinned pnpm version from `package.json`.
+On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `.env` before starting.
 
-Open <http://localhost:3000>. The API health endpoint is available directly at <http://localhost:4000/api/health> and through the frontend proxy at <http://localhost:3000/api/health>.
+- Web: <http://localhost:3000>
+- API health: <http://localhost:4000/api/health>
+- Proxied health: <http://localhost:3000/api/health>
 
-Passwordless sign-in uses Better Auth email OTP and Resend. Set `RESEND_API_KEY` and `AUTH_EMAIL_FROM` before using `/sign-in`; auth requests still flow through the Express-owned `/api/auth/*` endpoints.
+The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
+
+## Workspace
+
+```text
+apps/web       Next.js frontend
+apps/api       Express API
+packages/db    PostgreSQL utilities and Flyway SQL migrations
+```
 
 ## Commands
 
-| Command             | Purpose                                           |
-| ------------------- | ------------------------------------------------- |
-| `pnpm db:up`        | Start PostgreSQL and wait for health              |
-| `pnpm db:down`      | Stop PostgreSQL while preserving its named volume |
-| `pnpm db:logs`      | Follow PostgreSQL logs                            |
-| `pnpm db:migrate`   | Run Flyway migrations when reviewed SQL exists    |
-| `pnpm db:validate`  | Validate Flyway migrations when SQL exists        |
-| `pnpm db:info`      | Inspect Flyway state when SQL exists              |
-| `pnpm dev:web`      | Start Next.js                                     |
-| `pnpm dev:api`      | Start Express                                     |
-| `pnpm dev:full`     | Start PostgreSQL, Express, and Next.js            |
-| `pnpm verify`       | Check formatting, lint, types, and builds         |
-| `pnpm docker:build` | Build both production images                      |
+| Command                   | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `pnpm dev:full`           | Start PostgreSQL, Express, and Next.js        |
+| `pnpm dev:web`            | Start Next.js                                 |
+| `pnpm dev:api`            | Start Express                                 |
+| `pnpm db:up`              | Start local PostgreSQL and wait for health    |
+| `pnpm db:down`            | Stop PostgreSQL and preserve its named volume |
+| `pnpm db:migrate`         | Run reviewed Flyway migrations locally        |
+| `pnpm db:railway:migrate` | Run Flyway against linked Railway Postgres    |
+| `pnpm db:validate`        | Validate local Flyway migrations              |
+| `pnpm db:info`            | Inspect local Flyway state                    |
+| `pnpm verify`             | Check formatting, linting, types, and builds  |
+| `pnpm docker:build`       | Build both production application images      |
 
-`pnpm install` configures Husky automatically. Every commit runs `pnpm verify`
-and is rejected if formatting, linting, type checks, or either application build
-fails.
+Migrations never run during web or API startup. Product data is never seeded.
 
-`db:migrate`, `db:validate`, and `db:info` use the pinned `redgate/flyway:12.6.0` Docker image. Migrations are explicit SQL files in `packages/db/migrations`; the API and frontend never run migrations during startup.
+## Environment
+
+Frontend server:
+
+- `PUBLIC_APP_URL`: public Next.js origin
+- `API_INTERNAL_URL`: server-side Express origin
+- `PORT`: hosting-platform port; defaults to `3000` in the image
+
+API:
+
+- `DATABASE_URL`, `DATABASE_SSL_MODE`
+- `PORT` in hosted environments, or `API_PORT` locally
+- `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+- `AUTH_EMAIL_FROM`, `RESEND_API_KEY`
+- `CREDENTIAL_ENCRYPTION_KEY`
+- `PUBLIC_APP_URL`
+
+Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT`. See `.env.example` for valid formats.
+
+## Railway
+
+Railway runs `web`, `api`, and `Postgres` in one project. The application service manifests are `railway.web.json` and `railway.api.json`.
+
+Use these service configuration paths in Railway and keep the repository root as each build context. Configure:
+
+```text
+web
+  API_INTERNAL_URL=http://api.railway.internal:4000
+  PUBLIC_APP_URL=https://<web-domain>
+  PORT=3000
+
+api
+  DATABASE_URL=${{Postgres.DATABASE_URL}}
+  DATABASE_SSL_MODE=disable
+  BETTER_AUTH_URL=https://<web-domain>
+  PUBLIC_APP_URL=https://<web-domain>
+  PORT=4000
+
+```
+
+Run migrations explicitly before an application release containing new SQL:
+
+```sh
+railway run --service Postgres pnpm db:railway:migrate
+```
+
+This passes Railway's public database URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web.
+
+Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 
 ## Database safety
 
-Local PostgreSQL uses the persistent `context_layer_postgres_data` volume. `pnpm db:down` does not delete it. No product or mock data is seeded.
+Local PostgreSQL stores data in the `context_layer_postgres_data` named volume. Changing `POSTGRES_PORT` also requires updating the port in local `DATABASE_URL`.
 
-PostgreSQL binds to host port `5432` by default. If that port is already occupied, change `POSTGRES_PORT` and update `DATABASE_URL` to the same port.
-
-For managed PostgreSQL, provide the managed `DATABASE_URL` and set `DATABASE_SSL_MODE` to `require` or `verify-full` when TLS is required. Production migrations must run as a separate Flyway deployment job with dedicated migration credentials; the API must not migrate during startup.
-
-## Deployment
-
-Both applications have independent multi-stage Dockerfiles:
-
-```sh
-docker build -f apps/api/Dockerfile -t context-layer-api .
-docker build --build-arg API_INTERNAL_URL=https://api.internal.example -f apps/web/Dockerfile -t context-layer-web .
-```
-
-The frontend proxy destination is compiled into the Next.js server build. Supply the environment-specific internal API URL while building the frontend image.
+Production migrations are reviewed SQL files under `packages/db/migrations`, executed separately with Flyway credentials. The current migration creates only Better Auth core tables.

@@ -1,11 +1,9 @@
 FROM node:24.18.0-alpine AS base
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
+RUN npm install --global pnpm@11.21.0
 WORKDIR /repo
 
 FROM base AS build
-COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
 COPY apps/api apps/api
 COPY packages/db packages/db
