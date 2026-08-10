@@ -98,7 +98,7 @@ Run migrations explicitly before an application release containing new SQL:
 railway run --service Postgres pnpm db:railway:migrate
 ```
 
-This passes Railway's public database URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web.
+The Postgres service must have an active TCP proxy and a `DATABASE_PUBLIC_URL` composed from that proxy plus Railway's `PGUSER`, `POSTGRES_PASSWORD`, and `PGDATABASE` references. The command passes that URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web.
 
 Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 
