@@ -1,5 +1,5 @@
-import type { DatabaseClient } from "./client.js";
-import { withTransaction } from "./client.js";
+import type { DatabaseClient } from "./client";
+import { withTransaction } from "./client";
 import type {
   ConnectionStatus,
   EncryptedCredentialEnvelope,
@@ -8,14 +8,14 @@ import type {
   NotificationEventKey,
   NotificationPreference,
   ProviderKey,
-} from "./domain.js";
-import { RepositoryError } from "./repository-errors.js";
+} from "./domain";
+import { RepositoryError } from "./repository-errors";
 import {
   createProductId,
   requireMembership,
   requireOwner,
   requireReturnedRow,
-} from "./repository-helpers.js";
+} from "./repository-helpers";
 
 export interface CreateNotificationChannelInput {
   channelId: string;

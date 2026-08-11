@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "./client.js";
+import type { DatabaseClient } from "./client";
 import type {
   ActivityCategory,
   ActivityCursor,
@@ -7,9 +7,9 @@ import type {
   ActivityStatus,
   JsonObject,
   ProviderKey,
-} from "./domain.js";
-import { RepositoryError } from "./repository-errors.js";
-import { createProductId, requireMembership } from "./repository-helpers.js";
+} from "./domain";
+import { RepositoryError } from "./repository-errors";
+import { createProductId, requireMembership } from "./repository-helpers";
 
 export interface AppendActivityEventInput {
   actorMembershipId?: string | null;

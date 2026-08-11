@@ -1,13 +1,13 @@
-import type { DatabaseClient } from "./client.js";
-import { withTransaction } from "./client.js";
-import type { McpToken } from "./domain.js";
-import { RepositoryError } from "./repository-errors.js";
+import type { DatabaseClient } from "./client";
+import { withTransaction } from "./client";
+import type { McpToken } from "./domain";
+import { RepositoryError } from "./repository-errors";
 import {
   createProductId,
   requireOwner,
   requireReturnedRow,
   requireSha256Digest,
-} from "./repository-helpers.js";
+} from "./repository-helpers";
 
 export interface CreateMcpTokenInput {
   createdByMembershipId: string;

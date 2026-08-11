@@ -23,6 +23,8 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Web: <http://localhost:3000>
 - API health: <http://localhost:4000/api/health>
 - Proxied health: <http://localhost:3000/api/health>
+- Onboarding: <http://localhost:3000/onboarding>
+- Dashboard: <http://localhost:3000/dashboard>
 
 The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
 
@@ -36,7 +38,9 @@ packages/db    PostgreSQL utilities and Flyway SQL migrations
 
 ## Data foundation
 
-Better Auth users may be signed in without a workspace. A later onboarding flow will either create a workspace with an owner membership or accept an invitation as a member. Each user can belong to only one workspace.
+Better Auth users may be signed in without a workspace. The onboarding flow creates a workspace and its owner membership atomically; invitation acceptance will be added in a later slice. Each user can belong to only one workspace.
+
+The Express workspace API exposes authenticated `GET /api/workspaces/current`, `POST /api/workspaces`, and `GET /api/workspaces/current/overview` endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly.
 
 The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 

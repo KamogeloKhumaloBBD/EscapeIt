@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from "uuid";
 
-import type { DatabaseClient, DatabaseTransaction } from "./client.js";
-import { RepositoryError } from "./repository-errors.js";
+import type { DatabaseClient, DatabaseTransaction } from "./client";
+import { RepositoryError } from "./repository-errors";
 
 export type QueryClient = DatabaseClient | DatabaseTransaction;
 

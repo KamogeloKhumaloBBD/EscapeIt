@@ -5,15 +5,15 @@ export {
   type DatabaseClient,
   type DatabaseConnection,
   type DatabaseTransaction,
-} from "./client.js";
-export { parseDatabaseConfig, type DatabaseConfig } from "./config.js";
+} from "./client";
+export { parseDatabaseConfig, type DatabaseConfig } from "./config";
 export {
   appendActivityEvent,
   listActivity,
   listActivityByCorrelationId,
   type AppendActivityEventInput,
   type ListActivityInput,
-} from "./activity-repository.js";
+} from "./activity-repository";
 export {
   activityCategories,
   activityStatuses,
@@ -45,7 +45,7 @@ export {
   type WorkspaceInvitation,
   type WorkspaceMembership,
   type WorkspaceRole,
-} from "./domain.js";
+} from "./domain";
 export {
   configureIntegration,
   findIntegrationAccountForMember,
@@ -56,7 +56,7 @@ export {
   type ConfigureIntegrationInput,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
-} from "./integration-repository.js";
+} from "./integration-repository";
 export {
   createMcpToken,
   listMcpTokens,
@@ -64,7 +64,7 @@ export {
   revokeMcpToken,
   type CreateMcpTokenInput,
   type ResolvedMcpToken,
-} from "./mcp-token-repository.js";
+} from "./mcp-token-repository";
 export {
   createNotificationChannel,
   clearNotificationPreferenceOverride,
@@ -75,20 +75,21 @@ export {
   updateNotificationChannel,
   type CreateNotificationChannelInput,
   type UpdateNotificationChannelInput,
-} from "./notification-repository.js";
-export {
-  RepositoryError,
-  type RepositoryErrorCode,
-} from "./repository-errors.js";
-export { createProductId, normalizeEmail } from "./repository-helpers.js";
+} from "./notification-repository";
+export { RepositoryError, type RepositoryErrorCode } from "./repository-errors";
+export { createProductId, normalizeEmail } from "./repository-helpers";
 export {
   acceptWorkspaceInvitation,
   createWorkspaceForUser,
   createWorkspaceInvitation,
+  findCurrentWorkspaceForUser,
   findMembershipForUser,
+  getWorkspaceOverviewForUser,
   revokeWorkspaceInvitation,
   type AcceptInvitationInput,
   type CreateInvitationInput,
   type CreateWorkspaceInput,
   type CreateWorkspaceResult,
-} from "./workspace-repository.js";
+  type CurrentWorkspace,
+  type WorkspaceOverview,
+} from "./workspace-repository";

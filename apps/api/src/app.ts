@@ -4,15 +4,17 @@ import cors from "cors";
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
+  type Router,
 } from "express";
 import helmet from "helmet";
 import pino, { type Logger } from "pino";
 import pinoHttp from "pino-http";
 
-import { toPublicError } from "./errors.js";
+import { normalizeHttpError, toPublicError } from "./errors";
 
 export interface AppDependencies {
   allowedOrigin: string;
+  apiRouter: Router;
   authHandler: RequestHandler;
   checkDatabase: () => Promise<boolean>;
   logger?: Logger;
@@ -20,6 +22,7 @@ export interface AppDependencies {
 
 export function createApp({
   allowedOrigin,
+  apiRouter,
   authHandler,
   checkDatabase,
   logger = pino(),
@@ -54,6 +57,8 @@ export function createApp({
 
   app.use(express.json({ limit: "1mb" }));
 
+  app.use("/api", apiRouter);
+
   app.get("/api/health", async (_request, response, next) => {
     try {
       const databaseIsReady = await checkDatabase();
@@ -84,8 +89,18 @@ export function createApp({
     response,
     _next,
   ) => {
-    request.log.error({ err: error }, "Unhandled request error");
-    response.status(500).json(toPublicError(error));
+    const normalized = normalizeHttpError(error);
+
+    if (normalized.status >= 500) {
+      request.log.error({ err: error }, "Request failed");
+    } else {
+      request.log.warn(
+        { code: normalized.code, status: normalized.status },
+        "Request rejected",
+      );
+    }
+
+    response.status(normalized.status).json(toPublicError(normalized));
   };
 
   app.use(errorHandler);

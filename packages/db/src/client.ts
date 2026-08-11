@@ -1,6 +1,6 @@
 import postgres from "postgres";
 
-import type { DatabaseConfig } from "./config.js";
+import type { DatabaseConfig } from "./config";
 
 function connectionUrl(config: DatabaseConfig): string {
   const url = new URL(config.url);

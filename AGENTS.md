@@ -17,11 +17,17 @@
 ## APIs and dependencies
 
 - Express owns `/api/*`; do not add Next.js route handlers for application APIs.
+- Organize backend behavior by feature with the flow `route -> service/use case -> repository or provider adapter`.
+- Routes translate HTTP only, services orchestrate business use cases, repositories own raw SQL and transaction boundaries, and provider adapters own external-provider behavior.
+- Compose functional factories explicitly in `server.ts`. Do not add a dependency-injection framework or `BaseController`, `BaseService`, or `BaseRepository` abstractions.
+- Add an interface only at a genuinely replaceable boundary. Do not branch on provider keys in generic controllers or workspace services.
 - Keep browser requests on relative `/api` paths so the frontend proxy preserves a first-party origin.
 - Next.js Server Actions may validate and orchestrate UI mutations, but must call Express for authentication, authorization, business logic, provider access, and persistence. They are not a second backend.
 - Express must independently validate and authorize every mutation; frontend and Server Action validation is only an additional user-facing boundary.
 - Prefer shared packages only when code is genuinely used by more than one workspace. Do not create speculative packages.
 - Preserve ESM throughout the repository.
+- Use extensionless relative imports in TypeScript source. The API and database package are bundled for production; do not write compiled `.js` suffixes in `.ts` imports.
+- Keep raw SQL inside `packages/db`; API services and routes must not embed queries.
 
 ## Next.js and React
 

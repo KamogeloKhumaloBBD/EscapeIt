@@ -8,7 +8,7 @@ export default async function SignInPage() {
   const sessionStatus = await getAuthSessionStatus();
 
   if (sessionStatus === "authenticated") {
-    redirect("/");
+    redirect("/dashboard");
   }
 
   return (

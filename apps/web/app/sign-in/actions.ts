@@ -140,7 +140,7 @@ export async function signInAction(
       };
     }
 
-    redirect("/");
+    redirect("/dashboard");
   }
 
   return {

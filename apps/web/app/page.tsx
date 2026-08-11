@@ -183,7 +183,9 @@ export default function Home() {
             </p>
 
             <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row sm:justify-center lg:justify-start">
-              <AuthControl />
+              <Suspense fallback={<AuthControlSkeleton />}>
+                <AuthControl />
+              </Suspense>
             </div>
           </div>
 

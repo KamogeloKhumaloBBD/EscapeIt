@@ -9,7 +9,14 @@ export async function AuthControl() {
   const sessionStatus = await getAuthSessionStatus();
 
   if (sessionStatus === "authenticated") {
-    return <SignOutForm />;
+    return (
+      <div className="flex items-center gap-3">
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/dashboard">Dashboard</Link>
+        </Button>
+        <SignOutForm />
+      </div>
+    );
   }
 
   return (
