@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "postgres": "3.4.9",
+    "uuid": "13.0.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

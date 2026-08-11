@@ -43,6 +43,22 @@
 - Production migrations must be explicit, reviewed SQL files and run separately with Flyway migration credentials.
 - Never seed product or mock data into the development database.
 
+## Product data invariants
+
+- A Better Auth user may have no workspace and may belong to at most one workspace. Authentication must not create a workspace implicitly.
+- Workspace creation must atomically create one owner membership. Roles are limited to `owner` and `member`.
+- Invitation tokens and MCP tokens are persisted only as SHA-256 hashes. Invitation acceptance must match the signed-in user's normalized email and revoke that email's other pending invitations.
+- A workspace has at most one installation for each provider. Individual provider identities and credentials belong to `integration_accounts`, not the shared installation.
+- Providers are code-defined through the API registry. Use validated provider keys and namespaced scope/event keys; do not add provider-specific database enums, tables, routes, or UI branches when the registry or adapter boundary is sufficient.
+- Initial providers such as Jira, Bitbucket, Confluence, and Teams are adapters, not architectural special cases. Adding an adapter should not require a database migration when it fits the existing capabilities.
+- Integration scopes are an explicit workspace allowlist. No selected scopes means no provider resources are accessible.
+- Notification preferences are sparse member overrides. The effective value comes from the stored override when present and otherwise from the provider event's registry default.
+- Generate product identifiers as UUIDv7 strings in application code. Do not add database-side UUID generation.
+- Provider configuration JSON must contain only non-secret values. Integration-account and notification-channel credentials must use the versioned AES-256-GCM envelope from the API security boundary.
+- Allocate integration-account and notification-channel IDs before encryption because the record ID is authenticated as part of each credential envelope.
+- Disconnection clears encrypted credentials and retains the connection record and activity history.
+- Repository methods must be tenant-scoped. Hash-based invitation acceptance and MCP-token resolution are the only lookup entry points that may begin without a workspace ID.
+
 ## Security
 
 - Secrets remain server-side and must never use `NEXT_PUBLIC_*` names.

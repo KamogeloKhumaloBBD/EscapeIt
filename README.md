@@ -1,6 +1,6 @@
 # Context Layer
 
-Context Layer is a pnpm monorepo containing an independently deployable Next.js frontend, Express API, and PostgreSQL infrastructure. Better Auth owns the current auth schema; Flyway is the only migration path.
+Context Layer is a pnpm monorepo containing an independently deployable Next.js frontend, Express API, and PostgreSQL infrastructure. Better Auth owns authentication, raw SQL repositories own product persistence, and Flyway is the only migration path.
 
 ## Requirements
 
@@ -33,6 +33,22 @@ apps/web       Next.js frontend
 apps/api       Express API
 packages/db    PostgreSQL utilities and Flyway SQL migrations
 ```
+
+## Data foundation
+
+Better Auth users may be signed in without a workspace. A later onboarding flow will either create a workspace with an owner membership or accept an invitation as a member. Each user can belong to only one workspace.
+
+The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
+
+- Providers are registered in API code using stable keys and capability metadata. Jira, Bitbucket, Confluence, and Teams are intended initial adapters, not database-level special cases.
+- Provider installation configuration is workspace-wide; member account credentials remain member-specific.
+- Notification-channel and provider credentials are stored only as authenticated AES-256-GCM envelopes.
+- Integration-account and channel IDs are allocated before encryption because each envelope is cryptographically bound to its record ID and purpose.
+- Provider scopes are deny-by-default: an empty allowlist grants no resource access.
+- Provider scope and event keys are namespaced, such as `jira.project` and `jira.issue.updated`, so new adapters do not require schema changes.
+- Notification preferences store only member overrides. When no override exists, the API uses the event's `defaultEnabled` value from the provider registry.
+- Invitation and MCP secrets are never stored, only their 32-byte SHA-256 hashes.
+- Product IDs are application-generated UUIDv7 strings.
 
 ## Commands
 
@@ -98,7 +114,7 @@ Run migrations explicitly before an application release containing new SQL:
 railway run --service Postgres pnpm db:railway:migrate
 ```
 
-The Postgres service must have an active TCP proxy and a `DATABASE_PUBLIC_URL` composed from that proxy plus Railway's `PGUSER`, `POSTGRES_PASSWORD`, and `PGDATABASE` references. The command passes that URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web.
+The Postgres service must have an active TCP proxy and a `DATABASE_PUBLIC_URL` composed from that proxy plus Railway's `PGUSER`, `POSTGRES_PASSWORD`, and `PGDATABASE` references. The command passes that URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web. Apply `V2__context_layer_foundation.sql` before deploying any API code that calls the product repositories.
 
 Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 
@@ -106,4 +122,4 @@ Railway health checks require the configured `PORT`. If web cannot reach Express
 
 Local PostgreSQL stores data in the `context_layer_postgres_data` named volume. Changing `POSTGRES_PORT` also requires updating the port in local `DATABASE_URL`.
 
-Production migrations are reviewed SQL files under `packages/db/migrations`, executed separately with Flyway credentials. The current migration creates only Better Auth core tables.
+Production migrations are reviewed SQL files under `packages/db/migrations`, executed separately with Flyway credentials. V1 creates Better Auth's core tables; V2 adds the Context Layer tenancy and integration foundation. This repository does not run either migration during application startup.
