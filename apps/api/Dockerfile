@@ -6,7 +6,7 @@ FROM base AS build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
 COPY apps/api apps/api
-COPY packages/db packages/db
+COPY packages packages
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @context-layer/api... build
 RUN pnpm --filter @context-layer/api deploy --prod /prod/api

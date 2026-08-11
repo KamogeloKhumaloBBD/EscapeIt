@@ -6,6 +6,11 @@ const optionalCredential = z.preprocess(
   z.string().min(1).optional(),
 );
 
+const emailSender = z.string().trim().refine(isEmailSender, {
+  message:
+    "AUTH_EMAIL_FROM must be an email address or a name followed by an email address in angle brackets.",
+});
+
 const apiEnvironmentSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(4_000),
   BETTER_AUTH_SECRET: z.string().min(32),
@@ -16,7 +21,7 @@ const apiEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "production"]).default("development"),
   PUBLIC_APP_URL: z.url(),
   PORT: z.coerce.number().int().min(1).max(65_535).optional(),
-  AUTH_EMAIL_FROM: z.string().min(1),
+  AUTH_EMAIL_FROM: emailSender,
   RESEND_API_KEY: z.string().min(1),
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
@@ -50,6 +55,13 @@ function isThirtyTwoByteBase64(value: string): boolean {
   const normalizedOutput = decoded.toString("base64").replace(/=+$/, "");
 
   return decoded.byteLength === 32 && normalizedInput === normalizedOutput;
+}
+
+function isEmailSender(value: string): boolean {
+  const namedAddress = /^[^<>\r\n]+\s+<([^<>\s]+)>$/.exec(value);
+  const address = namedAddress?.[1] ?? value;
+
+  return z.email().safeParse(address).success;
 }
 
 export function parseApiConfig(

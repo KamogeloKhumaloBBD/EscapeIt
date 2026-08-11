@@ -24,11 +24,13 @@ function SubmitButton({
   );
 }
 
-export function SignInForm() {
+export function SignInForm({ returnTo }: { returnTo: string | null }) {
   const [state, formAction, isPending] = useActionState(
     signInAction,
-    initialSignInState,
-    "/sign-in",
+    { ...initialSignInState, returnTo },
+    returnTo === null
+      ? "/sign-in"
+      : `/sign-in?returnTo=${encodeURIComponent(returnTo)}`,
   );
 
   useEffect(() => {
@@ -55,6 +57,7 @@ export function SignInForm() {
       >
         <input name="intent" type="hidden" value="verify-code" />
         <input name="email" type="hidden" value={state.email} />
+        <input name="returnTo" type="hidden" value={state.returnTo ?? ""} />
 
         <div className="space-y-2">
           <label htmlFor="code" className="text-sm font-medium">
@@ -97,7 +100,11 @@ export function SignInForm() {
           <SubmitButton label="Sign in" pendingLabel="Signing in..." />
           <a
             className="block w-full text-center text-sm text-[#68635a] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
-            href="/sign-in"
+            href={
+              state.returnTo === null
+                ? "/sign-in"
+                : `/sign-in?returnTo=${encodeURIComponent(state.returnTo)}`
+            }
           >
             Use a different email
           </a>
@@ -109,6 +116,7 @@ export function SignInForm() {
   return (
     <form action={formAction} aria-busy={isPending} className="mt-10 space-y-5">
       <input name="intent" type="hidden" value="request-code" />
+      <input name="returnTo" type="hidden" value={returnTo ?? ""} />
 
       <div className="space-y-2">
         <label htmlFor="email" className="text-sm font-medium">

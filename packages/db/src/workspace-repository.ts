@@ -10,6 +10,7 @@ import { RepositoryError } from "./repository-errors";
 import {
   createProductId,
   normalizeEmail,
+  requireMembership,
   requireOwner,
   requireReturnedRow,
   requireSha256Digest,
@@ -39,6 +40,7 @@ export interface WorkspaceOverview extends CurrentWorkspace {
 }
 
 export interface CreateInvitationInput {
+  correlationId: string;
   email: string;
   expiresAt: Date;
   invitedByMembershipId: string;
@@ -47,8 +49,22 @@ export interface CreateInvitationInput {
 }
 
 export interface AcceptInvitationInput {
+  correlationId: string;
   tokenHash: Uint8Array;
   userId: string;
+}
+
+export interface WorkspaceMemberSummary {
+  email: string;
+  joinedAt: Date;
+  membershipId: string;
+  name: string;
+  role: WorkspaceMembership["role"];
+}
+
+export interface WorkspaceInvitationPreview extends WorkspaceInvitation {
+  inviterName: string;
+  workspaceName: string;
 }
 
 export async function createWorkspaceForUser(
@@ -321,6 +337,17 @@ export async function createWorkspaceInvitation(
       );
     }
 
+    await transaction`
+      update workspace_invitations
+      set "revokedAt" = now()
+      where
+        "workspaceId" = ${input.workspaceId}
+        and "normalizedEmail" = ${normalizedEmail}
+        and "acceptedAt" is null
+        and "revokedAt" is null
+        and "expiresAt" <= now()
+    `;
+
     const invitations = await transaction<WorkspaceInvitation[]>`
       insert into workspace_invitations (
         id,
@@ -337,6 +364,7 @@ export async function createWorkspaceInvitation(
         ${input.invitedByMembershipId},
         ${input.expiresAt}
       )
+      on conflict do nothing
       returning
         id,
         "workspaceId",
@@ -349,8 +377,119 @@ export async function createWorkspaceInvitation(
         "createdAt"
     `;
 
-    return requireReturnedRow(invitations[0]);
+    if (invitations[0] === undefined) {
+      throw new RepositoryError(
+        "conflict",
+        "A pending invitation already exists for this email address.",
+      );
+    }
+
+    await transaction`
+      insert into activity_events (
+        id,
+        "workspaceId",
+        "actorMembershipId",
+        "correlationId",
+        category,
+        status,
+        operation,
+        summary
+      ) values (
+        ${createProductId()},
+        ${input.workspaceId},
+        ${input.invitedByMembershipId},
+        ${input.correlationId},
+        'workspace',
+        'succeeded',
+        'workspace.invitation.create',
+        'Workspace invitation created'
+      )
+    `;
+
+    return invitations[0];
   });
+}
+
+export async function listWorkspaceMembers(
+  database: DatabaseClient,
+  workspaceId: string,
+  membershipId: string,
+): Promise<WorkspaceMemberSummary[]> {
+  await requireMembership(database, workspaceId, membershipId);
+
+  return database<WorkspaceMemberSummary[]>`
+    select
+      membership.id as "membershipId",
+      membership.role,
+      membership."createdAt" as "joinedAt",
+      users.name,
+      users.email
+    from workspace_memberships membership
+    join users on users.id = membership."userId"
+    where membership."workspaceId" = ${workspaceId}
+    order by
+      case when membership.role = 'owner' then 0 else 1 end,
+      lower(users.name),
+      membership.id
+  `;
+}
+
+export async function listPendingWorkspaceInvitations(
+  database: DatabaseClient,
+  workspaceId: string,
+  ownerMembershipId: string,
+): Promise<WorkspaceInvitation[]> {
+  await requireOwner(database, workspaceId, ownerMembershipId);
+
+  return database<WorkspaceInvitation[]>`
+    select
+      id,
+      "workspaceId",
+      "normalizedEmail",
+      "invitedByMembershipId",
+      "acceptedByMembershipId",
+      "expiresAt",
+      "acceptedAt",
+      "revokedAt",
+      "createdAt"
+    from workspace_invitations
+    where
+      "workspaceId" = ${workspaceId}
+      and "acceptedAt" is null
+      and "revokedAt" is null
+      and "expiresAt" > now()
+    order by "createdAt" desc, id desc
+  `;
+}
+
+export async function findWorkspaceInvitationByToken(
+  database: DatabaseClient,
+  tokenHash: Uint8Array,
+): Promise<WorkspaceInvitationPreview | null> {
+  const digest = requireSha256Digest(tokenHash);
+  const rows = await database<WorkspaceInvitationPreview[]>`
+    select
+      invitation.id,
+      invitation."workspaceId",
+      invitation."normalizedEmail",
+      invitation."invitedByMembershipId",
+      invitation."acceptedByMembershipId",
+      invitation."expiresAt",
+      invitation."acceptedAt",
+      invitation."revokedAt",
+      invitation."createdAt",
+      workspace.name as "workspaceName",
+      inviter.name as "inviterName"
+    from workspace_invitations invitation
+    join workspaces workspace on workspace.id = invitation."workspaceId"
+    join workspace_memberships inviter_membership
+      on inviter_membership.id = invitation."invitedByMembershipId"
+      and inviter_membership."workspaceId" = invitation."workspaceId"
+    join users inviter on inviter.id = inviter_membership."userId"
+    where invitation."tokenHash" = ${digest}
+  `;
+
+  return rows[0] ?? null;
 }
 
 export async function revokeWorkspaceInvitation(
@@ -358,6 +497,7 @@ export async function revokeWorkspaceInvitation(
   workspaceId: string,
   invitationId: string,
   ownerMembershipId: string,
+  correlationId: string,
 ): Promise<boolean> {
   return withTransaction(database, async (transaction) => {
     await requireOwner(transaction, workspaceId, ownerMembershipId);
@@ -372,7 +512,72 @@ export async function revokeWorkspaceInvitation(
       returning id
     `;
 
+    if (rows[0] !== undefined) {
+      await transaction`
+        insert into activity_events (
+          id,
+          "workspaceId",
+          "actorMembershipId",
+          "correlationId",
+          category,
+          status,
+          operation,
+          summary
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${ownerMembershipId},
+          ${correlationId},
+          'workspace',
+          'succeeded',
+          'workspace.invitation.revoke',
+          'Workspace invitation revoked'
+        )
+      `;
+    }
+
     return rows[0] !== undefined;
+  });
+}
+
+export async function markWorkspaceInvitationDeliveryFailed(
+  database: DatabaseClient,
+  workspaceId: string,
+  invitationId: string,
+  ownerMembershipId: string,
+  correlationId: string,
+): Promise<void> {
+  await withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    await transaction`
+      update workspace_invitations
+      set "revokedAt" = coalesce("revokedAt", now())
+      where
+        id = ${invitationId}
+        and "workspaceId" = ${workspaceId}
+        and "acceptedAt" is null
+    `;
+    await transaction`
+      insert into activity_events (
+        id,
+        "workspaceId",
+        "actorMembershipId",
+        "correlationId",
+        category,
+        status,
+        operation,
+        summary
+      ) values (
+        ${createProductId()},
+        ${workspaceId},
+        ${ownerMembershipId},
+        ${correlationId},
+        'workspace',
+        'failed',
+        'workspace.invitation.delivery',
+        'Workspace invitation delivery failed'
+      )
+    `;
   });
 }
 
@@ -475,6 +680,30 @@ export async function acceptWorkspaceInvitation(
         and "normalizedEmail" = ${invitation.normalizedEmail}
         and "acceptedAt" is null
         and "revokedAt" is null
+    `;
+
+    await transaction`
+      insert into activity_events (
+        id,
+        "workspaceId",
+        "actorMembershipId",
+        "subjectMembershipId",
+        "correlationId",
+        category,
+        status,
+        operation,
+        summary
+      ) values (
+        ${createProductId()},
+        ${invitation.workspaceId},
+        ${membershipId},
+        ${membershipId},
+        ${input.correlationId},
+        'workspace',
+        'succeeded',
+        'workspace.invitation.accept',
+        'Workspace invitation accepted'
+      )
     `;
 
     return requireReturnedRow(memberships[0]);

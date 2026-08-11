@@ -1,30 +1,36 @@
 import {
   appendActivityEvent,
+  acceptWorkspaceInvitation,
   checkDatabaseReadiness,
   configureIntegration,
   createDatabaseConnection,
   createWorkspaceForUser,
+  createWorkspaceInvitation,
   disconnectIntegrationAccount,
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   listIntegrationScopes,
+  listPendingWorkspaceInvitations,
+  listWorkspaceMembers,
   listWorkspaceIntegrations,
   markIntegrationAccountValidated,
+  markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
   parseProviderKey,
   parseScopeKey,
   replaceIntegrationAccountCredentials,
   replaceIntegrationScopes,
+  revokeWorkspaceInvitation,
   saveIntegrationAccount,
   type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { Router } from "express";
-import pino from "pino";
 
 import { createApp } from "./app";
 import { createAuth } from "./auth";
@@ -36,8 +42,15 @@ import {
 } from "./features/integrations/integration.service";
 import { createWorkspaceRouter } from "./features/workspaces/workspace.routes";
 import { createWorkspaceService } from "./features/workspaces/workspace.service";
+import { createInvitationEmailSender } from "./features/members/invitation-email";
+import { createMemberRouter } from "./features/members/member.routes";
+import {
+  createMemberService,
+  type MemberServiceDependencies,
+} from "./features/members/member.service";
 import { createRequireAuthentication } from "./http/authentication";
 import { createJiraAdapter } from "./integrations/jira-adapter";
+import { createLogger } from "./logging";
 import {
   createProviderRegistry,
   type ProviderDefinition,
@@ -45,12 +58,19 @@ import {
 import { createCredentialEncryption } from "./security/credential-encryption";
 
 const config = parseApiConfig(process.env);
-const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
+const logger = createLogger(process.env.LOG_LEVEL ?? "info");
+
+if (/@resend\.dev(?:>|$)/i.test(config.authEmailFrom)) {
+  logger.warn(
+    "The Resend test sender can deliver only to the email address associated with the Resend account",
+  );
+}
 const connection = createDatabaseConnection(config.database);
 const authService = createAuth({
   authEmailFrom: config.authEmailFrom,
   baseUrl: config.betterAuthUrl,
   databaseUrl: config.database.url,
+  logger,
   resendApiKey: config.resendApiKey,
   secret: config.betterAuthSecret,
   trustedOrigins: [config.publicAppUrl],
@@ -120,6 +140,59 @@ const workspaceRepository = {
     getWorkspaceOverviewForUser(connection.client, userId, 5),
 };
 const workspaceService = createWorkspaceService(workspaceRepository);
+const memberRepository: MemberServiceDependencies["repository"] = {
+  acceptInvitation: (input) =>
+    acceptWorkspaceInvitation(connection.client, input),
+  createInvitation: (input) =>
+    createWorkspaceInvitation(connection.client, input),
+  findCurrentWorkspace: (userId) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  findInvitation: (tokenHash) =>
+    findWorkspaceInvitationByToken(connection.client, tokenHash),
+  listMembers: (workspaceId, membershipId) =>
+    listWorkspaceMembers(connection.client, workspaceId, membershipId),
+  listPendingInvitations: (workspaceId, ownerMembershipId) =>
+    listPendingWorkspaceInvitations(
+      connection.client,
+      workspaceId,
+      ownerMembershipId,
+    ),
+  markDeliveryFailed: (
+    workspaceId,
+    invitationId,
+    ownerMembershipId,
+    correlationId,
+  ) =>
+    markWorkspaceInvitationDeliveryFailed(
+      connection.client,
+      workspaceId,
+      invitationId,
+      ownerMembershipId,
+      correlationId,
+    ),
+  revokeInvitation: (
+    workspaceId,
+    invitationId,
+    ownerMembershipId,
+    correlationId,
+  ) =>
+    revokeWorkspaceInvitation(
+      connection.client,
+      workspaceId,
+      invitationId,
+      ownerMembershipId,
+      correlationId,
+    ),
+};
+const memberService = createMemberService({
+  emailSender: createInvitationEmailSender({
+    from: config.authEmailFrom,
+    logger,
+    resendApiKey: config.resendApiKey,
+  }),
+  publicAppUrl: config.publicAppUrl,
+  repository: memberRepository,
+});
 const integrationRepository: IntegrationServiceDependencies["repository"] = {
   appendActivity: (input: Parameters<typeof appendActivityEvent>[1]) =>
     appendActivityEvent(connection.client, input),
@@ -218,6 +291,9 @@ const apiRouter = Router();
 apiRouter.use(
   "/workspaces",
   createWorkspaceRouter({ requireAuthentication, service: workspaceService }),
+);
+apiRouter.use(
+  createMemberRouter({ requireAuthentication, service: memberService }),
 );
 apiRouter.use(
   "/integrations",

@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,7 +96,7 @@ export default async function IntegrationDetailPage({
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 pb-24 pt-10 lg:px-10 lg:pt-14">
+    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8 sm:px-7 lg:px-10 lg:pt-10">
       <OAuthNotice result={query.oauth} />
       <Button asChild size="sm" variant="ghost">
         <Link href="/integrations">
@@ -104,38 +105,70 @@ export default async function IntegrationDetailPage({
         </Link>
       </Button>
 
-      <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex size-12 items-center justify-center bg-primary/10 font-heading text-lg font-semibold text-primary">
-            {integration.displayName.slice(0, 1)}
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-4xl font-semibold tracking-[-0.055em]">
-                {integration.displayName}
-              </h1>
-              <Badge
-                variant={
-                  integration.attention === null ? "secondary" : "destructive"
-                }
-              >
-                {integration.nextStep === "ready" ? "Ready" : "Setup required"}
-              </Badge>
+      <section className="relative mt-6 overflow-hidden border border-border bg-card p-6 sm:p-8">
+        <div className="absolute -right-24 -top-32 size-80 rounded-full bg-primary/8 blur-3xl" />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-5">
+            <ProviderMark
+              displayName={integration.displayName}
+              provider={provider}
+              size="lg"
+            />
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-4xl font-semibold tracking-[-0.055em]">
+                  {integration.displayName}
+                </h1>
+                <Badge
+                  variant={
+                    integration.attention === null ? "secondary" : "destructive"
+                  }
+                >
+                  {integration.nextStep === "ready"
+                    ? "Ready"
+                    : "Setup required"}
+                </Badge>
+              </div>
+              <p className="mt-3 max-w-2xl leading-6 text-muted-foreground">
+                {integration.description}
+              </p>
             </div>
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              {integration.description}
-            </p>
           </div>
+          {integration.currentAccount?.status === "connected" ? (
+            <SimpleIntegrationAction
+              intent="validate"
+              label="Validate connection"
+              pendingLabel="Validating..."
+              provider={provider}
+            />
+          ) : null}
         </div>
-        {integration.currentAccount?.status === "connected" ? (
-          <SimpleIntegrationAction
-            intent="validate"
-            label="Validate"
-            pendingLabel="Validating..."
-            provider={provider}
-          />
-        ) : null}
-      </div>
+        <dl className="relative mt-8 grid overflow-hidden border border-border bg-muted/28 sm:grid-cols-3">
+          {[
+            [
+              "Account",
+              integration.currentAccount?.status === "connected"
+                ? "Connected"
+                : "Not connected",
+            ],
+            [
+              "Workspace resource",
+              integration.installation?.resource?.name ?? "Not selected",
+            ],
+            ["Allowed projects", String(integration.selectedScopes.length)],
+          ].map(([label, value], index) => (
+            <div
+              className={`min-w-0 px-4 py-3.5 ${index > 0 ? "border-t sm:border-l sm:border-t-0" : ""}`}
+              key={label}
+            >
+              <dt className="text-[0.6875rem] font-medium text-muted-foreground">
+                {label}
+              </dt>
+              <dd className="mt-1 truncate text-sm font-semibold">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {integration.attention !== null ? (
         <Alert className="mt-8" variant="destructive">
@@ -145,8 +178,12 @@ export default async function IntegrationDetailPage({
         </Alert>
       ) : null}
 
-      <div className="mt-10 space-y-6">
-        <Card>
+      <div className="relative mt-10 space-y-6 md:pl-14">
+        <div className="flow-rail absolute bottom-16 left-5 top-12 hidden w-px md:block" />
+        <Card className="relative overflow-visible">
+          <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+            01
+          </span>
           <CardHeader>
             <CardTitle>Your Atlassian account</CardTitle>
             <CardDescription>
@@ -227,7 +264,10 @@ export default async function IntegrationDetailPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-visible">
+          <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+            02
+          </span>
           <CardHeader>
             <CardTitle>Workspace Jira site</CardTitle>
             <CardDescription>
@@ -301,7 +341,7 @@ export default async function IntegrationDetailPage({
           </CardContent>
           {integration.permissions.canManageInstallation &&
           integration.installation !== null ? (
-            <CardFooter className="border-t justify-between gap-6">
+            <CardFooter className="flex-col items-start justify-between gap-5 border-t sm:flex-row sm:items-center">
               <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
                 Disconnecting clears member credentials and project access while
                 preserving activity history.
@@ -311,7 +351,10 @@ export default async function IntegrationDetailPage({
           ) : null}
         </Card>
 
-        <Card>
+        <Card className="relative overflow-visible">
+          <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+            03
+          </span>
           <CardHeader>
             <CardTitle>Allowed Jira projects</CardTitle>
             <CardDescription>

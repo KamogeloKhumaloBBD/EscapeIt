@@ -5,6 +5,7 @@
 - `apps/web` is the Next.js frontend. It must call the backend through `/api` and must never import `@context-layer/db`.
 - `apps/api` is the independently deployable Express backend and owns every HTTP API, authentication handler, MCP endpoint, webhook, and notification operation.
 - `packages/db` owns PostgreSQL connectivity and future Flyway SQL migrations. It must not import either application.
+- `packages/email` owns shared React Email templates. Email senders must compose these templates instead of embedding feature-specific HTML or text bodies.
 - Use pnpm for all dependency and script operations. Do not use npm or yarn to modify this repository.
 
 ## Development workflow
@@ -62,6 +63,7 @@
 - A Better Auth user may have no workspace and may belong to at most one workspace. Authentication must not create a workspace implicitly.
 - Workspace creation must atomically create one owner membership. Roles are limited to `owner` and `member`.
 - Invitation tokens and MCP tokens are persisted only as SHA-256 hashes. Invitation acceptance must match the signed-in user's normalized email and revoke that email's other pending invitations.
+- Invitation links expire after seven days. Only owners may create, list, or revoke invitations; every member may view the workspace roster. Never include raw invitation tokens in API logs or persistence.
 - A workspace has at most one installation for each provider. Individual provider identities and credentials belong to `integration_accounts`, not the shared installation.
 - Providers are code-defined through the API registry. Use validated provider keys and namespaced scope/event keys; do not add provider-specific database enums, tables, routes, or UI branches when the registry or adapter boundary is sufficient.
 - Initial providers such as Jira, Bitbucket, Confluence, and Teams are adapters, not architectural special cases. Adding an adapter should not require a database migration when it fits the existing capabilities.

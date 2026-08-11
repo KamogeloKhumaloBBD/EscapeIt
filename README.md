@@ -27,6 +27,7 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Onboarding: <http://localhost:3000/onboarding>
 - Dashboard: <http://localhost:3000/dashboard>
 - Integrations: <http://localhost:3000/integrations>
+- Members: <http://localhost:3000/members>
 
 The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
 
@@ -35,14 +36,15 @@ The browser uses relative `/api/*` paths. Next.js proxies them to the Express AP
 ```text
 apps/web       Next.js frontend
 apps/api       Express API
+packages/email Shared React Email templates
 packages/db    PostgreSQL utilities and Flyway SQL migrations
 ```
 
 ## Data foundation
 
-Better Auth users may be signed in without a workspace. The onboarding flow creates a workspace and its owner membership atomically; invitation acceptance will be added in a later slice. Each user can belong to only one workspace.
+Better Auth users may be signed in without a workspace. The onboarding flow creates a workspace and its owner membership atomically. Workspace owners can invite members by email from `/members`; recipients sign in passwordlessly and accept through the emailed link. Each user can belong to only one workspace.
 
-The Express workspace API exposes authenticated `GET /api/workspaces/current`, `POST /api/workspaces`, and `GET /api/workspaces/current/overview` endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly.
+The Express workspace API exposes authenticated workspace, member, and invitation endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly. Invitation links expire after seven days, only their SHA-256 hashes are stored, and the signed-in email must match before acceptance.
 
 The authenticated application uses a shared workspace shell. The dashboard derives setup progress, connection health, counts, and recent activity from real API data rather than frontend placeholders.
 
@@ -92,6 +94,7 @@ If both are absent, the core application still starts and Jira is omitted from t
 | `pnpm db:info`            | Inspect local Flyway state                    |
 | `pnpm verify`             | Check formatting, linting, types, and builds  |
 | `pnpm docker:build`       | Build both production application images      |
+| `pnpm email:dev`          | Preview shared email templates on port 3001   |
 
 Migrations never run during web or API startup. Product data is never seeded.
 
@@ -108,7 +111,10 @@ API:
 - `DATABASE_URL`, `DATABASE_SSL_MODE`
 - `PORT` in hosted environments, or `API_PORT` locally
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
-- `AUTH_EMAIL_FROM`, `RESEND_API_KEY`
+- `AUTH_EMAIL_FROM`, `RESEND_API_KEY` — use a sender on a domain verified in
+  Resend. The `resend.dev` test sender can deliver only to the email address on
+  your Resend account, so it cannot be used for workspace invitations to other
+  people.
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `PUBLIC_APP_URL`
 - Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`

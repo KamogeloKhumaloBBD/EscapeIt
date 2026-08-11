@@ -11,6 +11,7 @@ export interface SignInActionState {
   email: string;
   fieldErrors: SignInFieldErrors;
   message: string | null;
+  returnTo: string | null;
   status: SignInStatus;
   step: SignInStep;
 }
@@ -19,6 +20,7 @@ export const initialSignInState: SignInActionState = {
   email: "",
   fieldErrors: {},
   message: null,
+  returnTo: null,
   status: "idle",
   step: "email",
 };

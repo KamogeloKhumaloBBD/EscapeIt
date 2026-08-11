@@ -1,11 +1,14 @@
 import {
   ArrowRightIcon,
+  CheckCircleIcon,
+  CircleIcon,
   PlugsConnectedIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,23 +26,59 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemSeparator,
-  ItemTitle,
-} from "@/components/ui/item";
+import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { getIntegrationsState } from "@/lib/server/integration";
+import type { IntegrationSummary } from "@/lib/validation/integration";
 
 function actionLabel(nextStep: string): string {
   if (nextStep === "connect_provider") return "Connect";
   if (nextStep === "ready") return "Manage";
-  if (nextStep === "wait_for_owner") return "View";
+  if (nextStep === "wait_for_owner") return "View setup";
   return "Continue setup";
+}
+
+function statusLabel(integration: IntegrationSummary): string {
+  if (integration.attention !== null) return "Needs attention";
+  if (integration.nextStep === "ready") return "Ready";
+  if (integration.installation === null) return "Not connected";
+  return "Setup required";
+}
+
+function capabilityLabel(value: string): string {
+  return value
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function PipelineStep({
+  complete,
+  label,
+}: {
+  complete: boolean;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        {complete ? (
+          <CheckCircleIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-emerald-600"
+            weight="fill"
+          />
+        ) : (
+          <CircleIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted-foreground/55"
+          />
+        )}
+        <span className="truncate text-xs font-medium">{label}</span>
+      </div>
+      <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
+        {complete ? "Ready" : "Pending"}
+      </span>
+    </div>
+  );
 }
 
 export default async function IntegrationsPage() {
@@ -47,15 +86,15 @@ export default async function IntegrationsPage() {
 
   if (state.status === "anonymous") redirect("/sign-in");
 
+  const integrations = state.status === "available" ? state.data : [];
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 pb-24 pt-10 lg:px-10 lg:pt-14">
-      <Badge variant="secondary">Workspace</Badge>
-      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">
-        Integrations
-      </h1>
-      <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
-        Connect the tools where your team plans, builds, and shares knowledge.
-      </p>
+    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+      <WorkspacePageHeader
+        description="Connect and manage the tools that provide context to this workspace."
+        eyebrow="Context sources"
+        title="Integrations"
+      />
 
       {state.status !== "available" ? (
         <Alert className="mt-10" variant="destructive">
@@ -65,95 +104,119 @@ export default async function IntegrationsPage() {
             We couldn&apos;t load the provider catalogue. Refresh to try again.
           </AlertDescription>
         </Alert>
-      ) : (
+      ) : integrations.length === 0 ? (
         <Card className="mt-10">
-          <CardHeader>
-            <CardTitle id="available-heading">Available providers</CardTitle>
-            <CardDescription>
-              Providers enabled for this Context Layer deployment.
-            </CardDescription>
-          </CardHeader>
           <CardContent>
-            {state.data.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <PlugsConnectedIcon aria-hidden="true" />
-                  </EmptyMedia>
-                  <EmptyTitle>No providers configured</EmptyTitle>
-                  <EmptyDescription>
-                    Configure a provider on the API deployment to make it
-                    available here.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <ItemGroup
-                className="gap-0"
-                role="list"
-                aria-labelledby="available-heading"
-              >
-                {state.data.map((integration, index) => (
-                  <div key={integration.provider}>
-                    {index > 0 ? <ItemSeparator /> : null}
-                    <Item>
-                      <ItemMedia
-                        className="size-10 bg-primary/10 text-primary"
-                        variant="icon"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="font-heading text-sm font-semibold"
-                        >
-                          {integration.displayName.slice(0, 1)}
-                        </span>
-                      </ItemMedia>
-                      <ItemContent>
-                        <ItemTitle>
-                          {integration.displayName}
-                          <Badge
-                            variant={
-                              integration.attention === null
-                                ? "secondary"
-                                : "destructive"
-                            }
-                          >
-                            {integration.nextStep === "ready"
-                              ? "Ready"
-                              : integration.installation === null
-                                ? "Not connected"
-                                : "Setup required"}
-                          </Badge>
-                        </ItemTitle>
-                        <ItemDescription>
-                          {integration.description}
-                        </ItemDescription>
-                        <div className="mt-1 flex flex-wrap gap-3">
-                          {integration.capabilities.map((capability) => (
-                            <Badge key={capability} variant="ghost">
-                              {capability.replaceAll("-", " ")}
-                            </Badge>
-                          ))}
-                        </div>
-                      </ItemContent>
-                      <ItemActions>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/integrations/${integration.provider}`}>
-                            {actionLabel(integration.nextStep)}
-                            <ArrowRightIcon
-                              aria-hidden="true"
-                              data-icon="inline-end"
-                            />
-                          </Link>
-                        </Button>
-                      </ItemActions>
-                    </Item>
-                  </div>
-                ))}
-              </ItemGroup>
-            )}
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <PlugsConnectedIcon aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>No providers configured</EmptyTitle>
+                <EmptyDescription>
+                  Configure a provider on the API deployment to make it
+                  available here.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </CardContent>
         </Card>
+      ) : (
+        <section
+          aria-label="Available integrations"
+          className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          {integrations.map((integration) => {
+            const accountConnected =
+              integration.currentAccount?.status === "connected";
+            const resourceSelected =
+              integration.installation?.resource !== null &&
+              integration.installation?.resource !== undefined;
+            const scopesSelected =
+              (integration.installation?.selectedScopeCount ?? 0) > 0;
+
+            return (
+              <Card
+                className="group h-full shadow-none transition-colors hover:border-primary/35 hover:bg-primary/[0.025]"
+                key={integration.provider}
+              >
+                <CardHeader className="border-b border-border pb-5">
+                  <div className="flex items-start gap-4">
+                    <ProviderMark
+                      displayName={integration.displayName}
+                      provider={integration.provider}
+                      size="md"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardTitle className="text-xl">
+                          {integration.displayName}
+                        </CardTitle>
+                        <Badge
+                          variant={
+                            integration.attention === null
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {statusLabel(integration)}
+                        </Badge>
+                      </div>
+                      <CardDescription className="mt-2 line-clamp-2">
+                        {integration.description}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="flex flex-1 flex-col">
+                  <div className="flex flex-wrap gap-1.5">
+                    {integration.capabilities.map((capability) => (
+                      <Badge key={capability} variant="secondary">
+                        {capabilityLabel(capability)}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 divide-y divide-border border-y border-border">
+                    <PipelineStep
+                      complete={accountConnected}
+                      label="Your account"
+                    />
+                    <PipelineStep
+                      complete={resourceSelected}
+                      label="Workspace resource"
+                    />
+                    <PipelineStep
+                      complete={scopesSelected}
+                      label="Allowed scopes"
+                    />
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-between gap-4">
+                    <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
+                      {integration.installation?.selectedScopeCount ?? 0} scopes
+                    </span>
+                    <Button
+                      asChild
+                      variant={
+                        integration.nextStep === "ready" ? "outline" : "default"
+                      }
+                    >
+                      <Link href={`/integrations/${integration.provider}`}>
+                        {actionLabel(integration.nextStep)}
+                        <ArrowRightIcon
+                          aria-hidden="true"
+                          data-icon="inline-end"
+                        />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </section>
       )}
     </main>
   );

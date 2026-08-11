@@ -1,12 +1,15 @@
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
 import { Pool } from "pg";
+import type { Logger } from "pino";
 import { Resend } from "resend";
+import { signInCodeEmail } from "@context-layer/email";
 
 export interface AuthConfig {
   authEmailFrom: string;
   baseUrl: string;
   databaseUrl: string;
+  logger: Pick<Logger, "warn">;
   resendApiKey: string;
   secret: string;
   trustedOrigins: string[];
@@ -16,6 +19,7 @@ export function createAuth({
   authEmailFrom,
   baseUrl,
   databaseUrl,
+  logger,
   resendApiKey,
   secret,
   trustedOrigins,
@@ -43,12 +47,21 @@ export function createAuth({
 
             const { error } = await resend.emails.send({
               from: authEmailFrom,
+              react: signInCodeEmail({ otp }),
               to: email,
               subject: "Your Context Layer sign-in code",
-              text: `Your Context Layer sign-in code is ${otp}. This code expires in 5 minutes.`,
             });
 
             if (error !== null) {
+              logger.warn(
+                {
+                  providerError: {
+                    name: error.name,
+                    statusCode: error.statusCode,
+                  },
+                },
+                "Resend rejected a sign-in code email",
+              );
               throw new Error("Unable to send sign-in code.");
             }
           },

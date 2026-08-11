@@ -1,16 +1,16 @@
 "use client";
 
 import {
+  CirclesFourIcon,
   HouseIcon,
   PlugsConnectedIcon,
-  UserCircleIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutForm } from "@/components/auth/sign-out-form";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,14 +19,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -51,6 +43,7 @@ const navigation = [
     icon: PlugsConnectedIcon,
     label: "Integrations",
   },
+  { href: "/members", icon: UsersThreeIcon, label: "Members" },
 ] as const;
 
 function WorkspaceBreadcrumbs() {
@@ -80,7 +73,11 @@ function WorkspaceBreadcrumbs() {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbPage>
-            {pathname.startsWith("/integrations") ? "Integrations" : "Overview"}
+            {pathname.startsWith("/integrations")
+              ? "Integrations"
+              : pathname.startsWith("/members")
+                ? "Members"
+                : "Overview"}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -100,7 +97,12 @@ function WorkspaceNavigation() {
 
         return (
           <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+            <SidebarMenuButton
+              asChild
+              className="relative h-10 rounded-none border border-transparent px-3 data-[active=true]:border-sidebar-border data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:before:absolute data-[active=true]:before:inset-y-0 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:bg-primary"
+              isActive={active}
+              tooltip={item.label}
+            >
               <Link aria-current={active ? "page" : undefined} href={item.href}>
                 <Icon aria-hidden="true" weight={active ? "fill" : "regular"} />
                 <span>{item.label}</span>
@@ -125,16 +127,21 @@ export function WorkspaceShell({
   return (
     <SidebarProvider defaultOpen={defaultSidebarOpen}>
       <Sidebar collapsible="icon">
-        <SidebarHeader>
+        <SidebarHeader className="px-3 py-4">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Context Layer">
                 <Link href="/">
-                  <span className="flex size-8 items-center justify-center bg-primary text-xs font-semibold text-primary-foreground">
-                    CL
+                  <span className="relative flex size-9 items-center justify-center bg-foreground text-background">
+                    <CirclesFourIcon
+                      aria-hidden="true"
+                      className="size-5"
+                      weight="fill"
+                    />
+                    <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar bg-primary" />
                   </span>
-                  <span className="font-heading text-sm font-semibold tracking-wider uppercase">
-                    Context Layer
+                  <span className="font-heading text-sm font-semibold tracking-[-0.025em]">
+                    Context layer
                   </span>
                 </Link>
               </SidebarMenuButton>
@@ -142,8 +149,8 @@ export function WorkspaceShell({
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel className="truncate">
+          <SidebarGroup className="px-3 pt-5">
+            <SidebarGroupLabel className="mb-2 truncate text-[0.6875rem] tracking-wide">
               {workspaceName}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -152,41 +159,17 @@ export function WorkspaceShell({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <p className="px-2 text-xs leading-relaxed text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-            Context follows your work, not the other way around.
-          </p>
+          <div className="p-1">
+            <SignOutForm />
+          </div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset>
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur md:px-6">
+      <SidebarInset className="workspace-canvas">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/70 bg-background/78 px-4 backdrop-blur-xl md:px-7">
           <SidebarTrigger />
           <WorkspaceBreadcrumbs />
-          <div className="ml-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  aria-label="Open account menu"
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <Avatar size="sm">
-                    <AvatarFallback>
-                      <UserCircleIcon aria-hidden="true" />
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={8}>
-                <DropdownMenuLabel>Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="p-1">
-                  <SignOutForm />
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </header>
         {children}
       </SidebarInset>

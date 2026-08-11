@@ -21,6 +21,7 @@
     "dev:full": "pnpm db:up && concurrently --kill-others-on-fail --names api,web --prefix-colors magenta,cyan \"pnpm dev:api\" \"pnpm dev:web\"",
     "dev:web": "dotenv -e .env -- pnpm --filter @context-layer/web dev",
     "docker:build": "docker build -f apps/api/Dockerfile -t context-layer-api . && docker build -f apps/web/Dockerfile -t context-layer-web .",
+    "email:dev": "pnpm --filter @context-layer/email dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

@@ -9,6 +9,8 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ProviderMark } from "@/components/integrations/provider-mark";
+import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,47 +124,47 @@ export default async function DashboardPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 pb-24 pt-10 lg:px-10 lg:pt-14">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <Badge variant="secondary">{overview.role} workspace</Badge>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">
-            {overview.name}
-          </h1>
-          <p className="mt-3 text-muted-foreground">
-            Your connected tools and context, in one place.
-          </p>
-        </div>
-        {jira !== undefined && jira.nextStep !== "ready" ? (
-          <Button asChild>
-            <Link href="/integrations/jira">
-              {jira.nextStep === "connect_provider"
-                ? "Connect Jira"
-                : "Continue setup"}
-              <ArrowRightIcon aria-hidden="true" data-icon="inline-end" />
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+      <WorkspacePageHeader
+        action={
+          jira !== undefined && jira.nextStep !== "ready" ? (
+            <Button asChild>
+              <Link href="/integrations/jira">
+                {jira.nextStep === "connect_provider"
+                  ? "Connect Jira"
+                  : "Continue setup"}
+                <ArrowRightIcon aria-hidden="true" data-icon="inline-end" />
+              </Link>
+            </Button>
+          ) : undefined
+        }
+        description="Your connected tools, governed context, and workspace activity in one place."
+        eyebrow={`${overview.role} workspace`}
+        title={overview.name}
+      />
 
       <section
         aria-label="Workspace summary"
-        className="mt-10 grid gap-4 sm:grid-cols-3"
+        className="mt-10 overflow-hidden border border-border bg-card"
       >
-        {[
-          ["Members", overview.memberCount],
-          ["Connected integrations", overview.connectedIntegrationCount],
-          ["Active MCP tokens", overview.activeMcpTokenCount],
-        ].map(([label, value]) => (
-          <Card key={label} size="sm">
-            <CardHeader>
-              <CardDescription>{label}</CardDescription>
-              <CardTitle className="text-3xl tracking-tight normal-case">
+        <div className="grid sm:grid-cols-3">
+          {[
+            ["Members", overview.memberCount],
+            ["Connected integrations", overview.connectedIntegrationCount],
+            ["Active MCP tokens", overview.activeMcpTokenCount],
+          ].map(([label, value], index) => (
+            <div
+              className={`relative px-6 py-5 ${index > 0 ? "border-t sm:border-l sm:border-t-0" : ""}`}
+              key={label}
+            >
+              <div className="absolute left-6 top-0 h-px w-10 bg-primary sm:left-0 sm:top-6 sm:h-10 sm:w-px" />
+              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="mt-2 font-mono text-3xl font-medium tracking-[-0.04em] tabular-nums">
                 {value}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
+              </p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {attention.length > 0 ? (
@@ -176,7 +178,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {!setupComplete && setupSteps.length > 0 ? (
-        <Card className="mt-10 max-w-3xl">
+        <Card className="mt-10 max-w-4xl">
           <CardHeader>
             <CardTitle id="setup-heading">
               Build your first context source
@@ -195,35 +197,58 @@ export default async function DashboardPage() {
               aria-labelledby="setup-heading"
               value={(completedSteps / setupSteps.length) * 100}
             />
-            <ItemGroup className="mt-6 gap-1">
-              {setupSteps.map((step) => (
-                <Item key={step.label} size="sm" variant="muted">
-                  <ItemMedia variant="icon">
-                    {step.complete ? (
-                      <CheckCircleIcon
-                        aria-hidden="true"
-                        className="text-emerald-600"
-                        weight="fill"
-                      />
-                    ) : (
-                      <CircleIcon
-                        aria-hidden="true"
-                        className="text-muted-foreground"
-                      />
-                    )}
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle
-                      className={
-                        step.complete ? "text-muted-foreground" : undefined
-                      }
+            <div className="relative mt-7">
+              <div className="flow-rail absolute bottom-5 left-[1.18rem] top-5 w-px" />
+              <ItemGroup className="relative gap-3">
+                {setupSteps.map((step, index) => (
+                  <Item
+                    className="bg-card"
+                    key={step.label}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <ItemMedia
+                      className="z-10 grid size-8 place-items-center border border-border bg-card"
+                      variant="icon"
                     >
-                      {step.label}
-                    </ItemTitle>
-                  </ItemContent>
-                </Item>
-              ))}
-            </ItemGroup>
+                      {step.complete ? (
+                        <CheckCircleIcon
+                          aria-hidden="true"
+                          className="text-emerald-600"
+                          weight="fill"
+                        />
+                      ) : (
+                        <CircleIcon
+                          aria-hidden="true"
+                          className="text-muted-foreground"
+                        />
+                      )}
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle
+                        className={
+                          step.complete ? "text-muted-foreground" : undefined
+                        }
+                      >
+                        {step.label}
+                      </ItemTitle>
+                      <ItemDescription>
+                        {step.complete
+                          ? "Complete"
+                          : index === completedSteps
+                            ? "Your next step"
+                            : "Waiting for the previous step"}
+                      </ItemDescription>
+                    </ItemContent>
+                    {!step.complete && index === completedSteps ? (
+                      <ItemActions>
+                        <Badge>Next</Badge>
+                      </ItemActions>
+                    ) : null}
+                  </Item>
+                ))}
+              </ItemGroup>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -259,8 +284,15 @@ export default async function DashboardPage() {
                 {integrations.map((integration, index) => (
                   <div key={integration.provider}>
                     {index > 0 ? <ItemSeparator /> : null}
-                    <Item asChild>
+                    <Item asChild className="border-0 py-4">
                       <Link href={`/integrations/${integration.provider}`}>
+                        <ItemMedia>
+                          <ProviderMark
+                            displayName={integration.displayName}
+                            provider={integration.provider}
+                            size="md"
+                          />
+                        </ItemMedia>
                         <ItemContent>
                           <ItemTitle>
                             {integration.displayName}
@@ -318,20 +350,26 @@ export default async function DashboardPage() {
                 </EmptyHeader>
               </Empty>
             ) : (
-              <ItemGroup className="gap-0">
+              <ItemGroup className="relative gap-0">
+                <div className="absolute bottom-7 left-[1.45rem] top-7 w-px bg-border" />
                 {overview.recentActivity.map((event, index) => (
                   <div key={event.id}>
                     {index > 0 ? <ItemSeparator /> : null}
-                    <Item>
+                    <Item className="border-0 py-4">
+                      <ItemMedia className="z-10">
+                        <span className="grid size-3 place-items-center rounded-full border-2 border-card bg-primary" />
+                      </ItemMedia>
                       <ItemContent>
                         <ItemTitle>{event.summary}</ItemTitle>
                         <ItemDescription>
-                          {event.category} · {event.status.replaceAll("_", " ")}
+                          <span className="capitalize">{event.category}</span>
+                          {" · "}
+                          {event.status.replaceAll("_", " ")}
                         </ItemDescription>
                       </ItemContent>
                       <ItemActions>
                         <time
-                          className="text-xs text-muted-foreground"
+                          className="font-mono text-xs tabular-nums text-muted-foreground"
                           dateTime={event.occurredAt}
                         >
                           {formatActivityTime(event.occurredAt)}

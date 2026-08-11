@@ -177,7 +177,7 @@ export function ProjectSelector({
 
       <Command
         aria-busy={loading}
-        className="border border-border"
+        className="overflow-hidden rounded-none border border-border bg-card"
         shouldFilter={false}
       >
         <div className="relative">
@@ -200,6 +200,7 @@ export function ProjectSelector({
                 return (
                   <CommandItem
                     aria-selected={checked}
+                    className="rounded-none data-[checked=true]:bg-primary/7 data-[checked=true]:text-foreground"
                     data-checked={checked}
                     key={scope.externalId}
                     onSelect={() => {
@@ -245,8 +246,8 @@ export function ProjectSelector({
         </ButtonGroup>
       ) : null}
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
+      <div className="mt-5 flex flex-col gap-3 border border-border bg-muted/35 p-3 sm:flex-row sm:items-center sm:justify-between sm:pl-4">
+        <p className="text-sm font-medium text-muted-foreground">
           {selected.size === 0
             ? "No projects selected. Jira access is denied by default."
             : `${String(selected.size)} project${selected.size === 1 ? "" : "s"} selected`}

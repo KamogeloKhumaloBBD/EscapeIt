@@ -7,10 +7,11 @@ import express, {
   type Router,
 } from "express";
 import helmet from "helmet";
-import pino, { type Logger } from "pino";
+import type { Logger } from "pino";
 import pinoHttp from "pino-http";
 
 import { normalizeHttpError, toPublicError } from "./errors";
+import { createLogger } from "./logging";
 
 export interface AppDependencies {
   allowedOrigin: string;
@@ -25,7 +26,7 @@ export function createApp({
   apiRouter,
   authHandler,
   checkDatabase,
-  logger = pino(),
+  logger = createLogger(),
 }: AppDependencies) {
   const app = express();
 

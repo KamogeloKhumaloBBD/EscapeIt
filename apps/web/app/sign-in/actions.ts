@@ -10,6 +10,7 @@ import type {
 import { requestApi } from "@/lib/server/api-client";
 import { applyResponseCookies } from "@/lib/server/response-cookies";
 import { emailSchema, otpSchema } from "@/lib/validation/sign-in";
+import { safeReturnPath } from "@/lib/validation/return-path";
 
 const genericSignInError =
   "We couldn't complete sign in. Check your email and code, then try again.";
@@ -35,6 +36,7 @@ export async function signInAction(
   formData: FormData,
 ): Promise<SignInActionState> {
   const intent = readIntent(formData);
+  const returnTo = safeReturnPath(readString(formData, "returnTo"));
 
   if (intent === "request-code") {
     const email = readString(formData, "email");
@@ -51,6 +53,7 @@ export async function signInAction(
             "Enter a valid email address.",
         },
         message: null,
+        returnTo,
         status: "error",
         step: "email",
       };
@@ -72,6 +75,7 @@ export async function signInAction(
         email: parsed.data.email,
         fieldErrors: {},
         message: genericSendError,
+        returnTo,
         status: "error",
         step: "email",
       };
@@ -81,6 +85,7 @@ export async function signInAction(
       email: parsed.data.email,
       fieldErrors: {},
       message: "Check your email for a 6-digit sign-in code.",
+      returnTo,
       status: "success",
       step: "code",
     };
@@ -105,6 +110,7 @@ export async function signInAction(
             : { email: fieldErrors.email.errors[0] }),
         },
         message: null,
+        returnTo,
         status: "error",
         step: "code",
       };
@@ -123,6 +129,7 @@ export async function signInAction(
         email: parsed.data.email,
         fieldErrors: {},
         message: genericSignInError,
+        returnTo,
         status: "error",
         step: "code",
       };
@@ -135,18 +142,20 @@ export async function signInAction(
         email: parsed.data.email,
         fieldErrors: {},
         message: genericSignInError,
+        returnTo,
         status: "error",
         step: "code",
       };
     }
 
-    redirect("/dashboard");
+    redirect(returnTo ?? "/dashboard");
   }
 
   return {
     email: "",
     fieldErrors: {},
     message: genericSignInError,
+    returnTo,
     status: "error",
     step: "email",
   };
