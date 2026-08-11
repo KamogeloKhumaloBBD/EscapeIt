@@ -52,6 +52,7 @@ export {
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findMemberIntegrationAccess,
   findWorkspaceIntegration,
   listIntegrationScopes,
   listWorkspaceIntegrations,
@@ -62,6 +63,7 @@ export {
   saveIntegrationAccount,
   type ConfigureIntegrationInput,
   type IntegrationConnectionContext,
+  type MemberIntegrationAccess,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
 } from "./integration-repository";

@@ -75,7 +75,16 @@ POST <PUBLIC_APP_URL>/api/mcp
 Authorization: Bearer <token>
 ```
 
-MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. This foundation release intentionally registers no tools, so a connected client receives an empty `tools/list` result. Provider and unified-context tools will attach to this gateway in later slices.
+MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. Tools are discovered per request from the integrations available to that member. A disconnected provider, disconnected personal account, or empty workspace allowlist contributes no tools.
+
+When Jira is ready, the gateway exposes four read-only tools:
+
+- `jira_get_issue`
+- `jira_search_issues`
+- `jira_get_assigned_issues`
+- `jira_get_issue_comments`
+
+Jira search accepts structured filters rather than raw JQL. The API builds bounded JQL internally and always adds the workspace's selected Jira project IDs. Results are additionally constrained by the token owner's Jira permissions. Responses contain normalized, bounded fields instead of raw Jira payloads, and Atlassian document content is converted to plain text.
 
 Codex can read the bearer token from an environment variable:
 
@@ -89,7 +98,7 @@ The Agent Setup page also provides copyable Claude, VS Code, and generic HTTP ex
 
 ## Jira OAuth
 
-Jira is the first registered provider. The workspace owner connects Jira, chooses one Jira Cloud site, and selects a workspace-wide project allowlist. Every workspace member authorizes their own Atlassian account; provider calls use that member's encrypted OAuth credentials and remain constrained by both the allowlist and Jira's own permissions.
+Jira is the first registered provider. The workspace owner connects Jira, chooses one Jira Cloud site, and selects a workspace-wide project allowlist. Every workspace member authorizes their own Atlassian account; provider and MCP calls use that member's encrypted OAuth credentials and remain constrained by both the allowlist and Jira's own permissions. OAuth access tokens are refreshed shortly before expiry and rotating refresh tokens are replaced atomically.
 
 Create a resource-level OAuth 2.0 integration in the Atlassian Developer Console. Enable the Jira Platform and User Identity APIs, configure the scopes used by the API adapter, and register this exact local callback:
 

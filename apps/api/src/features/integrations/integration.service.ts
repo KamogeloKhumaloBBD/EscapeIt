@@ -23,6 +23,10 @@ import {
   type ProviderResource,
 } from "../../integrations/integration-adapter";
 import { createOAuthState } from "../../integrations/oauth-state";
+import {
+  ProviderAccountRuntimeError,
+  type ProviderAccountRuntime,
+} from "../../integrations/provider-account-runtime";
 import type { ProviderRegistry } from "../../integrations/provider-registry";
 import type {
   IntegrationDetailContract,
@@ -32,12 +36,6 @@ import type {
   ScopeDiscoveryContract,
 } from "./integration.contracts";
 
-const credentialsSchema = z.object({
-  accessToken: z.string().min(1),
-  expiresAt: z.iso.datetime(),
-  refreshToken: z.string().min(1),
-  scopes: z.array(z.string()),
-});
 const resourceSchema = z.object({
   externalId: z.string().min(1),
   name: z.string().min(1),
@@ -114,6 +112,7 @@ interface IntegrationRepository {
 }
 
 export interface IntegrationServiceDependencies {
+  accountRuntime: ProviderAccountRuntime;
   adapters: ReadonlyMap<ProviderKey, IntegrationAdapter>;
   credentialEncryption: CredentialEncryption;
   oauthStateSecret: string;
@@ -155,6 +154,22 @@ function providerFromInput(
 }
 
 function mapProviderError(error: unknown): never {
+  if (error instanceof ProviderAccountRuntimeError) {
+    if (error.code === "account_required") {
+      throw new HttpError(
+        409,
+        "PROVIDER_ACCOUNT_REQUIRED",
+        "Connect your provider account first.",
+      );
+    }
+
+    throw new HttpError(
+      500,
+      "CREDENTIALS_UNAVAILABLE",
+      "The stored provider credentials could not be read.",
+    );
+  }
+
   if (error instanceof ProviderAdapterError) {
     const mapping = {
       authorization_expired: [
@@ -291,48 +306,8 @@ function buildSummary(
   };
 }
 
-function readCredentials(
-  encryption: CredentialEncryption,
-  account: IntegrationAccount,
-): OAuthCredentials {
-  if (account.credentialEnvelope === null) {
-    throw new HttpError(
-      409,
-      "PROVIDER_ACCOUNT_REQUIRED",
-      "Connect your provider account first.",
-    );
-  }
-
-  let decrypted: unknown;
-
-  try {
-    decrypted = encryption.decrypt(
-      account.credentialEnvelope,
-      "integration-account",
-      account.id,
-    );
-  } catch {
-    throw new HttpError(
-      500,
-      "CREDENTIALS_UNAVAILABLE",
-      "The stored provider credentials could not be read.",
-    );
-  }
-
-  const parsed = credentialsSchema.safeParse(decrypted);
-
-  if (!parsed.success) {
-    throw new HttpError(
-      500,
-      "CREDENTIALS_UNAVAILABLE",
-      "The stored provider credentials could not be read.",
-    );
-  }
-
-  return parsed.data;
-}
-
 export function createIntegrationService({
+  accountRuntime,
   adapters,
   credentialEncryption,
   oauthStateSecret,
@@ -362,63 +337,6 @@ export function createIntegrationService({
     });
   }
 
-  async function refreshAccountCredentials(
-    workspace: CurrentWorkspace,
-    integration: Integration,
-    account: IntegrationAccount,
-    adapter: IntegrationAdapter,
-    credentials: OAuthCredentials,
-  ): Promise<OAuthCredentials> {
-    if (account.credentialEnvelope === null) {
-      throw new HttpError(
-        409,
-        "PROVIDER_ACCOUNT_REQUIRED",
-        "Connect your provider account first.",
-      );
-    }
-
-    const refreshed = await adapter.refreshCredentials(credentials);
-    const envelope = credentialEncryption.encrypt(
-      refreshed,
-      "integration-account",
-      account.id,
-    );
-    const updated = await repository.replaceAccountCredentials(
-      {
-        accountId: account.id,
-        credentialEnvelope: envelope,
-        externalAccountId: account.externalAccountId,
-        externalDisplayName: account.externalDisplayName,
-        integrationId: integration.id,
-        lastValidatedAt: new Date(),
-        membershipId: workspace.membership.id,
-        status: "connected",
-        workspaceId: workspace.workspace.id,
-      },
-      account.credentialEnvelope,
-    );
-
-    if (updated !== null) {
-      return refreshed;
-    }
-
-    const currentAccount = await repository.findAccount(
-      workspace.workspace.id,
-      integration.id,
-      workspace.membership.id,
-    );
-
-    if (currentAccount === null) {
-      throw new HttpError(
-        409,
-        "PROVIDER_ACCOUNT_REQUIRED",
-        "Connect your provider account first.",
-      );
-    }
-
-    return readCredentials(credentialEncryption, currentAccount);
-  }
-
   async function withCredentials<T>(
     workspace: CurrentWorkspace,
     integration: Integration,
@@ -426,40 +344,16 @@ export function createIntegrationService({
     adapter: IntegrationAdapter,
     operation: (credentials: OAuthCredentials) => Promise<T>,
   ): Promise<T> {
-    let credentials = readCredentials(credentialEncryption, account);
-    let refreshedBeforeRequest = false;
-
-    if (new Date(credentials.expiresAt).getTime() <= Date.now() + 60_000) {
-      credentials = await refreshAccountCredentials(
-        workspace,
-        integration,
+    return accountRuntime.withCredentials(
+      {
         account,
-        adapter,
-        credentials,
-      );
-      refreshedBeforeRequest = true;
-    }
-
-    try {
-      return await operation(credentials);
-    } catch (error) {
-      if (
-        !(error instanceof ProviderAdapterError) ||
-        error.code !== "authorization_expired" ||
-        refreshedBeforeRequest
-      ) {
-        throw error;
-      }
-
-      const refreshed = await refreshAccountCredentials(
-        workspace,
         integration,
-        account,
-        adapter,
-        credentials,
-      );
-      return operation(refreshed);
-    }
+        membershipId: workspace.membership.id,
+        workspaceId: workspace.workspace.id,
+      },
+      adapter,
+      operation,
+    );
   }
 
   async function detailFor(

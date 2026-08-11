@@ -54,6 +54,12 @@ export interface IntegrationConnectionContext {
   integration: Integration;
 }
 
+export interface MemberIntegrationAccess {
+  account: IntegrationAccount | null;
+  integration: Integration;
+  scopes: IntegrationScope[];
+}
+
 function validateCredentialState(input: SaveIntegrationAccountInput): void {
   if (
     (input.status === "disconnected" && input.credentialEnvelope !== null) ||
@@ -227,6 +233,50 @@ export async function findWorkspaceIntegration(
   `;
 
   return rows[0] ?? null;
+}
+
+export async function findMemberIntegrationAccess(
+  database: DatabaseClient,
+  workspaceId: string,
+  membershipId: string,
+  provider: ProviderKey,
+): Promise<MemberIntegrationAccess | null> {
+  await requireMembership(database, workspaceId, membershipId);
+  const integrations = await database<Integration[]>`
+    select *
+    from integrations
+    where "workspaceId" = ${workspaceId} and provider = ${provider}
+  `;
+  const integration = integrations[0];
+
+  if (integration === undefined) {
+    return null;
+  }
+
+  const [accounts, scopes] = await Promise.all([
+    database<IntegrationAccount[]>`
+      select *
+      from integration_accounts
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+        and "membershipId" = ${membershipId}
+    `,
+    database<IntegrationScope[]>`
+      select *
+      from integration_scopes
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+      order by "displayName", id
+    `,
+  ]);
+
+  return {
+    account: accounts[0] ?? null,
+    integration,
+    scopes,
+  };
 }
 
 export async function replaceIntegrationAccountCredentials(

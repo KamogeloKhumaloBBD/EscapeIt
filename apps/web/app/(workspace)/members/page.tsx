@@ -149,7 +149,9 @@ export default async function MembersPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="ring-2 ring-background shadow-sm">
-                        <AvatarFallback>{initials(member.name)}</AvatarFallback>
+                        <AvatarFallback>
+                          {initials(member.name || member.email)}
+                        </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
                         <p className="truncate font-medium">{member.name}</p>

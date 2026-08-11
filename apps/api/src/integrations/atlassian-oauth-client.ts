@@ -86,15 +86,24 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
     return toCredentials(parsed.data);
   }
 
-  async function authenticatedGet(url: string, accessToken: string) {
+  async function authenticatedRequest(
+    url: string,
+    accessToken: string,
+    init: { body?: unknown; method?: "GET" | "POST" } = {},
+  ) {
     let response: Response;
 
     try {
       response = await fetch(url, {
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
         headers: {
           accept: "application/json",
           authorization: `Bearer ${accessToken}`,
+          ...(init.body === undefined
+            ? {}
+            : { "content-type": "application/json" }),
         },
+        method: init.method ?? "GET",
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
@@ -132,7 +141,7 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
       const parsed = z
         .array(resourceSchema)
         .safeParse(
-          await authenticatedGet(
+          await authenticatedRequest(
             "https://api.atlassian.com/oauth/token/accessible-resources",
             credentials.accessToken,
           ),
@@ -163,7 +172,7 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
       credentials: OAuthCredentials,
     ): Promise<ProviderIdentity> {
       const parsed = identitySchema.safeParse(
-        await authenticatedGet(
+        await authenticatedRequest(
           "https://api.atlassian.com/me",
           credentials.accessToken,
         ),
@@ -179,7 +188,14 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
       };
     },
     async getJson(url: string, accessToken: string): Promise<unknown> {
-      return authenticatedGet(url, accessToken);
+      return authenticatedRequest(url, accessToken);
+    },
+    async postJson(
+      url: string,
+      accessToken: string,
+      body: unknown,
+    ): Promise<unknown> {
+      return authenticatedRequest(url, accessToken, { body, method: "POST" });
     },
     async refreshCredentials(credentials: OAuthCredentials) {
       return requestToken({

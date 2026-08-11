@@ -11,6 +11,7 @@ import {
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findMemberIntegrationAccess,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
@@ -52,6 +53,8 @@ import {
   type McpAccessServiceDependencies,
 } from "./features/mcp-access/mcp-access.service";
 import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
+import { createJiraMcpToolProvider } from "./features/mcp-access/jira-mcp-tools";
+import type { McpToolProvider } from "./features/mcp-access/mcp-tool-provider";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -59,12 +62,17 @@ import {
   type MemberServiceDependencies,
 } from "./features/members/member.service";
 import { createRequireAuthentication } from "./http/authentication";
-import { createJiraAdapter } from "./integrations/jira-adapter";
+import type { IntegrationAdapter } from "./integrations/integration-adapter";
+import {
+  createJiraAdapter,
+  type JiraAdapter,
+} from "./integrations/jira-adapter";
 import { createLogger } from "./logging";
 import {
   createProviderRegistry,
   type ProviderDefinition,
 } from "./integrations/provider-registry";
+import { createProviderAccountRuntime } from "./integrations/provider-account-runtime";
 import { createCredentialEncryption } from "./security/credential-encryption";
 
 const config = parseApiConfig(process.env);
@@ -108,10 +116,8 @@ const credentialEncryption = createCredentialEncryption(
   config.credentialEncryptionKey,
 );
 const providerDefinitions: ProviderDefinition[] = [];
-const integrationAdapters = new Map<
-  ProviderKey,
-  ReturnType<typeof createJiraAdapter>
->();
+const integrationAdapters = new Map<ProviderKey, IntegrationAdapter>();
+let jiraAdapter: JiraAdapter | null = null;
 
 if (config.atlassianOAuth !== null) {
   const jiraProvider = parseProviderKey("jira");
@@ -128,16 +134,14 @@ if (config.atlassianOAuth !== null) {
       },
     ],
   });
-  integrationAdapters.set(
-    jiraProvider,
-    createJiraAdapter({
-      ...config.atlassianOAuth,
-      redirectUri: new URL(
-        "/api/integrations/jira/oauth/callback",
-        config.publicAppUrl,
-      ).toString(),
-    }),
-  );
+  jiraAdapter = createJiraAdapter({
+    ...config.atlassianOAuth,
+    redirectUri: new URL(
+      "/api/integrations/jira/oauth/callback",
+      config.publicAppUrl,
+    ).toString(),
+  });
+  integrationAdapters.set(jiraProvider, jiraAdapter);
 }
 
 const providerRegistry = createProviderRegistry(providerDefinitions);
@@ -308,13 +312,48 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
 };
+const providerAccountRuntime = createProviderAccountRuntime({
+  credentialEncryption,
+  repository: {
+    findAccount: (workspaceId, integrationId, membershipId) =>
+      integrationRepository.findAccount(
+        workspaceId,
+        integrationId,
+        membershipId,
+      ),
+    replaceAccountCredentials: (input, expectedEnvelope) =>
+      integrationRepository.replaceAccountCredentials(input, expectedEnvelope),
+  },
+});
 const integrationService = createIntegrationService({
+  accountRuntime: providerAccountRuntime,
   adapters: integrationAdapters,
   credentialEncryption,
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,
 });
+const mcpToolProviders: McpToolProvider[] = [];
+
+if (jiraAdapter !== null) {
+  mcpToolProviders.push(
+    createJiraMcpToolProvider({
+      accountRuntime: providerAccountRuntime,
+      adapter: jiraAdapter,
+      repository: {
+        appendActivity: (input) =>
+          appendActivityEvent(connection.client, input),
+        findAccess: (workspaceId, membershipId) =>
+          findMemberIntegrationAccess(
+            connection.client,
+            workspaceId,
+            membershipId,
+            parseProviderKey("jira"),
+          ),
+      },
+    }),
+  );
+}
 const apiRouter = Router();
 apiRouter.use(
   "/workspaces",
@@ -350,6 +389,7 @@ const app = createApp({
     logger,
     publicAppUrl: config.publicAppUrl,
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
+    toolProviders: mcpToolProviders,
   }),
 });
 
