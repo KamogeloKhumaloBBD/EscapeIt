@@ -61,8 +61,6 @@ export function createApp({
 
   app.use(express.json({ limit: "1mb" }));
 
-  app.use("/api", apiRouter);
-
   app.get("/api/health", async (_request, response, next) => {
     try {
       const databaseIsReady = await checkDatabase();
@@ -77,6 +75,8 @@ export function createApp({
       next(error);
     }
   });
+
+  app.use("/api", apiRouter);
 
   app.use((_request, response) => {
     response.status(404).json({
