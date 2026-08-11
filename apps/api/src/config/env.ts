@@ -1,6 +1,11 @@
 import { parseDatabaseConfig, type DatabaseConfig } from "@context-layer/db";
 import { z } from "zod";
 
+const optionalCredential = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 const apiEnvironmentSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(4_000),
   BETTER_AUTH_SECRET: z.string().min(32),
@@ -13,9 +18,17 @@ const apiEnvironmentSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65_535).optional(),
   AUTH_EMAIL_FROM: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),
+  ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
+  ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
 });
 
+export interface AtlassianOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface ApiConfig {
+  atlassianOAuth: AtlassianOAuthConfig | null;
   authEmailFrom: string;
   betterAuthSecret: string;
   betterAuthUrl: string;
@@ -44,7 +57,24 @@ export function parseApiConfig(
 ): ApiConfig {
   const parsed = apiEnvironmentSchema.parse(environment);
 
+  if (
+    (parsed.ATLASSIAN_OAUTH_CLIENT_ID === undefined) !==
+    (parsed.ATLASSIAN_OAUTH_CLIENT_SECRET === undefined)
+  ) {
+    throw new Error(
+      "ATLASSIAN_OAUTH_CLIENT_ID and ATLASSIAN_OAUTH_CLIENT_SECRET must be configured together.",
+    );
+  }
+
   return {
+    atlassianOAuth:
+      parsed.ATLASSIAN_OAUTH_CLIENT_ID === undefined ||
+      parsed.ATLASSIAN_OAUTH_CLIENT_SECRET === undefined
+        ? null
+        : {
+            clientId: parsed.ATLASSIAN_OAUTH_CLIENT_ID,
+            clientSecret: parsed.ATLASSIAN_OAUTH_CLIENT_SECRET,
+          },
     authEmailFrom: parsed.AUTH_EMAIL_FROM,
     betterAuthSecret: parsed.BETTER_AUTH_SECRET,
     betterAuthUrl: parsed.BETTER_AUTH_URL,

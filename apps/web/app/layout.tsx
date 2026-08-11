@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
@@ -22,7 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", instrumentSans.variable)}>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Toaster closeButton position="top-right" richColors theme="light" />
       </body>
     </html>

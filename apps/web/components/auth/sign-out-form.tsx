@@ -7,12 +7,20 @@ import { toast } from "sonner";
 import { signOutAction } from "@/app/auth-actions";
 import { initialSignOutState } from "@/components/auth/sign-out-state";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 function SignOutButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} size="sm" type="submit">
+    <Button
+      className="w-full justify-start"
+      disabled={pending}
+      size="sm"
+      type="submit"
+      variant="ghost"
+    >
+      {pending ? <Spinner data-icon="inline-start" /> : null}
       {pending ? "Signing out..." : "Log out"}
     </Button>
   );

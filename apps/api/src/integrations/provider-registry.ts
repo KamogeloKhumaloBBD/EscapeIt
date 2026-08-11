@@ -36,6 +36,7 @@ export interface ProviderNotificationEventDefinition {
 export interface ProviderDefinition {
   accountCredentialSchema?: ProviderConfigurationSchema;
   capabilities: readonly ProviderCapability[];
+  description: string;
   displayName: string;
   installationConfigurationSchema?: ProviderConfigurationSchema;
   key: ProviderKey;
@@ -77,6 +78,7 @@ function validateDefinition(
 ): void {
   parseProviderKey(definition.key);
   validateDisplayName(definition.displayName, `Provider ${definition.key}`);
+  validateDisplayName(definition.description, `Provider ${definition.key}`);
 
   const capabilities = new Set(definition.capabilities);
 

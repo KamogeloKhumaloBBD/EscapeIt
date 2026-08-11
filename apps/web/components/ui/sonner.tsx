@@ -10,16 +10,14 @@ import {
   SpinnerIcon,
 } from "@phosphor-icons/react";
 
-const Toaster = ({ theme: themeProp, ...props }: ToasterProps) => {
+const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
-  const activeTheme =
-    theme === "dark" || theme === "light" || theme === "system"
-      ? theme
-      : "system";
+  const resolvedTheme: NonNullable<ToasterProps["theme"]> =
+    theme === "light" || theme === "dark" ? theme : "system";
 
   return (
     <Sonner
-      theme={themeProp ?? activeTheme}
+      theme={resolvedTheme}
       className="toaster group"
       icons={{
         success: <CheckCircleIcon className="size-4" />,

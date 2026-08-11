@@ -48,12 +48,20 @@ export {
 } from "./domain";
 export {
   configureIntegration,
+  disconnectIntegrationAccount,
+  disconnectWorkspaceIntegration,
+  ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findWorkspaceIntegration,
   listIntegrationScopes,
   listWorkspaceIntegrations,
+  markIntegrationAccountValidated,
+  markWorkspaceIntegrationValidated,
   replaceIntegrationScopes,
+  replaceIntegrationAccountCredentials,
   saveIntegrationAccount,
   type ConfigureIntegrationInput,
+  type IntegrationConnectionContext,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
 } from "./integration-repository";

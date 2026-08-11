@@ -20,6 +20,7 @@ import {
 } from "./repository-helpers";
 
 export interface ConfigureIntegrationInput {
+  clearScopes?: boolean;
   configuration: JsonObject;
   configuredByMembershipId: string;
   lastErrorCode?: string | null;
@@ -46,6 +47,11 @@ export interface SelectedIntegrationScopeInput {
   displayName: string;
   externalId: string;
   scopeKey: ScopeKey;
+}
+
+export interface IntegrationConnectionContext {
+  account: IntegrationAccount;
+  integration: Integration;
 }
 
 function validateCredentialState(input: SaveIntegrationAccountInput): void {
@@ -108,7 +114,259 @@ export async function configureIntegration(
       returning *
     `;
 
-    return requireReturnedRow(rows[0]);
+    const integration = requireReturnedRow(rows[0]);
+
+    if (input.clearScopes === true) {
+      await transaction`
+        delete from integration_scopes
+        where
+          "workspaceId" = ${input.workspaceId}
+          and "integrationId" = ${integration.id}
+      `;
+    }
+
+    return integration;
+  });
+}
+
+export async function ensureIntegrationAccount(
+  database: DatabaseClient,
+  workspaceId: string,
+  membershipId: string,
+  provider: ProviderKey,
+): Promise<IntegrationConnectionContext> {
+  return withTransaction(database, async (transaction) => {
+    const membership = await requireMembership(
+      transaction,
+      workspaceId,
+      membershipId,
+    );
+    let integrations = await transaction<Integration[]>`
+      select *
+      from integrations
+      where "workspaceId" = ${workspaceId} and provider = ${provider}
+      for update
+    `;
+
+    if (integrations[0] === undefined) {
+      if (membership.role !== "owner") {
+        throw new RepositoryError(
+          "forbidden",
+          "The workspace owner must install this provider first.",
+        );
+      }
+
+      integrations = await transaction<Integration[]>`
+        insert into integrations (
+          id,
+          "workspaceId",
+          provider,
+          status,
+          configuration,
+          "configuredByMembershipId"
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${provider},
+          'disconnected',
+          ${transaction.json({})},
+          ${membershipId}
+        )
+        returning *
+      `;
+    }
+
+    const integration = requireReturnedRow(integrations[0]);
+    let accounts = await transaction<IntegrationAccount[]>`
+      select *
+      from integration_accounts
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+        and "membershipId" = ${membershipId}
+      for update
+    `;
+
+    if (accounts[0] === undefined) {
+      accounts = await transaction<IntegrationAccount[]>`
+        insert into integration_accounts (
+          id,
+          "workspaceId",
+          "integrationId",
+          "membershipId",
+          status
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${integration.id},
+          ${membershipId},
+          'disconnected'
+        )
+        returning *
+      `;
+    }
+
+    return {
+      account: requireReturnedRow(accounts[0]),
+      integration,
+    };
+  });
+}
+
+export async function findWorkspaceIntegration(
+  database: DatabaseClient,
+  workspaceId: string,
+  membershipId: string,
+  provider: ProviderKey,
+): Promise<Integration | null> {
+  await requireMembership(database, workspaceId, membershipId);
+  const rows = await database<Integration[]>`
+    select *
+    from integrations
+    where "workspaceId" = ${workspaceId} and provider = ${provider}
+  `;
+
+  return rows[0] ?? null;
+}
+
+export async function replaceIntegrationAccountCredentials(
+  database: DatabaseClient,
+  input: SaveIntegrationAccountInput,
+  expectedEnvelope: EncryptedCredentialEnvelope,
+): Promise<IntegrationAccount | null> {
+  validateCredentialState(input);
+  await requireMembership(database, input.workspaceId, input.membershipId);
+  const rows = await database<IntegrationAccount[]>`
+    update integration_accounts
+    set
+      status = ${input.status},
+      "externalAccountId" = ${input.externalAccountId},
+      "externalDisplayName" = ${input.externalDisplayName ?? null},
+      "credentialEnvelope" = ${input.credentialEnvelope},
+      "lastValidatedAt" = ${input.lastValidatedAt ?? null},
+      "lastErrorCode" = ${input.lastErrorCode ?? null},
+      "updatedAt" = now()
+    where
+      id = ${input.accountId}
+      and "workspaceId" = ${input.workspaceId}
+      and "integrationId" = ${input.integrationId}
+      and "membershipId" = ${input.membershipId}
+      and "credentialEnvelope" = ${expectedEnvelope}
+    returning *
+  `;
+
+  return rows[0] ?? null;
+}
+
+export async function disconnectIntegrationAccount(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  membershipId: string,
+): Promise<boolean> {
+  await requireMembership(database, workspaceId, membershipId);
+  const rows = await database<{ id: string }[]>`
+    update integration_accounts
+    set
+      status = 'disconnected',
+      "externalAccountId" = null,
+      "externalDisplayName" = null,
+      "credentialEnvelope" = null,
+      "lastValidatedAt" = null,
+      "lastErrorCode" = null,
+      "updatedAt" = now()
+    where
+      "workspaceId" = ${workspaceId}
+      and "integrationId" = ${integrationId}
+      and "membershipId" = ${membershipId}
+    returning id
+  `;
+
+  return rows[0] !== undefined;
+}
+
+export async function markIntegrationAccountValidated(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  membershipId: string,
+): Promise<void> {
+  await requireMembership(database, workspaceId, membershipId);
+  await database`
+    update integration_accounts
+    set
+      status = 'connected',
+      "lastValidatedAt" = now(),
+      "lastErrorCode" = null,
+      "updatedAt" = now()
+    where
+      "workspaceId" = ${workspaceId}
+      and "integrationId" = ${integrationId}
+      and "membershipId" = ${membershipId}
+      and "credentialEnvelope" is not null
+  `;
+}
+
+export async function markWorkspaceIntegrationValidated(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  ownerMembershipId: string,
+): Promise<void> {
+  await requireOwner(database, workspaceId, ownerMembershipId);
+  await database`
+    update integrations
+    set
+      status = 'connected',
+      "lastValidatedAt" = now(),
+      "lastErrorCode" = null,
+      "updatedAt" = now()
+    where id = ${integrationId} and "workspaceId" = ${workspaceId}
+  `;
+}
+
+export async function disconnectWorkspaceIntegration(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  ownerMembershipId: string,
+): Promise<boolean> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    const integrations = await transaction<{ id: string }[]>`
+      update integrations
+      set
+        status = 'disconnected',
+        configuration = '{}'::jsonb,
+        "lastValidatedAt" = null,
+        "lastErrorCode" = null,
+        "updatedAt" = now()
+      where id = ${integrationId} and "workspaceId" = ${workspaceId}
+      returning id
+    `;
+
+    if (integrations[0] === undefined) {
+      return false;
+    }
+
+    await transaction`
+      update integration_accounts
+      set
+        status = 'disconnected',
+        "externalAccountId" = null,
+        "externalDisplayName" = null,
+        "credentialEnvelope" = null,
+        "lastValidatedAt" = null,
+        "lastErrorCode" = null,
+        "updatedAt" = now()
+      where "workspaceId" = ${workspaceId} and "integrationId" = ${integrationId}
+    `;
+    await transaction`
+      delete from integration_scopes
+      where "workspaceId" = ${workspaceId} and "integrationId" = ${integrationId}
+    `;
+
+    return true;
   });
 }
 

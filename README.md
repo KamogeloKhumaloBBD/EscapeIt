@@ -8,6 +8,7 @@ Context Layer is a pnpm monorepo containing an independently deployable Next.js 
 - pnpm 11.21.0
 - Docker Desktop or another Compose-compatible runtime
 - A Resend API key and verified sender for passwordless sign-in
+- An Atlassian OAuth 2.0 app when developing the Jira integration
 
 ## Start locally
 
@@ -25,6 +26,7 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Proxied health: <http://localhost:3000/api/health>
 - Onboarding: <http://localhost:3000/onboarding>
 - Dashboard: <http://localhost:3000/dashboard>
+- Integrations: <http://localhost:3000/integrations>
 
 The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
 
@@ -42,6 +44,8 @@ Better Auth users may be signed in without a workspace. The onboarding flow crea
 
 The Express workspace API exposes authenticated `GET /api/workspaces/current`, `POST /api/workspaces`, and `GET /api/workspaces/current/overview` endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly.
 
+The authenticated application uses a shared workspace shell. The dashboard derives setup progress, connection health, counts, and recent activity from real API data rather than frontend placeholders.
+
 The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 
 - Providers are registered in API code using stable keys and capability metadata. Jira, Bitbucket, Confluence, and Teams are intended initial adapters, not database-level special cases.
@@ -53,6 +57,25 @@ The product schema includes workspaces, memberships, invitations, workspace prov
 - Notification preferences store only member overrides. When no override exists, the API uses the event's `defaultEnabled` value from the provider registry.
 - Invitation and MCP secrets are never stored, only their 32-byte SHA-256 hashes.
 - Product IDs are application-generated UUIDv7 strings.
+
+## Jira OAuth
+
+Jira is the first registered provider. The workspace owner connects Jira, chooses one Jira Cloud site, and selects a workspace-wide project allowlist. Every workspace member authorizes their own Atlassian account; provider calls use that member's encrypted OAuth credentials and remain constrained by both the allowlist and Jira's own permissions.
+
+Create a resource-level OAuth 2.0 integration in the Atlassian Developer Console. Enable the Jira Platform and User Identity APIs, configure the scopes used by the API adapter, and register this exact local callback:
+
+```text
+http://localhost:3000/api/integrations/jira/oauth/callback
+```
+
+Then configure both values:
+
+```text
+ATLASSIAN_OAUTH_CLIENT_ID=...
+ATLASSIAN_OAUTH_CLIENT_SECRET=...
+```
+
+If both are absent, the core application still starts and Jira is omitted from the catalogue. Supplying only one is rejected. The callback is derived from `PUBLIC_APP_URL`, so a deployed environment must register `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks.
 
 ## Commands
 
@@ -88,6 +111,7 @@ API:
 - `AUTH_EMAIL_FROM`, `RESEND_API_KEY`
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `PUBLIC_APP_URL`
+- Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
 
 Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT`. See `.env.example` for valid formats.
 
@@ -108,6 +132,8 @@ api
   DATABASE_SSL_MODE=disable
   BETTER_AUTH_URL=https://<web-domain>
   PUBLIC_APP_URL=https://<web-domain>
+  ATLASSIAN_OAUTH_CLIENT_ID=<secret>
+  ATLASSIAN_OAUTH_CLIENT_SECRET=<secret>
   PORT=4000
 
 ```

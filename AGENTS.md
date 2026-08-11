@@ -42,6 +42,14 @@
 - Authenticated and workspace-scoped reads default to `cache: "no-store"`. Any shared caching requires reviewed isolation keys and tags.
 - After a successful mutation, use `updateTag` for immediate read-your-writes, `revalidateTag(tag, "max")` for stale-while-revalidate, and `revalidatePath` only when route-level output must be invalidated. Never revalidate before the mutation succeeds.
 
+## UI components
+
+- Before creating a UI primitive or interaction, search or inspect the configured shadcn registry and review its API and examples.
+- Prefer installing and composing the official component for the configured `radix-sera` style. Do not hand-wrap Radix when shadcn already provides the primitive.
+- Keep registry components in `apps/web/components/ui` and feature compositions outside that directory.
+- Create a custom primitive only when the registry has no suitable component. Document why when it overlaps an existing registry category.
+- Use Phosphor icons consistently in authenticated product UI.
+
 ## Database safety
 
 - Do not introduce product tables, enums, relations, or SQL migrations until the schema is explicitly approved.
@@ -63,6 +71,12 @@
 - Provider configuration JSON must contain only non-secret values. Integration-account and notification-channel credentials must use the versioned AES-256-GCM envelope from the API security boundary.
 - Allocate integration-account and notification-channel IDs before encryption because the record ID is authenticated as part of each credential envelope.
 - Disconnection clears encrypted credentials and retains the connection record and activity history.
+- A provider installation is workspace-wide, but OAuth accounts are membership-specific. Never use an owner's provider credentials for another member.
+- Owners select shared installation resources and scope allowlists. Members may connect or disconnect only their own provider account and see shared configuration read-only.
+- Effective provider access is the intersection of the workspace allowlist and the acting member's upstream provider permissions.
+- OAuth callbacks must bind state to the authenticated membership, validate the selected provider resource, and persist replacement credentials only after the new connection is fully validated.
+- OAuth access and rotating refresh tokens belong only in encrypted integration-account envelopes. Provider client IDs and secrets remain server-side deployment configuration.
+- Authenticated product UI must be role-aware. Do not render owner-only mutations for members, but never rely on hidden controls as authorization enforcement.
 - Repository methods must be tenant-scoped. Hash-based invitation acceptance and MCP-token resolution are the only lookup entry points that may begin without a workspace ID.
 
 ## Security
