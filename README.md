@@ -43,6 +43,9 @@ packages/db    PostgreSQL utilities and Flyway SQL migrations
 
 ## Data foundation
 
+See the importable [DBML schema](docs/database-schema.dbml) for the complete
+table, relationship, constraint, and security-invariant reference.
+
 Better Auth users may be signed in without a workspace. The onboarding flow creates a workspace and its owner membership atomically. Workspace owners can invite members by email from `/members`; recipients sign in passwordlessly and accept through the emailed link. Each user can belong to only one workspace.
 
 The Express workspace API exposes authenticated workspace, member, and invitation endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly. Invitation links expire after seven days, only their SHA-256 hashes are stored, and the signed-in email must match before acceptance.
