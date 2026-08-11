@@ -19,6 +19,7 @@ export interface AppDependencies {
   authHandler: RequestHandler;
   checkDatabase: () => Promise<boolean>;
   logger?: Logger;
+  mcpHandler: RequestHandler;
 }
 
 export function createApp({
@@ -27,6 +28,7 @@ export function createApp({
   authHandler,
   checkDatabase,
   logger = createLogger(),
+  mcpHandler,
 }: AppDependencies) {
   const app = express();
 
@@ -55,6 +57,7 @@ export function createApp({
   );
 
   app.all("/api/auth/*splat", authHandler);
+  app.all("/api/mcp", mcpHandler);
 
   app.use(express.json({ limit: "1mb" }));
 

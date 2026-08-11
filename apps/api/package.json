@@ -13,6 +13,8 @@
   "dependencies": {
     "@context-layer/db": "workspace:*",
     "@context-layer/email": "workspace:*",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@node-rs/argon2": "2.0.2",
     "better-auth": "1.6.26",
     "cors": "2.8.6",

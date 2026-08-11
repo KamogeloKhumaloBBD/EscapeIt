@@ -63,6 +63,8 @@
 - A Better Auth user may have no workspace and may belong to at most one workspace. Authentication must not create a workspace implicitly.
 - Workspace creation must atomically create one owner membership. Roles are limited to `owner` and `member`.
 - Invitation tokens and MCP tokens are persisted only as SHA-256 hashes. Invitation acceptance must match the signed-in user's normalized email and revoke that email's other pending invitations.
+- MCP tokens are personal capabilities. Every MCP request must execute as the token's `createdByMembershipId` and use only that member's provider credentials; never substitute an owner's or another member's identity. Owners may audit and revoke workspace tokens but cannot recover them or impersonate their creators.
+- The MCP gateway accepts bearer tokens only. Return a raw token only in its creation response, and never log raw tokens, token hashes, authorization headers, or MCP arguments.
 - Invitation links expire after seven days. Only owners may create, list, or revoke invitations; every member may view the workspace roster. Never include raw invitation tokens in API logs or persistence.
 - A workspace has at most one installation for each provider. Individual provider identities and credentials belong to `integration_accounts`, not the shared installation.
 - Providers are code-defined through the API registry. Use validated provider keys and namespaced scope/event keys; do not add provider-specific database enums, tables, routes, or UI branches when the registry or adapter boundary is sufficient.

@@ -1,25 +1,43 @@
 import type { DatabaseClient } from "./client";
 import { withTransaction } from "./client";
-import type { McpToken } from "./domain";
+import type { McpToken, WorkspaceRole } from "./domain";
 import { RepositoryError } from "./repository-errors";
 import {
   createProductId,
-  requireOwner,
+  requireMembership,
   requireReturnedRow,
   requireSha256Digest,
 } from "./repository-helpers";
 
 export interface CreateMcpTokenInput {
+  correlationId: string;
   createdByMembershipId: string;
-  expiresAt?: Date | null;
   name: string;
   prefix: string;
   tokenHash: Uint8Array;
   workspaceId: string;
 }
 
-export interface ResolvedMcpToken extends McpToken {
+export interface McpTokenSummary extends McpToken {
+  creatorEmail: string;
+  creatorName: string;
+}
+
+export interface ResolvedMcpPrincipal {
+  membershipId: string;
+  role: WorkspaceRole;
+  tokenId: string;
+  userEmail: string;
+  userId: string;
+  userName: string;
   workspaceId: string;
+  workspaceName: string;
+}
+
+function validateCorrelationId(correlationId: string): void {
+  if (correlationId.length < 1 || correlationId.length > 128) {
+    throw new RepositoryError("invalid", "The correlation ID is invalid.");
+  }
 }
 
 export async function createMcpToken(
@@ -27,21 +45,23 @@ export async function createMcpToken(
   input: CreateMcpTokenInput,
 ): Promise<McpToken> {
   const tokenHash = requireSha256Digest(input.tokenHash);
+  const name = input.name.trim();
+  validateCorrelationId(input.correlationId);
 
-  if (
-    input.expiresAt !== undefined &&
-    input.expiresAt !== null &&
-    input.expiresAt.getTime() <= Date.now()
-  ) {
-    throw new RepositoryError("invalid", "Token expiry must be in the future.");
+  if (name.length < 1 || name.length > 120) {
+    throw new RepositoryError(
+      "invalid",
+      "Token names must contain between 1 and 120 characters.",
+    );
   }
 
   return withTransaction(database, async (transaction) => {
-    await requireOwner(
+    await requireMembership(
       transaction,
       input.workspaceId,
       input.createdByMembershipId,
     );
+    const tokenId = createProductId();
     const rows = await transaction<McpToken[]>`
       insert into mcp_tokens (
         id,
@@ -49,16 +69,14 @@ export async function createMcpToken(
         "createdByMembershipId",
         name,
         prefix,
-        "tokenHash",
-        "expiresAt"
+        "tokenHash"
       ) values (
-        ${createProductId()},
+        ${tokenId},
         ${input.workspaceId},
         ${input.createdByMembershipId},
-        ${input.name.trim()},
+        ${name},
         ${input.prefix},
-        ${tokenHash},
-        ${input.expiresAt ?? null}
+        ${tokenHash}
       )
       returning
         id,
@@ -73,6 +91,32 @@ export async function createMcpToken(
         "createdAt"
     `;
 
+    await transaction`
+      insert into activity_events (
+        id,
+        "workspaceId",
+        "actorMembershipId",
+        "subjectMembershipId",
+        "correlationId",
+        category,
+        status,
+        operation,
+        summary,
+        metadata
+      ) values (
+        ${createProductId()},
+        ${input.workspaceId},
+        ${input.createdByMembershipId},
+        ${input.createdByMembershipId},
+        ${input.correlationId},
+        'mcp',
+        'succeeded',
+        'mcp.token.create',
+        'Personal MCP token created',
+        ${transaction.json({ tokenId })}
+      )
+    `;
+
     return requireReturnedRow(rows[0]);
   });
 }
@@ -80,26 +124,32 @@ export async function createMcpToken(
 export async function resolveMcpToken(
   database: DatabaseClient,
   tokenHash: Uint8Array,
-): Promise<ResolvedMcpToken | null> {
+): Promise<ResolvedMcpPrincipal | null> {
   const digest = requireSha256Digest(tokenHash);
-  const rows = await database<ResolvedMcpToken[]>`
-    update mcp_tokens
+  const rows = await database<ResolvedMcpPrincipal[]>`
+    update mcp_tokens token
     set "lastUsedAt" = now()
+    from
+      workspace_memberships membership,
+      users app_user,
+      workspaces workspace
     where
-      "tokenHash" = ${digest}
-      and "revokedAt" is null
-      and ("expiresAt" is null or "expiresAt" > now())
+      token."tokenHash" = ${digest}
+      and token."revokedAt" is null
+      and (token."expiresAt" is null or token."expiresAt" > now())
+      and membership.id = token."createdByMembershipId"
+      and membership."workspaceId" = token."workspaceId"
+      and app_user.id = membership."userId"
+      and workspace.id = token."workspaceId"
     returning
-      id,
-      "workspaceId",
-      "createdByMembershipId",
-      name,
-      prefix,
-      "expiresAt",
-      "lastUsedAt",
-      "revokedAt",
-      "revokedByMembershipId",
-      "createdAt"
+      token.id as "tokenId",
+      token."workspaceId" as "workspaceId",
+      workspace.name as "workspaceName",
+      membership.id as "membershipId",
+      membership.role,
+      app_user.id as "userId",
+      app_user.name as "userName",
+      app_user.email as "userEmail"
   `;
 
   return rows[0] ?? null;
@@ -108,25 +158,40 @@ export async function resolveMcpToken(
 export async function listMcpTokens(
   database: DatabaseClient,
   workspaceId: string,
-  ownerMembershipId: string,
-): Promise<McpToken[]> {
-  await requireOwner(database, workspaceId, ownerMembershipId);
+  requestingMembershipId: string,
+): Promise<McpTokenSummary[]> {
+  const membership = await requireMembership(
+    database,
+    workspaceId,
+    requestingMembershipId,
+  );
 
-  return database<McpToken[]>`
+  return database<McpTokenSummary[]>`
     select
-      id,
-      "workspaceId",
-      "createdByMembershipId",
-      name,
-      prefix,
-      "expiresAt",
-      "lastUsedAt",
-      "revokedAt",
-      "revokedByMembershipId",
-      "createdAt"
-    from mcp_tokens
-    where "workspaceId" = ${workspaceId}
-    order by "createdAt" desc, id desc
+      token.id,
+      token."workspaceId",
+      token."createdByMembershipId",
+      token.name,
+      token.prefix,
+      token."expiresAt",
+      token."lastUsedAt",
+      token."revokedAt",
+      token."revokedByMembershipId",
+      token."createdAt",
+      app_user.name as "creatorName",
+      app_user.email as "creatorEmail"
+    from mcp_tokens token
+    join workspace_memberships membership
+      on membership.id = token."createdByMembershipId"
+      and membership."workspaceId" = token."workspaceId"
+    join users app_user on app_user.id = membership."userId"
+    where
+      token."workspaceId" = ${workspaceId}
+      and (
+        ${membership.role === "owner"}
+        or token."createdByMembershipId" = ${requestingMembershipId}
+      )
+    order by token."createdAt" desc, token.id desc
   `;
 }
 
@@ -134,22 +199,74 @@ export async function revokeMcpToken(
   database: DatabaseClient,
   workspaceId: string,
   tokenId: string,
-  ownerMembershipId: string,
+  requestingMembershipId: string,
+  correlationId: string,
 ): Promise<boolean> {
+  validateCorrelationId(correlationId);
+
   return withTransaction(database, async (transaction) => {
-    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    const requester = await requireMembership(
+      transaction,
+      workspaceId,
+      requestingMembershipId,
+    );
+    const tokens = await transaction<
+      { createdByMembershipId: string; id: string }[]
+    >`
+      select id, "createdByMembershipId"
+      from mcp_tokens
+      where id = ${tokenId} and "workspaceId" = ${workspaceId}
+      for update
+    `;
+    const token = tokens[0];
+
+    if (
+      token === undefined ||
+      (requester.role !== "owner" &&
+        token.createdByMembershipId !== requestingMembershipId)
+    ) {
+      return false;
+    }
+
     const rows = await transaction<{ id: string }[]>`
       update mcp_tokens
       set
         "revokedAt" = now(),
-        "revokedByMembershipId" = ${ownerMembershipId}
-      where
-        id = ${tokenId}
-        and "workspaceId" = ${workspaceId}
-        and "revokedAt" is null
+        "revokedByMembershipId" = ${requestingMembershipId}
+      where id = ${tokenId} and "workspaceId" = ${workspaceId} and "revokedAt" is null
       returning id
     `;
 
-    return rows[0] !== undefined;
+    if (rows[0] === undefined) {
+      return false;
+    }
+
+    await transaction`
+      insert into activity_events (
+        id,
+        "workspaceId",
+        "actorMembershipId",
+        "subjectMembershipId",
+        "correlationId",
+        category,
+        status,
+        operation,
+        summary,
+        metadata
+      ) values (
+        ${createProductId()},
+        ${workspaceId},
+        ${requestingMembershipId},
+        ${token.createdByMembershipId},
+        ${correlationId},
+        'mcp',
+        'succeeded',
+        'mcp.token.revoke',
+        'Personal MCP token revoked',
+        ${transaction.json({ tokenId })}
+      )
+    `;
+
+    return true;
   });
 }

@@ -4,6 +4,7 @@ import {
   checkDatabaseReadiness,
   configureIntegration,
   createDatabaseConnection,
+  createMcpToken,
   createWorkspaceForUser,
   createWorkspaceInvitation,
   disconnectIntegrationAccount,
@@ -15,6 +16,7 @@ import {
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   listIntegrationScopes,
+  listMcpTokens,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaceIntegrations,
@@ -25,6 +27,8 @@ import {
   parseScopeKey,
   replaceIntegrationAccountCredentials,
   replaceIntegrationScopes,
+  resolveMcpToken,
+  revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
   type ProviderKey,
@@ -42,6 +46,12 @@ import {
 } from "./features/integrations/integration.service";
 import { createWorkspaceRouter } from "./features/workspaces/workspace.routes";
 import { createWorkspaceService } from "./features/workspaces/workspace.service";
+import { createMcpAccessRouter } from "./features/mcp-access/mcp-access.routes";
+import {
+  createMcpAccessService,
+  type McpAccessServiceDependencies,
+} from "./features/mcp-access/mcp-access.service";
+import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -140,6 +150,24 @@ const workspaceRepository = {
     getWorkspaceOverviewForUser(connection.client, userId, 5),
 };
 const workspaceService = createWorkspaceService(workspaceRepository);
+const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
+  createToken: (input) => createMcpToken(connection.client, input),
+  findCurrentWorkspace: (userId) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  listTokens: (workspaceId, requestingMembershipId) =>
+    listMcpTokens(connection.client, workspaceId, requestingMembershipId),
+  revokeToken: (workspaceId, tokenId, requestingMembershipId, correlationId) =>
+    revokeMcpToken(
+      connection.client,
+      workspaceId,
+      tokenId,
+      requestingMembershipId,
+      correlationId,
+    ),
+};
+const mcpAccessService = createMcpAccessService({
+  repository: mcpAccessRepository,
+});
 const memberRepository: MemberServiceDependencies["repository"] = {
   acceptInvitation: (input) =>
     acceptWorkspaceInvitation(connection.client, input),
@@ -293,6 +321,13 @@ apiRouter.use(
   createWorkspaceRouter({ requireAuthentication, service: workspaceService }),
 );
 apiRouter.use(
+  "/mcp-tokens",
+  createMcpAccessRouter({
+    requireAuthentication,
+    service: mcpAccessService,
+  }),
+);
+apiRouter.use(
   createMemberRouter({ requireAuthentication, service: memberService }),
 );
 apiRouter.use(
@@ -311,6 +346,11 @@ const app = createApp({
   authHandler: toNodeHandler(authService.auth),
   checkDatabase: () => checkDatabaseReadiness(connection),
   logger,
+  mcpHandler: createMcpGateway({
+    logger,
+    publicAppUrl: config.publicAppUrl,
+    resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
+  }),
 });
 
 const server = app.listen(config.port, () => {

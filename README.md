@@ -28,6 +28,7 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Dashboard: <http://localhost:3000/dashboard>
 - Integrations: <http://localhost:3000/integrations>
 - Members: <http://localhost:3000/members>
+- Agent Setup: <http://localhost:3000/agent-setup>
 
 The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
 
@@ -59,6 +60,29 @@ The product schema includes workspaces, memberships, invitations, workspace prov
 - Notification preferences store only member overrides. When no override exists, the API uses the event's `defaultEnabled` value from the provider registry.
 - Invitation and MCP secrets are never stored, only their 32-byte SHA-256 hashes.
 - Product IDs are application-generated UUIDv7 strings.
+
+## MCP gateway
+
+Each member creates personal Context Layer access tokens from `/agent-setup`. A token has the form `ctx_mcp_<secret>`, does not expire, and is shown only once. PostgreSQL stores its SHA-256 hash and a safe prefix, never the raw token. Members manage their own tokens; workspace owners can audit safe metadata and revoke any workspace token, but cannot recover or use it.
+
+The stateless Streamable HTTP endpoint is:
+
+```text
+POST <PUBLIC_APP_URL>/api/mcp
+Authorization: Bearer <token>
+```
+
+MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. This foundation release intentionally registers no tools, so a connected client receives an empty `tools/list` result. Provider and unified-context tools will attach to this gateway in later slices.
+
+Codex can read the bearer token from an environment variable:
+
+```toml
+[mcp_servers.context_layer]
+url = "https://<web-domain>/api/mcp"
+bearer_token_env_var = "CONTEXT_LAYER_TOKEN"
+```
+
+The Agent Setup page also provides copyable Claude, VS Code, and generic HTTP examples without embedding the token in committed configuration.
 
 ## Jira OAuth
 

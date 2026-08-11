@@ -71,7 +71,8 @@ export {
   resolveMcpToken,
   revokeMcpToken,
   type CreateMcpTokenInput,
-  type ResolvedMcpToken,
+  type McpTokenSummary,
+  type ResolvedMcpPrincipal,
 } from "./mcp-token-repository";
 export {
   createNotificationChannel,
