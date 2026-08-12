@@ -7,6 +7,7 @@ import { parseProviderKey, parseScopeKey } from "@context-layer/db";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import { createAdfDocumentSchema } from "../atlassian/adf-schema";
 import {
   ConfluenceVersionConflictError,
   type ConfluenceAdapter,
@@ -85,6 +86,16 @@ const attachmentMetadataSchema = z.object({
   mimeType: z.string(),
   size: z.number().int().nonnegative(),
 });
+const identitySchema = z.object({
+  displayName: z.string(),
+  externalAccountId: z.string(),
+});
+const pageBodySchema = createAdfDocumentSchema(50_000).describe(
+  "Native Atlassian Document Format document. Use heading, paragraph, text, lists, links, code blocks, blockquotes, rules, or tables; do not send Markdown text.",
+);
+const commentBodySchema = createAdfDocumentSchema(10_000).describe(
+  "Native Atlassian Document Format document for the footer comment; do not send Markdown text.",
+);
 
 interface ConfluenceMcpRepository {
   appendActivity(input: AppendActivityEventInput): Promise<ActivityEvent>;
@@ -358,6 +369,35 @@ export function createConfluenceMcpToolProvider({
         openWorldHint: true,
         readOnlyHint: true,
       } as const;
+
+      if (enabled.has("confluence_get_myself")) {
+        server.registerTool(
+          "confluence_get_myself",
+          {
+            annotations,
+            description:
+              "Return the Confluence identity used by the member who created this workspace MCP token.",
+            inputSchema: z.object({}),
+            outputSchema: z.object({ identity: identitySchema }),
+            title: "Get my Confluence identity",
+          },
+          async () => {
+            const result = await execute(
+              principal,
+              ready,
+              {
+                operation: "confluence.identity.get",
+                summary: "Confluence identity retrieved",
+                toolName: "confluence_get_myself",
+              },
+              (credentials) => adapter.getIdentity(credentials),
+            );
+            return "error" in result
+              ? toolFailure(result.error)
+              : toolSuccess({ identity: result.value });
+          },
+        );
+      }
 
       if (enabled.has("confluence_list_spaces")) {
         server.registerTool(
@@ -791,7 +831,7 @@ export function createConfluenceMcpToolProvider({
             description:
               "Create a published page in an allowlisted Confluence space using your connected account.",
             inputSchema: z.object({
-              body: z.string().trim().min(1).max(50_000).optional(),
+              body: pageBodySchema.optional(),
               parentPageId: idSchema.optional(),
               spaceId: idSchema,
               title: z.string().trim().min(1).max(255),
@@ -847,7 +887,7 @@ export function createConfluenceMcpToolProvider({
               "Update the title or body of an accessible published Confluence page using an expected version to prevent lost updates.",
             inputSchema: z
               .object({
-                body: z.string().trim().min(1).max(50_000).optional(),
+                body: pageBodySchema.optional(),
                 expectedVersion: z.number().int().min(1),
                 pageId: idSchema,
                 title: z.string().trim().min(1).max(255).optional(),
@@ -907,7 +947,7 @@ export function createConfluenceMcpToolProvider({
             description:
               "Add a bounded footer comment to an accessible Confluence page using your connected account.",
             inputSchema: z.object({
-              body: z.string().trim().min(1).max(10_000),
+              body: commentBodySchema,
               pageId: idSchema,
             }),
             outputSchema: z.object({ comment: commentSchema }),

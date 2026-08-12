@@ -56,6 +56,10 @@ const startAtSchema = z.number().int().min(0).default(0);
 const projectIdSchema = z.string().trim().min(1).max(100);
 const transitionIdSchema = z.string().trim().min(1).max(100);
 const attachmentIdSchema = z.string().trim().min(1).max(100);
+const identitySchema = z.object({
+  displayName: z.string(),
+  externalAccountId: z.string(),
+});
 const issueSummarySchema = z.object({
   assignee: z.string().nullable(),
   id: z.string(),
@@ -358,6 +362,40 @@ export function createJiraMcpToolProvider({
       }
 
       const enabledTools = new Set(ready.access.enabledMcpToolNames);
+
+      if (enabledTools.has("jira_get_myself")) {
+        server.registerTool(
+          "jira_get_myself",
+          {
+            annotations: {
+              destructiveHint: false,
+              idempotentHint: true,
+              openWorldHint: true,
+              readOnlyHint: true,
+            },
+            description:
+              "Return the Jira identity used by the member who created this workspace MCP token.",
+            inputSchema: z.object({}),
+            outputSchema: z.object({ identity: identitySchema }),
+            title: "Get my Jira identity",
+          },
+          async () => {
+            const result = await execute(
+              principal,
+              ready,
+              {
+                operation: "jira.identity.get",
+                summary: "Jira identity retrieved",
+                toolName: "jira_get_myself",
+              },
+              (credentials) => adapter.getIdentity(credentials),
+            );
+            return "error" in result
+              ? toolFailure(result.error)
+              : toolSuccess({ identity: result.value });
+          },
+        );
+      }
 
       if (enabledTools.has("jira_get_issue")) {
         server.registerTool(

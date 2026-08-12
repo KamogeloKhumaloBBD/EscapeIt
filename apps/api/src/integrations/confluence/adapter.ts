@@ -3,13 +3,15 @@ import { z } from "zod";
 
 import {
   adfToTextValue,
+  type AtlassianTextValue,
+} from "../atlassian/adf-reader";
+import type { AtlassianAdfDocument } from "../atlassian/adf-schema";
+import {
   extractAttachment,
   maximumAttachmentBytes,
-  textToAdf,
   type AtlassianAttachmentContent,
-  type AtlassianTextValue,
   type AttachmentMetadata,
-} from "../atlassian/content";
+} from "../atlassian/attachments";
 import {
   ProviderAdapterError,
   type IntegrationAdapter,
@@ -188,14 +190,14 @@ export interface ConfluenceSearchInput {
 }
 
 export interface ConfluenceCreatePageInput {
-  body?: string;
+  body?: AtlassianAdfDocument;
   parentPageId?: string;
   spaceId: string;
   title: string;
 }
 
 export interface ConfluenceUpdatePageInput {
-  body?: string;
+  body?: AtlassianAdfDocument;
   expectedVersion: number;
   pageId: string;
   title?: string;
@@ -214,7 +216,7 @@ export interface ConfluenceAdapter extends IntegrationAdapter {
     resource: ProviderResource,
     allowedSpaceIds: readonly string[],
     pageId: string,
-    body: string,
+    body: AtlassianAdfDocument,
   ): Promise<ConfluenceComment | null>;
   createPage(
     credentials: OAuthCredentials,
@@ -336,10 +338,13 @@ function rawAdfValue(body: z.infer<typeof pageSchema>["body"]): string {
   throw new ProviderAdapterError("invalid_response");
 }
 
-function writeAdf(value: string): { representation: string; value: string } {
+function writeAdf(value: AtlassianAdfDocument): {
+  representation: string;
+  value: string;
+} {
   return {
     representation: "atlas_doc_format",
-    value: JSON.stringify(textToAdf(value)),
+    value: JSON.stringify(value),
   };
 }
 
@@ -917,8 +922,8 @@ export function createConfluenceAdapter(config: {
   return adapter;
 }
 
+export type { AtlassianTextValue as ConfluenceTextValue } from "../atlassian/adf-reader";
 export type {
   AtlassianAttachmentContent as ConfluenceAttachmentContent,
-  AtlassianTextValue as ConfluenceTextValue,
   AttachmentMetadata,
-} from "../atlassian/content";
+} from "../atlassian/attachments";

@@ -77,8 +77,9 @@ Authorization: Bearer <token>
 
 MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. Tools are discovered per request from the integrations available to that member. Workspace owners explicitly choose the MCP tools enabled for each integration, and those choices apply to every member token while remaining constrained by each member's provider identity. A disconnected provider, disconnected personal account, empty resource allowlist, or empty tool allowlist contributes no tools. Tool choices are retained when an integration is disconnected but remain unavailable until it is ready again.
 
-When Jira is ready, the gateway can expose fourteen individually selected tools:
+When Jira is ready, the gateway can expose fifteen individually selected tools:
 
+- `jira_get_myself`
 - `jira_get_issue`
 - `jira_search_issues`
 - `jira_get_assigned_issues`
@@ -98,8 +99,9 @@ Jira search accepts structured filters rather than raw JQL. The API builds bound
 
 Responses contain normalized, bounded fields instead of raw Jira payloads. Atlassian document descriptions and comments retain compatible plain text and add bounded Markdown rendering. Attachment retrieval is read-only: UTF-8 text and Markdown are decoded, PDF and DOCX files are converted to bounded extracted text, and PNG, JPEG, GIF, or WebP images can be returned inline. Source attachments are capped at 10 MiB, inline images at 5 MiB, and extracted text at 50,000 characters. SVG, archives, legacy DOC, executables, unsupported formats, and oversized files are rejected; attachment bytes are never persisted or logged.
 
-When Confluence is ready, the gateway can expose eleven individually selected tools:
+When Confluence is ready, the gateway can expose twelve individually selected tools:
 
+- `confluence_get_myself`
 - `confluence_list_spaces`
 - `confluence_list_pages`
 - `confluence_get_page`
@@ -112,7 +114,7 @@ When Confluence is ready, the gateway can expose eleven individually selected to
 - `confluence_update_page`
 - `confluence_add_page_comment`
 
-Confluence pages are limited to the workspace's selected space IDs and the invoking member's own Confluence permissions. Search accepts structured title and text filters; the adapter builds bounded CQL internally and never accepts arbitrary CQL. Page bodies and comments return normalized plain text and bounded Markdown. Write tools can create published pages, update a page title or body with optimistic version checks, and add footer comments. Drafts, moves, ownership changes, deletion, and uploads are not exposed. Confluence attachment retrieval uses the same type and size policies as Jira, validates page and space ownership first, and follows only a single credential-free redirect to an Atlassian-controlled media host.
+Confluence pages are limited to the workspace's selected space IDs and the invoking member's own Confluence permissions. Search accepts structured title and text filters; the adapter builds bounded CQL internally and never accepts arbitrary CQL. Page bodies and comments return normalized plain text and bounded Markdown. Write tools accept a validated, bounded native Atlassian Document Format document and send it directly to Confluence, supporting headings, formatting, links, lists, quotes, code blocks, rules, and tables without using Markdown as an intermediate representation. Drafts, moves, ownership changes, deletion, and uploads are not exposed. Confluence attachment retrieval uses the same type and size policies as Jira, validates page and space ownership first, and follows only a single credential-free redirect to an Atlassian-controlled media host.
 
 Codex can read the bearer token from an environment variable:
 

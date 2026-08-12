@@ -11,6 +11,12 @@ export const confluenceDefinition = {
   key: confluenceProvider,
   mcpTools: [
     {
+      description: "Return the connected member's Confluence account identity.",
+      displayName: "Get my identity",
+      kind: "read",
+      name: "confluence_get_myself",
+    },
+    {
       description:
         "List allowlisted Confluence spaces visible to your account.",
       displayName: "List spaces",

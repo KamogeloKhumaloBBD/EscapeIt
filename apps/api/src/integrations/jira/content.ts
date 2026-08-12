@@ -1,11 +1,13 @@
 export {
   adfToTextValue,
+  type AtlassianTextValue as JiraTextValue,
+} from "../atlassian/adf-reader";
+export {
   extractAttachment,
   maximumAttachmentBytes,
   maximumExtractedCharacters,
   maximumInlineImageBytes,
-  textToAdf,
   type AtlassianAttachmentContent as JiraAttachmentContent,
-  type AtlassianTextValue as JiraTextValue,
   type AttachmentMetadata,
-} from "../atlassian/content";
+} from "../atlassian/attachments";
+export { textToAdf } from "./text-to-adf";

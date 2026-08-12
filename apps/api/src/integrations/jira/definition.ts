@@ -11,6 +11,12 @@ export const jiraDefinition = {
   key: jiraProvider,
   mcpTools: [
     {
+      description: "Return the connected member's Jira account identity.",
+      displayName: "Get my identity",
+      kind: "read",
+      name: "jira_get_myself",
+    },
+    {
       description: "Retrieve one issue from an allowed Jira project.",
       displayName: "Get issue",
       kind: "read",
