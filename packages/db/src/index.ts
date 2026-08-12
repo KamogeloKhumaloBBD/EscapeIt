@@ -8,6 +8,24 @@ export {
 } from "./client";
 export { parseDatabaseConfig, type DatabaseConfig } from "./config";
 export {
+  getWorkspaceUsageAnalytics,
+  listWorkspaceMemberUsage,
+  listWorkspaceToolUsage,
+  type AnalyticsRankingPage,
+  type AnalyticsRankingSort,
+  type AnalyticsRange,
+  type AnalyticsSortDirection,
+  type DailyUsage,
+  type MemberUsage,
+  type ProviderUsage,
+  type RecentToolActivity,
+  type ToolUsage,
+  type UsageSummary,
+  type WorkspaceAnalyticsInput,
+  type WorkspaceAnalyticsRankingInput,
+  type WorkspaceUsageAnalytics,
+} from "./analytics-repository";
+export {
   appendActivityEvent,
   listActivity,
   listActivityByCorrelationId,

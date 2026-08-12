@@ -23,6 +23,7 @@ const integrationSummarySchema = z.object({
   capabilities: z.array(z.string()),
   currentAccount: z
     .object({
+      displayName: z.string().nullable().optional(),
       lastValidatedAt: z.iso.datetime().nullable(),
       status: connectionStatusSchema,
     })
