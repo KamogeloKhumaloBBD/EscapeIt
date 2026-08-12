@@ -160,7 +160,7 @@ If both are absent, the core application still starts and both Atlassian provide
 | `pnpm db:validate`        | Validate local Flyway migrations              |
 | `pnpm db:info`            | Inspect local Flyway state                    |
 | `pnpm verify`             | Check formatting, linting, types, and builds  |
-| `pnpm docker:build`       | Build both production application images      |
+| `pnpm docker:build`       | Build all production deployment images        |
 | `pnpm email:dev`          | Preview shared email templates on port 3001   |
 
 Migrations never run during web or API startup. Product data is never seeded.
@@ -190,7 +190,7 @@ Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTG
 
 ## Railway
 
-Railway runs `web`, `api`, and `Postgres` in one project. The application service manifests are `railway.web.json` and `railway.api.json`.
+Railway runs `web`, `api`, `flyway`, and `Postgres` in one project. The service manifests are `railway.web.json`, `railway.api.json`, and `railway.flyway.json`.
 
 Use these service configuration paths in Railway and keep the repository root as each build context. Configure:
 
@@ -209,15 +209,36 @@ api
   ATLASSIAN_OAUTH_CLIENT_SECRET=<secret>
   PORT=4000
 
+flyway
+  FLYWAY_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
+  FLYWAY_USER=${{Postgres.PGUSER}}
+  FLYWAY_PASSWORD=${{Postgres.PGPASSWORD}}
+  FLYWAY_CONNECT_RETRIES=60
+  RAILWAY_DOCKERFILE_PATH=packages/db/Dockerfile.flyway
+
 ```
 
-Run migrations explicitly before an application release containing new SQL:
+The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. Keep GitHub autodeploy disabled for `flyway`, `api`, and `web`; the production GitHub Actions workflow deploys them in order. Flyway is deployed only when its SQL, image, or Railway manifest changed since the last successful production API revision.
+
+Configure the private GitHub repository with:
+
+- Required `main` branch check: `Verify`.
+- Repository secret `RAILWAY_TOKEN`: a Railway project token scoped to the production environment.
+- Repository variable `RAILWAY_PROJECT_ID`: the Railway project ID.
+- Repository variable `PRODUCTION_WEB_URL`: the public HTTPS web origin.
+- GitHub environment `production` for deployment tracking.
+
+Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build Docker images or test Flyway against a temporary database; Railway performs deployment builds, and developers must run `pnpm db:migrate` and `pnpm db:validate` locally whenever migrations change.
+
+For releases, GitHub Actions checks the exact CI-verified revision, conditionally deploys Flyway, then deploys API and web. A failed Flyway deployment blocks both applications, and a failed API deployment blocks web. The final smoke checks require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+
+For an exceptional manual migration fallback, run:
 
 ```sh
 railway run --service Postgres pnpm db:railway:migrate
 ```
 
-The Postgres service must have an active TCP proxy and a `DATABASE_PUBLIC_URL` composed from that proxy plus Railway's `PGUSER`, `POSTGRES_PASSWORD`, and `PGDATABASE` references. The command passes that URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web. Apply `V2__context_layer_foundation.sql` before deploying any API code that calls the product repositories.
+The fallback requires an active Postgres TCP proxy and a `DATABASE_PUBLIC_URL`. Normal production migrations use Railway private networking and do not require a public database endpoint. Never edit an applied versioned migration, run `flyway repair` automatically, or attempt an automatic database rollback; ship forward-compatible corrective migrations instead.
 
 Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 

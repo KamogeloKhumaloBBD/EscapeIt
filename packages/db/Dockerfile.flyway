@@ -1,0 +1,5 @@
+FROM redgate/flyway:12.6.0
+
+COPY packages/db/migrations /flyway/sql
+
+CMD ["migrate"]
