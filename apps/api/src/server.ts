@@ -17,11 +17,14 @@ import {
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
+  getWorkspaceUsageAnalytics,
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
+  listWorkspaceMemberUsage,
+  listWorkspaceToolUsage,
   listWorkspaceIntegrations,
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
@@ -137,6 +140,12 @@ const workspaceRepository = {
     findCurrentWorkspaceForUser(connection.client, userId),
   getOverviewForUser: (userId: string) =>
     getWorkspaceOverviewForUser(connection.client, userId, 5),
+  getAnalytics: (input: Parameters<typeof getWorkspaceUsageAnalytics>[1]) =>
+    getWorkspaceUsageAnalytics(connection.client, input),
+  listMemberUsage: (input: Parameters<typeof listWorkspaceMemberUsage>[1]) =>
+    listWorkspaceMemberUsage(connection.client, input),
+  listToolUsage: (input: Parameters<typeof listWorkspaceToolUsage>[1]) =>
+    listWorkspaceToolUsage(connection.client, input),
 };
 const workspaceService = createWorkspaceService(workspaceRepository);
 const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
