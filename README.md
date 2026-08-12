@@ -230,7 +230,7 @@ Configure the private GitHub repository with:
 
 Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build Docker images or test Flyway against a temporary database; Railway performs deployment builds, and developers must run `pnpm db:migrate` and `pnpm db:validate` locally whenever migrations change.
 
-For releases, GitHub Actions checks the exact CI-verified revision, conditionally deploys Flyway, then deploys API and web. A failed Flyway deployment blocks both applications, and a failed API deployment blocks web. The final smoke checks require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, API, and web in that order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
 
 For an exceptional manual migration fallback, run:
 
