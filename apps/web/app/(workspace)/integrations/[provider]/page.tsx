@@ -290,9 +290,7 @@ export default async function IntegrationDetailPage({
                     />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>
-                      {integration.currentAccount.displayName ?? accountLabel}
-                    </ItemTitle>
+                    <ItemTitle>{accountLabel}</ItemTitle>
                     <ItemDescription>
                       Connected to your workspace identity.
                     </ItemDescription>
