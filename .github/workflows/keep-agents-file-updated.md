@@ -2,8 +2,8 @@
 name: Weekly AGENTS.md Sync
 on:
   schedule:
-    - cron: "0 7 * * 1"   # 07:00 UTC every Monday (≈09:00 SAST)
-  workflow_dispatch:        # adds a "Run workflow" button in the Actions tab
+    - cron: "0 7 * * 1" # 07:00 UTC every Monday (≈09:00 SAST)
+  workflow_dispatch: # adds a "Run workflow" button in the Actions tab
     inputs:
       since:
         description: "Only consider merged PRs / source changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 7 days."
@@ -112,14 +112,14 @@ Edit `AGENTS.md` to match reality. Keep changes **surgical and accurate**:
 - If you made edits, open **one** pull request via the create-pull-request safe
   output.
 - If `${{ github.event.inputs.dry_run }}` is `true`, do **not** open a PR —
-  summarize what you found and what you *would* change, then stop.
+  summarize what you found and what you _would_ change, then stop.
 - If `AGENTS.md` is already accurate for this window, do **not** open a PR. Report
   that it is up to date.
 
 The pull request should include:
 
 - A clear title summarizing the update (e.g. `Update build commands in AGENTS.md
-  after pnpm migration`).
+after pnpm migration`).
 - A body listing each change: **what changed in the repo** (with links to the
   driving PRs/commits) and **what you updated in AGENTS.md**.
 - A short "Needs human review" section for anything ambiguous you left alone.

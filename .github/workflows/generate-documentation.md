@@ -2,8 +2,8 @@
 name: Daily Docs Sync
 on:
   schedule:
-    - cron: "0 7 * * 1-5"   # 07:00 UTC, Mon–Fri (≈09:00 SAST)
-  workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
+    - cron: "0 7 * * 1-5" # 07:00 UTC, Mon–Fri (≈09:00 SAST)
+  workflow_dispatch: # adds a "Run workflow" button in the Actions tab
     inputs:
       since:
         description: "Only consider code changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 24 hours."
@@ -67,7 +67,7 @@ State the exact range you settled on at the start of your work.
 ## 2. Identify what changed in the code
 
 Look at the commits, merged pull requests, and diffs in the window. Focus on
-changes that documentation is *expected to describe*, for example:
+changes that documentation is _expected to describe_, for example:
 
 - Public APIs, function signatures, CLI flags, or config options that were added,
   renamed, or removed.
@@ -107,7 +107,7 @@ Keep changes **surgical and accurate**:
 - If you made documentation edits, open **one** pull request containing all of
   them via the create-pull-request safe output.
 - If `${{ github.event.inputs.dry_run }}` is `true`, do **not** open a PR —
-  instead summarize what you found and what you *would* change, then stop.
+  instead summarize what you found and what you _would_ change, then stop.
 - If nothing is out of sync, do **not** open a PR. Simply report that the docs
   are up to date for this window.
 
