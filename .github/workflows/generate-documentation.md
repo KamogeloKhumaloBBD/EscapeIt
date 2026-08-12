@@ -14,6 +14,10 @@ on:
         required: false
         type: boolean
         default: false
+      focus:
+        description: 'Optional: restrict this run to one area (e.g. "API docs only", "README", "docs/api.md"). Leave blank to consider all documentation as usual.'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -63,6 +67,14 @@ propose the minimal, accurate updates needed to bring it back in line.
   what merged.
 
 State the exact range you settled on at the start of your work.
+
+- If `${{ github.event.inputs.focus }}` is set, restrict this entire run to
+  that area only — both which code changes you examine and which docs you
+  check. For example, "API docs only" or "docs/api.md" means: only consider
+  Express API route changes and `docs/api.md`, and ignore other drift this
+  run even if you notice it. State the focus you were given, if any, alongside
+  the review window. Leave it unset to consider the full documentation surface
+  as usual.
 
 ## 2. Identify what changed in the code
 
