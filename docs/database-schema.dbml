@@ -1,7 +1,7 @@
 Project context_layer {
   database_type: "PostgreSQL"
   Note: '''
-    Context Layer schema through Flyway V2.
+    Context Layer schema through Flyway V3.
 
     Flyway SQL under packages/db/migrations is authoritative. Migrations run
     explicitly and never during API or web startup. Product IDs are UUIDv7
@@ -221,6 +221,27 @@ Table integration_scopes {
   '''
 }
 
+Table integration_mcp_tools {
+  id text [pk]
+  workspaceId text [not null]
+  integrationId text [not null]
+  toolName text [not null]
+  enabledByMembershipId text [not null]
+  createdAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (integrationId, toolName) [unique, name: "integration_mcp_tools_integration_name_unique"]
+    (workspaceId, id) [unique, name: "integration_mcp_tools_workspace_id_id_unique"]
+    (workspaceId, integrationId) [name: "integration_mcp_tools_workspace_integration_idx"]
+  }
+
+  Note: '''
+    Workspace-wide deny-by-default MCP tool allowlist. toolName is a
+    provider-prefixed key such as jira_get_issue, 3-128 characters, matching
+    ^[a-z][a-z0-9]*(_[a-z0-9]+)+$. No rows for an integration means no tools.
+  '''
+}
+
 Table mcp_tokens {
   id text [pk]
   workspaceId text [not null]
@@ -342,6 +363,9 @@ Ref: integration_accounts.(workspaceId, membershipId) > workspace_memberships.(w
 
 Ref: integration_scopes.(workspaceId, integrationId) > integrations.(workspaceId, id) [delete: cascade]
 Ref: integration_scopes.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+
+Ref: integration_mcp_tools.(workspaceId, integrationId) > integrations.(workspaceId, id) [delete: cascade]
+Ref: integration_mcp_tools.(workspaceId, enabledByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
 
 Ref: mcp_tokens.workspaceId > workspaces.id [delete: cascade]
 Ref: mcp_tokens.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
