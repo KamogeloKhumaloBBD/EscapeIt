@@ -368,7 +368,6 @@ function buildSummary(
       account === null
         ? null
         : {
-            displayName: account.externalDisplayName,
             lastValidatedAt: account.lastValidatedAt?.toISOString() ?? null,
             status: account.status,
           },
@@ -611,10 +610,7 @@ export function createIntegrationService({
 
       try {
         const credentials = await adapter.exchangeAuthorizationCode(code);
-        const [identity, resources] = await Promise.all([
-          adapter.getIdentity(credentials),
-          adapter.discoverResources(credentials),
-        ]);
+        const resources = await adapter.discoverResources(credentials);
         const configuredResource = readResource(context.integration);
         const authorizationResource =
           configuredResource === null &&
@@ -647,8 +643,6 @@ export function createIntegrationService({
         const accountInput: SaveIntegrationAccountInput = {
           accountId: context.account.id,
           credentialEnvelope: envelope,
-          externalAccountId: identity.externalAccountId,
-          externalDisplayName: identity.displayName,
           integrationId: context.integration.id,
           lastValidatedAt: new Date(),
           membershipId: workspace.membership.id,
