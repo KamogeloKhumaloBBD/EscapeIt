@@ -604,7 +604,7 @@ export function DashboardAnalytics({
                       />
                       <div className="relative flex items-center gap-3">
                         <Avatar>
-                          <AvatarFallback>{initials(item.name)}</AvatarFallback>
+                          <AvatarFallback>{initials(item.email)}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">
