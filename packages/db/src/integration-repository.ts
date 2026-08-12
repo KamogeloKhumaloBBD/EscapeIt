@@ -5,6 +5,7 @@ import type {
   EncryptedCredentialEnvelope,
   Integration,
   IntegrationAccount,
+  IntegrationMcpTool,
   IntegrationScope,
   JsonObject,
   ProviderKey,
@@ -52,6 +53,18 @@ export interface SelectedIntegrationScopeInput {
 export interface IntegrationConnectionContext {
   account: IntegrationAccount;
   integration: Integration;
+}
+
+export interface ConnectIntegrationAccountWithResourceInput {
+  account: SaveIntegrationAccountInput;
+  installation: ConfigureIntegrationInput;
+}
+
+export interface MemberIntegrationAccess {
+  account: IntegrationAccount | null;
+  enabledMcpToolNames: string[];
+  integration: Integration;
+  scopes: IntegrationScope[];
 }
 
 function validateCredentialState(input: SaveIntegrationAccountInput): void {
@@ -227,6 +240,130 @@ export async function findWorkspaceIntegration(
   `;
 
   return rows[0] ?? null;
+}
+
+export async function findMemberIntegrationAccess(
+  database: DatabaseClient,
+  workspaceId: string,
+  membershipId: string,
+  provider: ProviderKey,
+): Promise<MemberIntegrationAccess | null> {
+  await requireMembership(database, workspaceId, membershipId);
+  const integrations = await database<Integration[]>`
+    select *
+    from integrations
+    where "workspaceId" = ${workspaceId} and provider = ${provider}
+  `;
+  const integration = integrations[0];
+
+  if (integration === undefined) {
+    return null;
+  }
+
+  const [accounts, scopes, mcpTools] = await Promise.all([
+    database<IntegrationAccount[]>`
+      select *
+      from integration_accounts
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+        and "membershipId" = ${membershipId}
+    `,
+    database<IntegrationScope[]>`
+      select *
+      from integration_scopes
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+      order by "displayName", id
+    `,
+    database<Pick<IntegrationMcpTool, "toolName">[]>`
+      select "toolName"
+      from integration_mcp_tools
+      where
+        "workspaceId" = ${workspaceId}
+        and "integrationId" = ${integration.id}
+      order by "toolName"
+    `,
+  ]);
+
+  return {
+    account: accounts[0] ?? null,
+    enabledMcpToolNames: mcpTools.map((tool) => tool.toolName),
+    integration,
+    scopes,
+  };
+}
+
+export async function replaceIntegrationMcpTools(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  ownerMembershipId: string,
+  toolNames: readonly string[],
+): Promise<IntegrationMcpTool[]> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    const integrations = await transaction<{ id: string }[]>`
+      select id
+      from integrations
+      where id = ${integrationId} and "workspaceId" = ${workspaceId}
+      for update
+    `;
+
+    if (integrations[0] === undefined) {
+      throw new RepositoryError("not_found", "Integration not found.");
+    }
+
+    if (new Set(toolNames).size !== toolNames.length) {
+      throw new RepositoryError("invalid", "Duplicate MCP tool name.");
+    }
+
+    await transaction`
+      delete from integration_mcp_tools
+      where "workspaceId" = ${workspaceId} and "integrationId" = ${integrationId}
+    `;
+
+    const selected: IntegrationMcpTool[] = [];
+
+    for (const toolName of toolNames) {
+      const rows = await transaction<IntegrationMcpTool[]>`
+        insert into integration_mcp_tools (
+          id,
+          "workspaceId",
+          "integrationId",
+          "toolName",
+          "enabledByMembershipId"
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${integrationId},
+          ${toolName},
+          ${ownerMembershipId}
+        )
+        returning *
+      `;
+      selected.push(requireReturnedRow(rows[0]));
+    }
+
+    return selected;
+  });
+}
+
+export async function listIntegrationMcpTools(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  membershipId: string,
+): Promise<IntegrationMcpTool[]> {
+  await requireMembership(database, workspaceId, membershipId);
+
+  return database<IntegrationMcpTool[]>`
+    select *
+    from integration_mcp_tools
+    where "workspaceId" = ${workspaceId} and "integrationId" = ${integrationId}
+    order by "toolName", id
+  `;
 }
 
 export async function replaceIntegrationAccountCredentials(
@@ -425,6 +562,85 @@ export async function saveIntegrationAccount(
     `;
 
     return requireReturnedRow(rows[0]);
+  });
+}
+
+export async function connectIntegrationAccountWithResource(
+  database: DatabaseClient,
+  input: ConnectIntegrationAccountWithResourceInput,
+): Promise<IntegrationConnectionContext> {
+  validateCredentialState(input.account);
+
+  if (
+    input.account.status !== "connected" ||
+    input.installation.status !== "connected" ||
+    input.account.workspaceId !== input.installation.workspaceId ||
+    input.account.membershipId !== input.installation.configuredByMembershipId
+  ) {
+    throw new RepositoryError(
+      "invalid",
+      "Account and installation connection state does not match.",
+    );
+  }
+
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(
+      transaction,
+      input.account.workspaceId,
+      input.account.membershipId,
+    );
+    const integrations = await transaction<Integration[]>`
+      update integrations
+      set
+        status = ${input.installation.status},
+        configuration = ${transaction.json(input.installation.configuration)},
+        "configuredByMembershipId" = ${input.installation.configuredByMembershipId},
+        "lastValidatedAt" = ${input.installation.lastValidatedAt ?? null},
+        "lastErrorCode" = ${input.installation.lastErrorCode ?? null},
+        "updatedAt" = now()
+      where
+        id = ${input.account.integrationId}
+        and "workspaceId" = ${input.account.workspaceId}
+        and provider = ${input.installation.provider}
+      returning *
+    `;
+    const integration = requireReturnedRow(integrations[0]);
+    const accounts = await transaction<IntegrationAccount[]>`
+      insert into integration_accounts (
+        id,
+        "workspaceId",
+        "integrationId",
+        "membershipId",
+        status,
+        "externalAccountId",
+        "externalDisplayName",
+        "credentialEnvelope",
+        "lastValidatedAt",
+        "lastErrorCode"
+      ) values (
+        ${input.account.accountId},
+        ${input.account.workspaceId},
+        ${input.account.integrationId},
+        ${input.account.membershipId},
+        ${input.account.status},
+        ${input.account.externalAccountId},
+        ${input.account.externalDisplayName ?? null},
+        ${input.account.credentialEnvelope},
+        ${input.account.lastValidatedAt ?? null},
+        ${input.account.lastErrorCode ?? null}
+      )
+      on conflict ("integrationId", "membershipId") do update set
+        status = excluded.status,
+        "externalAccountId" = excluded."externalAccountId",
+        "externalDisplayName" = excluded."externalDisplayName",
+        "credentialEnvelope" = excluded."credentialEnvelope",
+        "lastValidatedAt" = excluded."lastValidatedAt",
+        "lastErrorCode" = excluded."lastErrorCode",
+        "updatedAt" = now()
+      returning *
+    `;
+
+    return { account: requireReturnedRow(accounts[0]), integration };
   });
 }
 

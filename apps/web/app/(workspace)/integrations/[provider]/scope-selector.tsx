@@ -24,12 +24,12 @@ import {
   type IntegrationScope,
 } from "@/lib/validation/integration";
 
-function SaveButton() {
+function SaveButton({ scopePlural }: { scopePlural: string }) {
   const { pending } = useFormStatus();
   return (
     <Button disabled={pending} type="submit">
       {pending ? <Spinner data-icon="inline-start" /> : null}
-      {pending ? "Saving access..." : "Save project access"}
+      {pending ? "Saving access..." : `Save ${scopePlural} access`}
     </Button>
   );
 }
@@ -43,16 +43,20 @@ function parseResponse(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-export function ProjectSelector({
+export function ScopeSelector({
   initialItems,
   initialSelected,
   initialNextCursor,
   provider,
+  providerDisplayName,
+  scopeLabels,
 }: {
   initialItems: readonly IntegrationScope[];
   initialNextCursor: string | null;
   initialSelected: readonly IntegrationScope[];
   provider: string;
+  providerDisplayName: string;
+  scopeLabels: { plural: string; singular: string };
 }) {
   const [state, formAction] = useActionState(
     integrationAction,
@@ -115,7 +119,9 @@ export function ProjectSelector({
         })
         .catch((error: unknown) => {
           if (!(error instanceof DOMException && error.name === "AbortError")) {
-            toast.error("We couldn't load Jira projects.");
+            toast.error(
+              `We couldn't load ${providerDisplayName} ${scopeLabels.plural}.`,
+            );
           }
         })
         .finally(() => {
@@ -127,7 +133,7 @@ export function ProjectSelector({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [provider, query]);
+  }, [provider, providerDisplayName, query, scopeLabels.plural]);
 
   async function loadMore() {
     if (nextCursor === null) {
@@ -156,7 +162,9 @@ export function ProjectSelector({
       setItems((current) => [...current, ...discovered.items]);
       setNextCursor(discovered.nextCursor);
     } catch {
-      toast.error("We couldn't load more Jira projects.");
+      toast.error(
+        `We couldn't load more ${providerDisplayName} ${scopeLabels.plural}.`,
+      );
     } finally {
       setLoading(false);
     }
@@ -182,9 +190,9 @@ export function ProjectSelector({
       >
         <div className="relative">
           <CommandInput
-            aria-label="Search Jira projects"
+            aria-label={`Search ${providerDisplayName} ${scopeLabels.plural}`}
             onValueChange={setQuery}
-            placeholder="Search projects"
+            placeholder={`Search ${scopeLabels.plural}`}
             value={query}
           />
           {loading ? (
@@ -193,8 +201,12 @@ export function ProjectSelector({
         </div>
         <ScrollArea className="max-h-72">
           <CommandList className="max-h-none">
-            <CommandEmpty>No Jira projects found.</CommandEmpty>
-            <CommandGroup heading="Projects">
+            <CommandEmpty>
+              No {providerDisplayName} {scopeLabels.plural} found.
+            </CommandEmpty>
+            <CommandGroup
+              heading={`${scopeLabels.plural.charAt(0).toUpperCase()}${scopeLabels.plural.slice(1)}`}
+            >
               {visibleItems.map((scope) => {
                 const checked = selected.has(scope.externalId);
                 return (
@@ -249,10 +261,12 @@ export function ProjectSelector({
       <div className="mt-5 flex flex-col gap-3 border border-border bg-muted/35 p-3 sm:flex-row sm:items-center sm:justify-between sm:pl-4">
         <p className="text-sm font-medium text-muted-foreground">
           {selected.size === 0
-            ? "No projects selected. Jira access is denied by default."
-            : `${String(selected.size)} project${selected.size === 1 ? "" : "s"} selected`}
+            ? `No ${scopeLabels.plural} selected. ${providerDisplayName} access is denied by default.`
+            : `${String(selected.size)} ${
+                selected.size === 1 ? scopeLabels.singular : scopeLabels.plural
+              } selected`}
         </p>
-        <SaveButton />
+        <SaveButton scopePlural={scopeLabels.plural} />
       </div>
     </form>
   );

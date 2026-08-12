@@ -132,6 +132,15 @@ export interface Integration {
   workspaceId: string;
 }
 
+export interface IntegrationMcpTool {
+  createdAt: Date;
+  enabledByMembershipId: string;
+  id: string;
+  integrationId: string;
+  toolName: string;
+  workspaceId: string;
+}
+
 export interface IntegrationAccount {
   createdAt: Date;
   credentialEnvelope: EncryptedCredentialEnvelope | null;

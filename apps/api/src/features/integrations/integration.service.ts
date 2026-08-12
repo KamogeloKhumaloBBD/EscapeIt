@@ -2,11 +2,13 @@ import {
   InvalidIntegrationKeyError,
   parseProviderKey,
   type AppendActivityEventInput,
+  type ConnectIntegrationAccountWithResourceInput,
   type CurrentWorkspace,
   type EncryptedCredentialEnvelope,
   type Integration,
   type IntegrationAccount,
   type IntegrationConnectionContext,
+  type IntegrationMcpTool,
   type IntegrationScope,
   type ProviderKey,
   type SaveIntegrationAccountInput,
@@ -23,21 +25,20 @@ import {
   type ProviderResource,
 } from "../../integrations/integration-adapter";
 import { createOAuthState } from "../../integrations/oauth-state";
+import {
+  ProviderAccountRuntimeError,
+  type ProviderAccountRuntime,
+} from "../../integrations/provider-account-runtime";
 import type { ProviderRegistry } from "../../integrations/provider-registry";
 import type {
   IntegrationDetailContract,
+  IntegrationMcpToolContract,
   IntegrationResourceContract,
   IntegrationScopeContract,
   IntegrationSummaryContract,
   ScopeDiscoveryContract,
 } from "./integration.contracts";
 
-const credentialsSchema = z.object({
-  accessToken: z.string().min(1),
-  expiresAt: z.iso.datetime(),
-  refreshToken: z.string().min(1),
-  scopes: z.array(z.string()),
-});
 const resourceSchema = z.object({
   externalId: z.string().min(1),
   name: z.string().min(1),
@@ -55,6 +56,9 @@ interface IntegrationRepository {
     status: "connected";
     workspaceId: string;
   }): Promise<Integration>;
+  connectAccountWithResource(
+    input: ConnectIntegrationAccountWithResourceInput,
+  ): Promise<IntegrationConnectionContext>;
   disconnectAccount(
     workspaceId: string,
     integrationId: string,
@@ -90,6 +94,11 @@ interface IntegrationRepository {
     integrationId: string,
     membershipId: string,
   ): Promise<IntegrationScope[]>;
+  listMcpTools(
+    workspaceId: string,
+    integrationId: string,
+    membershipId: string,
+  ): Promise<IntegrationMcpTool[]>;
   markAccountValidated(
     workspaceId: string,
     integrationId: string,
@@ -110,10 +119,17 @@ interface IntegrationRepository {
     membershipId: string,
     scopes: readonly SelectedIntegrationScopeInput[],
   ): Promise<IntegrationScope[]>;
+  replaceMcpTools(
+    workspaceId: string,
+    integrationId: string,
+    membershipId: string,
+    toolNames: readonly string[],
+  ): Promise<IntegrationMcpTool[]>;
   saveAccount(input: SaveIntegrationAccountInput): Promise<IntegrationAccount>;
 }
 
 export interface IntegrationServiceDependencies {
+  accountRuntime: ProviderAccountRuntime;
   adapters: ReadonlyMap<ProviderKey, IntegrationAdapter>;
   credentialEncryption: CredentialEncryption;
   oauthStateSecret: string;
@@ -155,6 +171,22 @@ function providerFromInput(
 }
 
 function mapProviderError(error: unknown): never {
+  if (error instanceof ProviderAccountRuntimeError) {
+    if (error.code === "account_required") {
+      throw new HttpError(
+        409,
+        "PROVIDER_ACCOUNT_REQUIRED",
+        "Connect your provider account first.",
+      );
+    }
+
+    throw new HttpError(
+      500,
+      "CREDENTIALS_UNAVAILABLE",
+      "The stored provider credentials could not be read.",
+    );
+  }
+
   if (error instanceof ProviderAdapterError) {
     const mapping = {
       authorization_expired: [
@@ -162,20 +194,45 @@ function mapProviderError(error: unknown): never {
         "PROVIDER_AUTHORIZATION_EXPIRED",
         "Reconnect your provider account and try again.",
       ],
+      content_too_large: [
+        413,
+        "PROVIDER_CONTENT_TOO_LARGE",
+        "The provider content exceeds the supported size.",
+      ],
+      forbidden: [
+        403,
+        "PROVIDER_PERMISSION_REQUIRED",
+        "Your provider account does not permit this operation.",
+      ],
       inaccessible_resource: [
         409,
         "PROVIDER_RESOURCE_UNAVAILABLE",
         "The selected provider resource is unavailable.",
+      ],
+      invalid_request: [
+        400,
+        "PROVIDER_REQUEST_REJECTED",
+        "The provider rejected the requested operation.",
       ],
       invalid_response: [
         503,
         "PROVIDER_INVALID_RESPONSE",
         "The provider returned an unexpected response.",
       ],
+      not_found: [
+        404,
+        "PROVIDER_RESOURCE_NOT_FOUND",
+        "The provider resource was not found.",
+      ],
       temporarily_unavailable: [
         503,
         "PROVIDER_UNAVAILABLE",
         "The provider is temporarily unavailable.",
+      ],
+      unsupported_content: [
+        415,
+        "PROVIDER_CONTENT_UNSUPPORTED",
+        "The provider content type is unsupported.",
       ],
     } as const;
     const [status, code, message] = mapping[error.code];
@@ -233,25 +290,70 @@ function toScopeContract(scope: IntegrationScope): IntegrationScopeContract {
   };
 }
 
+function enabledMcpToolNames(
+  definition: ReturnType<ProviderRegistry["require"]>,
+  selected: readonly IntegrationMcpTool[],
+): Set<string> {
+  const available = new Set(definition.mcpTools.map((tool) => tool.name));
+  return new Set(
+    selected.map((tool) => tool.toolName).filter((name) => available.has(name)),
+  );
+}
+
+function toMcpToolContracts(
+  definition: ReturnType<ProviderRegistry["require"]>,
+  selected: readonly IntegrationMcpTool[],
+): IntegrationMcpToolContract[] {
+  const enabled = enabledMcpToolNames(definition, selected);
+  return definition.mcpTools.map((tool) => ({
+    ...tool,
+    enabled: enabled.has(tool.name),
+  }));
+}
+
 function buildSummary(
   definition: ReturnType<ProviderRegistry["require"]>,
   role: CurrentWorkspace["membership"]["role"],
   integration: Integration | null,
   account: IntegrationAccount | null,
   scopes: readonly IntegrationScope[],
+  selectedMcpTools: readonly IntegrationMcpTool[],
 ): IntegrationSummaryContract {
   const resource = integration === null ? null : readResource(integration);
   const isOwner = role === "owner";
+  const enabledToolCount = enabledMcpToolNames(
+    definition,
+    selectedMcpTools,
+  ).size;
+  const hasAccount = definition.capabilities.includes("user-accounts");
+  const hasResource = definition.presentation.resourceLabel !== undefined;
+  const hasScopes = definition.capabilities.includes("scopes");
+  const hasMcpTools = definition.capabilities.includes("context");
+  const isInstallationConnected = integration?.status === "connected";
   let nextStep: IntegrationSummaryContract["nextStep"];
 
   if (integration === null) {
     nextStep = isOwner ? "connect_provider" : "wait_for_owner";
-  } else if (account?.status !== "connected") {
+  } else if (
+    definition.resourceSelection === "authorization" &&
+    !isInstallationConnected
+  ) {
+    nextStep = isOwner ? "connect_provider" : "wait_for_owner";
+  } else if (hasAccount && account?.status !== "connected") {
     nextStep = "connect_account";
-  } else if (resource === null || integration.status !== "connected") {
-    nextStep = isOwner ? "select_site" : "wait_for_owner";
-  } else if (scopes.length === 0) {
+  } else if (
+    hasResource &&
+    (resource === null || integration.status !== "connected")
+  ) {
+    nextStep = isOwner
+      ? definition.resourceSelection === "authorization"
+        ? "connect_provider"
+        : "select_resource"
+      : "wait_for_owner";
+  } else if (hasScopes && scopes.length === 0) {
     nextStep = isOwner ? "select_scopes" : "wait_for_owner";
+  } else if (hasMcpTools && enabledToolCount === 0) {
+    nextStep = isOwner ? "select_tools" : "wait_for_owner";
   } else {
     nextStep = "ready";
   }
@@ -276,6 +378,7 @@ function buildSummary(
       integration === null
         ? null
         : {
+            enabledMcpToolCount: enabledToolCount,
             lastValidatedAt: integration.lastValidatedAt?.toISOString() ?? null,
             resource: toResourceContract(resource),
             selectedScopeCount: scopes.length,
@@ -283,56 +386,25 @@ function buildSummary(
           },
     nextStep,
     permissions: {
-      canConnectAccount: integration !== null || isOwner,
+      canConnectAccount: hasAccount && (integration !== null || isOwner),
       canManageInstallation: isOwner,
-      canManageScopes: isOwner && resource !== null,
+      canManageMcpTools: hasMcpTools && isOwner && isInstallationConnected,
+      canManageScopes:
+        hasScopes &&
+        isOwner &&
+        isInstallationConnected &&
+        (!hasResource || resource !== null),
     },
+    presentation: definition.presentation,
     provider: definition.key,
+    ...(definition.resourceSelection === undefined
+      ? {}
+      : { resourceSelection: definition.resourceSelection }),
   };
 }
 
-function readCredentials(
-  encryption: CredentialEncryption,
-  account: IntegrationAccount,
-): OAuthCredentials {
-  if (account.credentialEnvelope === null) {
-    throw new HttpError(
-      409,
-      "PROVIDER_ACCOUNT_REQUIRED",
-      "Connect your provider account first.",
-    );
-  }
-
-  let decrypted: unknown;
-
-  try {
-    decrypted = encryption.decrypt(
-      account.credentialEnvelope,
-      "integration-account",
-      account.id,
-    );
-  } catch {
-    throw new HttpError(
-      500,
-      "CREDENTIALS_UNAVAILABLE",
-      "The stored provider credentials could not be read.",
-    );
-  }
-
-  const parsed = credentialsSchema.safeParse(decrypted);
-
-  if (!parsed.success) {
-    throw new HttpError(
-      500,
-      "CREDENTIALS_UNAVAILABLE",
-      "The stored provider credentials could not be read.",
-    );
-  }
-
-  return parsed.data;
-}
-
 export function createIntegrationService({
+  accountRuntime,
   adapters,
   credentialEncryption,
   oauthStateSecret,
@@ -362,63 +434,6 @@ export function createIntegrationService({
     });
   }
 
-  async function refreshAccountCredentials(
-    workspace: CurrentWorkspace,
-    integration: Integration,
-    account: IntegrationAccount,
-    adapter: IntegrationAdapter,
-    credentials: OAuthCredentials,
-  ): Promise<OAuthCredentials> {
-    if (account.credentialEnvelope === null) {
-      throw new HttpError(
-        409,
-        "PROVIDER_ACCOUNT_REQUIRED",
-        "Connect your provider account first.",
-      );
-    }
-
-    const refreshed = await adapter.refreshCredentials(credentials);
-    const envelope = credentialEncryption.encrypt(
-      refreshed,
-      "integration-account",
-      account.id,
-    );
-    const updated = await repository.replaceAccountCredentials(
-      {
-        accountId: account.id,
-        credentialEnvelope: envelope,
-        externalAccountId: account.externalAccountId,
-        externalDisplayName: account.externalDisplayName,
-        integrationId: integration.id,
-        lastValidatedAt: new Date(),
-        membershipId: workspace.membership.id,
-        status: "connected",
-        workspaceId: workspace.workspace.id,
-      },
-      account.credentialEnvelope,
-    );
-
-    if (updated !== null) {
-      return refreshed;
-    }
-
-    const currentAccount = await repository.findAccount(
-      workspace.workspace.id,
-      integration.id,
-      workspace.membership.id,
-    );
-
-    if (currentAccount === null) {
-      throw new HttpError(
-        409,
-        "PROVIDER_ACCOUNT_REQUIRED",
-        "Connect your provider account first.",
-      );
-    }
-
-    return readCredentials(credentialEncryption, currentAccount);
-  }
-
   async function withCredentials<T>(
     workspace: CurrentWorkspace,
     integration: Integration,
@@ -426,40 +441,16 @@ export function createIntegrationService({
     adapter: IntegrationAdapter,
     operation: (credentials: OAuthCredentials) => Promise<T>,
   ): Promise<T> {
-    let credentials = readCredentials(credentialEncryption, account);
-    let refreshedBeforeRequest = false;
-
-    if (new Date(credentials.expiresAt).getTime() <= Date.now() + 60_000) {
-      credentials = await refreshAccountCredentials(
-        workspace,
-        integration,
+    return accountRuntime.withCredentials(
+      {
         account,
-        adapter,
-        credentials,
-      );
-      refreshedBeforeRequest = true;
-    }
-
-    try {
-      return await operation(credentials);
-    } catch (error) {
-      if (
-        !(error instanceof ProviderAdapterError) ||
-        error.code !== "authorization_expired" ||
-        refreshedBeforeRequest
-      ) {
-        throw error;
-      }
-
-      const refreshed = await refreshAccountCredentials(
-        workspace,
         integration,
-        account,
-        adapter,
-        credentials,
-      );
-      return operation(refreshed);
-    }
+        membershipId: workspace.membership.id,
+        workspaceId: workspace.workspace.id,
+      },
+      adapter,
+      operation,
+    );
   }
 
   async function detailFor(
@@ -480,14 +471,21 @@ export function createIntegrationService({
             integration.id,
             workspace.membership.id,
           );
-    const scopes =
+    const [scopes, selectedMcpTools] =
       integration === null
-        ? []
-        : await repository.listScopes(
-            workspace.workspace.id,
-            integration.id,
-            workspace.membership.id,
-          );
+        ? ([[], []] as const)
+        : await Promise.all([
+            repository.listScopes(
+              workspace.workspace.id,
+              integration.id,
+              workspace.membership.id,
+            ),
+            repository.listMcpTools(
+              workspace.workspace.id,
+              integration.id,
+              workspace.membership.id,
+            ),
+          ]);
 
     return {
       ...buildSummary(
@@ -496,7 +494,9 @@ export function createIntegrationService({
         integration,
         account,
         scopes,
+        selectedMcpTools,
       ),
+      mcpTools: toMcpToolContracts(definition, selectedMcpTools),
       selectedScopes: scopes.map(toScopeContract),
     };
   }
@@ -504,6 +504,7 @@ export function createIntegrationService({
   async function accountContext(
     workspace: CurrentWorkspace,
     provider: ProviderKey,
+    requireConnectedInstallation = false,
   ) {
     const integration = await repository.findIntegration(
       workspace.workspace.id,
@@ -516,6 +517,14 @@ export function createIntegrationService({
         409,
         "INTEGRATION_REQUIRED",
         "The workspace integration must be installed first.",
+      );
+    }
+
+    if (requireConnectedInstallation && integration.status !== "connected") {
+      throw new HttpError(
+        409,
+        "INTEGRATION_NOT_CONNECTED",
+        "Connect the workspace integration first.",
       );
     }
 
@@ -593,6 +602,7 @@ export function createIntegrationService({
       }
 
       const adapter = adapterFor(provider, adapters);
+      const definition = providerRegistry.require(provider);
       const context = await repository.ensureAccount(
         workspace.workspace.id,
         workspace.membership.id,
@@ -606,6 +616,19 @@ export function createIntegrationService({
           adapter.discoverResources(credentials),
         ]);
         const configuredResource = readResource(context.integration);
+        const authorizationResource =
+          configuredResource === null &&
+          definition.resourceSelection === "authorization"
+            ? resources[0]
+            : null;
+
+        if (
+          configuredResource === null &&
+          definition.resourceSelection === "authorization" &&
+          (workspace.membership.role !== "owner" || resources.length !== 1)
+        ) {
+          throw new ProviderAdapterError("invalid_response");
+        }
 
         if (
           configuredResource !== null &&
@@ -621,7 +644,7 @@ export function createIntegrationService({
           "integration-account",
           context.account.id,
         );
-        await repository.saveAccount({
+        const accountInput: SaveIntegrationAccountInput = {
           accountId: context.account.id,
           credentialEnvelope: envelope,
           externalAccountId: identity.externalAccountId,
@@ -631,20 +654,21 @@ export function createIntegrationService({
           membershipId: workspace.membership.id,
           status: "connected",
           workspaceId: workspace.workspace.id,
-        });
+        };
 
-        if (
-          configuredResource === null &&
-          workspace.membership.role === "owner" &&
-          resources.length === 1
-        ) {
-          await repository.configure({
-            configuration: { ...resources[0] },
-            configuredByMembershipId: workspace.membership.id,
-            lastValidatedAt: new Date(),
-            provider,
-            status: "connected",
-            workspaceId: workspace.workspace.id,
+        if (authorizationResource === null) {
+          await repository.saveAccount(accountInput);
+        } else {
+          await repository.connectAccountWithResource({
+            account: accountInput,
+            installation: {
+              configuration: { ...authorizationResource },
+              configuredByMembershipId: workspace.membership.id,
+              lastValidatedAt: new Date(),
+              provider,
+              status: "connected",
+              workspaceId: workspace.workspace.id,
+            },
           });
         }
 
@@ -744,6 +768,16 @@ export function createIntegrationService({
     async discoverResources(userId: string, providerValue: string) {
       const workspace = await current(userId);
       const provider = providerFromInput(providerValue, providerRegistry);
+      const definition = providerRegistry.require(provider);
+
+      if (definition.resourceSelection !== "application") {
+        throw new HttpError(
+          409,
+          "RESOURCE_SELECTED_DURING_AUTHORIZATION",
+          "This provider selects its workspace resource during authorization.",
+        );
+      }
+
       const adapter = adapterFor(provider, adapters);
       const { account, integration } = await accountContext(
         workspace,
@@ -784,6 +818,7 @@ export function createIntegrationService({
       const { account, integration } = await accountContext(
         workspace,
         provider,
+        true,
       );
       const resource = readResource(integration);
 
@@ -791,7 +826,7 @@ export function createIntegrationService({
         throw new HttpError(
           409,
           "INTEGRATION_SITE_REQUIRED",
-          "Select a provider site first.",
+          "Select a workspace resource first.",
         );
       }
 
@@ -840,20 +875,28 @@ export function createIntegrationService({
                   integration.id,
                   workspace.membership.id,
                 );
-          const scopes =
+          const [scopes, selectedMcpTools] =
             integration === null
-              ? []
-              : await repository.listScopes(
-                  workspace.workspace.id,
-                  integration.id,
-                  workspace.membership.id,
-                );
+              ? ([[], []] as const)
+              : await Promise.all([
+                  repository.listScopes(
+                    workspace.workspace.id,
+                    integration.id,
+                    workspace.membership.id,
+                  ),
+                  repository.listMcpTools(
+                    workspace.workspace.id,
+                    integration.id,
+                    workspace.membership.id,
+                  ),
+                ]);
           return buildSummary(
             definition,
             workspace.membership.role,
             integration,
             account,
             scopes,
+            selectedMcpTools,
           );
         }),
       );
@@ -879,7 +922,7 @@ export function createIntegrationService({
         throw new HttpError(
           400,
           "INVALID_REQUEST",
-          "Duplicate project selection.",
+          "Duplicate scope selection.",
         );
       }
 
@@ -888,6 +931,7 @@ export function createIntegrationService({
       const { account, integration } = await accountContext(
         workspace,
         provider,
+        true,
       );
       const resource = readResource(integration);
 
@@ -895,7 +939,7 @@ export function createIntegrationService({
         throw new HttpError(
           409,
           "INTEGRATION_SITE_REQUIRED",
-          "Select a provider site first.",
+          "Select a workspace resource first.",
         );
       }
 
@@ -919,12 +963,86 @@ export function createIntegrationService({
           correlationId,
           provider,
           "integration.scopes.replace",
-          `${providerRegistry.require(provider).displayName} project access updated`,
+          `${providerRegistry.require(provider).displayName} scope access updated`,
         );
         return scopes.map(toScopeContract);
       } catch (error) {
         mapProviderError(error);
       }
+    },
+
+    async replaceMcpTools(
+      userId: string,
+      providerValue: string,
+      toolNames: readonly string[],
+      correlationId: string,
+    ) {
+      const workspace = await current(userId);
+
+      if (workspace.membership.role !== "owner") {
+        throw new HttpError(
+          403,
+          "FORBIDDEN",
+          "Workspace owner access is required.",
+        );
+      }
+
+      if (new Set(toolNames).size !== toolNames.length) {
+        throw new HttpError(
+          400,
+          "INVALID_REQUEST",
+          "Duplicate MCP tool selection.",
+        );
+      }
+
+      const provider = providerFromInput(providerValue, providerRegistry);
+      const definition = providerRegistry.require(provider);
+      const available = new Set(definition.mcpTools.map((tool) => tool.name));
+
+      if (toolNames.some((name) => !available.has(name))) {
+        throw new HttpError(
+          400,
+          "INVALID_REQUEST",
+          "An MCP tool is unavailable for this provider.",
+        );
+      }
+
+      const integration = await repository.findIntegration(
+        workspace.workspace.id,
+        workspace.membership.id,
+        provider,
+      );
+
+      if (integration === null) {
+        throw new HttpError(
+          409,
+          "INTEGRATION_REQUIRED",
+          "The workspace integration must be installed first.",
+        );
+      }
+
+      if (integration.status !== "connected") {
+        throw new HttpError(
+          409,
+          "INTEGRATION_NOT_CONNECTED",
+          "Connect the workspace integration first.",
+        );
+      }
+
+      const selected = await repository.replaceMcpTools(
+        workspace.workspace.id,
+        integration.id,
+        workspace.membership.id,
+        toolNames,
+      );
+      await appendActivity(
+        workspace,
+        correlationId,
+        provider,
+        "integration.mcp-tools.replace",
+        `${definition.displayName} MCP tools updated`,
+      );
+      return toMcpToolContracts(definition, selected);
     },
 
     async selectInstallation(
@@ -944,6 +1062,16 @@ export function createIntegrationService({
       }
 
       const provider = providerFromInput(providerValue, providerRegistry);
+      const definition = providerRegistry.require(provider);
+
+      if (definition.resourceSelection !== "application") {
+        throw new HttpError(
+          409,
+          "RESOURCE_SELECTED_DURING_AUTHORIZATION",
+          "This provider selects its workspace resource during authorization.",
+        );
+      }
+
       const adapter = adapterFor(provider, adapters);
       const { account, integration } = await accountContext(
         workspace,
@@ -980,7 +1108,7 @@ export function createIntegrationService({
           correlationId,
           provider,
           "integration.installation.configure",
-          `${providerRegistry.require(provider).displayName} site selected`,
+          `${providerRegistry.require(provider).displayName} resource selected`,
         );
         return toResourceContract(resource);
       } catch (error) {

@@ -11,6 +11,13 @@ export const integrationScopeSchema = z.object({
   externalId: z.string(),
   scopeKey: z.string(),
 });
+export const integrationMcpToolSchema = z.object({
+  description: z.string(),
+  displayName: z.string(),
+  enabled: z.boolean(),
+  kind: z.enum(["read", "write"]),
+  name: z.string(),
+});
 const integrationSummarySchema = z.object({
   attention: z.string().nullable(),
   capabilities: z.array(z.string()),
@@ -25,6 +32,7 @@ const integrationSummarySchema = z.object({
   displayName: z.string(),
   installation: z
     .object({
+      enabledMcpToolCount: z.number().int().nonnegative(),
       lastValidatedAt: z.iso.datetime().nullable(),
       resource: resourceSchema.nullable(),
       selectedScopeCount: z.number().int().nonnegative(),
@@ -35,20 +43,31 @@ const integrationSummarySchema = z.object({
     "connect_account",
     "connect_provider",
     "ready",
+    "select_tools",
     "select_scopes",
-    "select_site",
+    "select_resource",
     "wait_for_owner",
   ]),
   permissions: z.object({
     canConnectAccount: z.boolean(),
     canManageInstallation: z.boolean(),
+    canManageMcpTools: z.boolean(),
     canManageScopes: z.boolean(),
   }),
+  presentation: z.object({
+    accountLabel: z.string().optional(),
+    resourceLabel: z.string().optional(),
+    scopeLabels: z
+      .object({ plural: z.string(), singular: z.string() })
+      .optional(),
+  }),
   provider: z.string(),
+  resourceSelection: z.enum(["application", "authorization"]).optional(),
 });
 
 export const integrationListSchema = z.array(integrationSummarySchema);
 export const integrationDetailSchema = integrationSummarySchema.extend({
+  mcpTools: z.array(integrationMcpToolSchema),
   selectedScopes: z.array(integrationScopeSchema),
 });
 export const integrationResourcesSchema = z.array(resourceSchema);
@@ -58,6 +77,7 @@ export const scopeDiscoverySchema = z.object({
 });
 
 export type IntegrationDetail = z.infer<typeof integrationDetailSchema>;
+export type IntegrationMcpTool = z.infer<typeof integrationMcpToolSchema>;
 export type IntegrationResource = z.infer<typeof resourceSchema>;
 export type IntegrationScope = z.infer<typeof integrationScopeSchema>;
 export type IntegrationSummary = z.infer<typeof integrationSummarySchema>;
