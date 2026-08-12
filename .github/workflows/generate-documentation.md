@@ -1,12 +1,12 @@
 ---
-name: Daily Docs Sync
+name: Weekly Docs Sync
 on:
   schedule:
-    - cron: "0 7 * * 1-5" # 07:00 UTC, Mon–Fri (≈09:00 SAST)
+    - cron: "0 7 * * 1" # 07:00 UTC, Monday (≈09:00 SAST)
   workflow_dispatch: # adds a "Run workflow" button in the Actions tab
     inputs:
       since:
-        description: "Only consider code changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 24 hours."
+        description: "Only consider code changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 7 days."
         required: false
         type: string
       dry_run:
@@ -48,7 +48,7 @@ safe-outputs:
 timeout-minutes: 20
 ---
 
-# Daily Documentation Sync
+# Weekly Documentation Sync
 
 You are a documentation-maintenance agent for this repository. Your job is to
 find documentation that has fallen **out of sync with recent code changes** and
@@ -58,8 +58,8 @@ propose the minimal, accurate updates needed to bring it back in line.
 
 - If `${{ github.event.inputs.since }}` is set, use it as the lower bound for the
   code changes you examine (it may be a git ref, SHA, or ISO date).
-- Otherwise, examine changes from roughly **the last 24 hours** (the default
-  daily window). Use `git log` / `git diff` against the appropriate range to see
+- Otherwise, examine changes from roughly **the last 7 days** (the default
+  weekly window). Use `git log` / `git diff` against the appropriate range to see
   what merged.
 
 State the exact range you settled on at the start of your work.
@@ -89,6 +89,17 @@ Flag a doc as **out of sync** only when there is a concrete mismatch: a command
 that no longer works, a signature that changed, a flag that was renamed, a step
 that is now wrong, a link that now 404s, or a documented behavior that the code
 no longer exhibits.
+
+**API reference:** `docs/api.md` is the canonical reference for the Express
+API's public endpoints (routes under `apps/api/src/features/*/*.routes.ts`).
+Treat it like any other doc in this scan — if an endpoint changed (added,
+removed, renamed, request/response shape changed, auth/permission requirements
+changed) in this review window, check whether `docs/api.md` reflects that. If
+the file does not exist yet, or has no entry for an endpoint that changed in
+this window, that counts as out of sync: create the file (if missing) or add/
+update just that endpoint's entry. Do not use this pass to retroactively
+document the entire existing API surface — stay scoped to endpoints touched by
+changes in the current review window, the same as every other doc.
 
 ## 4. Make the updates
 
