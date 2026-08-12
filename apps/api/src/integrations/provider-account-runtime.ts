@@ -112,8 +112,6 @@ export function createProviderAccountRuntime({
       {
         accountId: context.account.id,
         credentialEnvelope: replacementEnvelope,
-        externalAccountId: context.account.externalAccountId,
-        externalDisplayName: context.account.externalDisplayName,
         integrationId: context.integration.id,
         lastValidatedAt: new Date(),
         membershipId: context.membershipId,

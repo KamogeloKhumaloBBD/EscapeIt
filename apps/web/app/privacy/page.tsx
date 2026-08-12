@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  description: "How Context Layer handles personal data.",
+  description: "How Context Layer handles data.",
   title: "Privacy Policy | Context Layer",
 };
 
@@ -40,11 +40,11 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="mt-5 text-lg leading-8">
-            Context Layer connects your authorized Jira and Confluence resources
-            to your MCP client.
+            Context Layer connects authorized Jira and Confluence resources to
+            an MCP client.
           </p>
           <p className="mt-4 text-sm text-[#817b73]">
-            Last updated: 12 August 2026
+            Last updated: 13 August 2026
           </p>
         </header>
 
@@ -52,48 +52,32 @@ export default function PrivacyPage() {
           <section className={sectionClassName}>
             <h2 className={headingClassName}>What we store</h2>
             <ul className={listClassName}>
-              <li>Your name and email address.</li>
+              <li>Your Context Layer account name and email address.</li>
               <li>Your workspace membership, role, and configuration.</li>
               <li>
-                Your Atlassian account identifier, display name, selected Jira
-                projects or Confluence spaces, and connection status.
+                Selected Jira projects or Confluence spaces and connection
+                status.
               </li>
-              <li>
-                Your Atlassian access and refresh tokens, encrypted with
-                AES-256-GCM.
-              </li>
-              <li>
-                MCP token hashes and activity records containing the tool,
-                provider, time, outcome, and relevant Jira or Confluence
-                resource identifiers.
-              </li>
+              <li>Encrypted Atlassian OAuth access and refresh tokens.</li>
+              <li>MCP token hashes and MCP activity records.</li>
             </ul>
           </section>
 
           <section className={sectionClassName}>
-            <h2 className={headingClassName}>How we use it</h2>
+            <h2 className={headingClassName}>Atlassian identity</h2>
             <p>
-              We use this data to sign you in, enforce workspace access, connect
-              to Atlassian as you, run the MCP tools you request, and show
-              workspace activity.
+              Context Layer does not store Atlassian account IDs or profile
+              names. The identity tools retrieve that information from Atlassian
+              when invoked and return it directly to the MCP client.
             </p>
           </section>
 
           <section className={sectionClassName}>
             <h2 className={headingClassName}>Content handling</h2>
             <p>
-              Read tools pass requested Jira and Confluence content to the MCP
-              client. Write tools pass content from the MCP client to Atlassian.
+              Read tools return requested Jira and Confluence content to the MCP
+              client. Write tools send content from the MCP client to Atlassian.
               Context Layer does not store that content in its database.
-            </p>
-          </section>
-
-          <section className={sectionClassName}>
-            <h2 className={headingClassName}>Other services</h2>
-            <p>
-              Atlassian receives integration requests, the connected MCP client
-              receives tool results, and the email provider receives email
-              addresses for sign-in codes and workspace invitations.
             </p>
           </section>
 
@@ -104,8 +88,7 @@ export default function PrivacyPage() {
               Other account, workspace, configuration, and activity records
               remain in the database until the service operator removes them.
               Invitation and MCP tokens are stored as SHA-256 hashes. OAuth
-              credentials are encrypted with AES-256-GCM. Authorization headers
-              and cookies are redacted from application logs.
+              credentials are encrypted with AES-256-GCM.
             </p>
           </section>
         </div>
