@@ -2,27 +2,34 @@ import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
+  clearNotificationPreferenceOverride,
   configureIntegration,
   createDatabaseConnection,
   createMcpToken,
+  createNotificationChannel,
   createWorkspaceForUser,
   createWorkspaceInvitation,
+  deleteNotificationChannel,
   disconnectIntegrationAccount,
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findNotificationChannel,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   listIntegrationScopes,
   listMcpTokens,
+  listNotificationChannels,
+  listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaceIntegrations,
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
+  parseNotificationEventKey,
   parseProviderKey,
   parseScopeKey,
   replaceIntegrationAccountCredentials,
@@ -31,6 +38,8 @@ import {
   revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  setNotificationPreferenceOverride,
+  updateNotificationChannel,
   type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
@@ -58,8 +67,15 @@ import {
   createMemberService,
   type MemberServiceDependencies,
 } from "./features/members/member.service";
+import { createNotificationRouter } from "./features/notifications/notification.routes";
+import {
+  createNotificationService,
+  type NotificationServiceDependencies,
+} from "./features/notifications/notification.service";
 import { createRequireAuthentication } from "./http/authentication";
 import { createJiraAdapter } from "./integrations/jira-adapter";
+import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
+import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createLogger } from "./logging";
 import {
   createProviderRegistry,
@@ -139,6 +155,35 @@ if (config.atlassianOAuth !== null) {
     }),
   );
 }
+
+// Teams channels are dispatched manually today (a "Send test message" action
+// only) — no domain event relays into a channel yet. These two events exist
+// so the registry has something to validate/list against; wire real Jira
+// event relaying into `notificationService` here once that's built.
+const teamsProvider = parseProviderKey("teams");
+providerDefinitions.push({
+  capabilities: ["notifications", "webhooks"],
+  description: "Send workspace notifications to a Microsoft Teams channel.",
+  displayName: "Microsoft Teams",
+  key: teamsProvider,
+  notificationEvents: [
+    {
+      defaultEnabled: true,
+      displayName: "Integration disconnected",
+      key: parseNotificationEventKey("teams.integration-disconnected"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Integration connection error",
+      key: parseNotificationEventKey("teams.integration-error"),
+    },
+  ],
+  scopeKinds: [],
+});
+const notificationChannelAdapters = new Map<
+  ProviderKey,
+  NotificationChannelAdapter
+>([[teamsProvider, createTeamsAdapter()]]);
 
 const providerRegistry = createProviderRegistry(providerDefinitions);
 const workspaceRepository = {
@@ -315,6 +360,54 @@ const integrationService = createIntegrationService({
   providerRegistry,
   repository: integrationRepository,
 });
+const notificationRepository: NotificationServiceDependencies["repository"] = {
+  appendActivity: (input: Parameters<typeof appendActivityEvent>[1]) =>
+    appendActivityEvent(connection.client, input),
+  clearPreferenceOverride: (workspaceId, membershipId, eventKey) =>
+    clearNotificationPreferenceOverride(
+      connection.client,
+      workspaceId,
+      membershipId,
+      parseNotificationEventKey(eventKey),
+    ),
+  createChannel: (input: Parameters<typeof createNotificationChannel>[1]) =>
+    createNotificationChannel(connection.client, input),
+  deleteChannel: (workspaceId, channelId, membershipId) =>
+    deleteNotificationChannel(
+      connection.client,
+      workspaceId,
+      channelId,
+      membershipId,
+    ),
+  findChannel: (workspaceId, channelId) =>
+    findNotificationChannel(connection.client, workspaceId, channelId),
+  findCurrentWorkspace: (userId: string) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  listChannels: (workspaceId, membershipId) =>
+    listNotificationChannels(connection.client, workspaceId, membershipId),
+  listPreferenceOverrides: (workspaceId, membershipId) =>
+    listNotificationPreferenceOverrides(
+      connection.client,
+      workspaceId,
+      membershipId,
+    ),
+  setPreferenceOverride: (workspaceId, membershipId, eventKey, enabled) =>
+    setNotificationPreferenceOverride(
+      connection.client,
+      workspaceId,
+      membershipId,
+      parseNotificationEventKey(eventKey),
+      enabled,
+    ),
+  updateChannel: (input: Parameters<typeof updateNotificationChannel>[1]) =>
+    updateNotificationChannel(connection.client, input),
+};
+const notificationService = createNotificationService({
+  adapters: notificationChannelAdapters,
+  credentialEncryption,
+  providerRegistry,
+  repository: notificationRepository,
+});
 const apiRouter = Router();
 apiRouter.use(
   "/workspaces",
@@ -338,6 +431,13 @@ apiRouter.use(
     publicAppUrl: config.publicAppUrl,
     requireAuthentication,
     service: integrationService,
+  }),
+);
+apiRouter.use(
+  "/notifications",
+  createNotificationRouter({
+    requireAuthentication,
+    service: notificationService,
   }),
 );
 const app = createApp({

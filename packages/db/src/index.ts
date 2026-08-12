@@ -77,6 +77,8 @@ export {
 export {
   createNotificationChannel,
   clearNotificationPreferenceOverride,
+  deleteNotificationChannel,
+  findNotificationChannel,
   listNotificationChannels,
   listNotificationPreferenceOverrides,
   resolveNotificationPreference,

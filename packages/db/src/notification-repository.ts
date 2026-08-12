@@ -146,6 +146,38 @@ export async function listNotificationChannels(
   `;
 }
 
+export async function findNotificationChannel(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+): Promise<NotificationChannel | null> {
+  const rows = await database<NotificationChannel[]>`
+    select *
+    from notification_channels
+    where "workspaceId" = ${workspaceId} and id = ${channelId}
+  `;
+
+  return rows[0] ?? null;
+}
+
+export async function deleteNotificationChannel(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+  ownerMembershipId: string,
+): Promise<boolean> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    const rows = await transaction<{ id: string }[]>`
+      delete from notification_channels
+      where id = ${channelId} and "workspaceId" = ${workspaceId}
+      returning id
+    `;
+
+    return rows[0] !== undefined;
+  });
+}
+
 export async function setNotificationPreferenceOverride(
   database: DatabaseClient,
   workspaceId: string,
