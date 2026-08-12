@@ -65,58 +65,66 @@ jobs:
           set -euo pipefail
 
           railway() {
-            pnpm --silent dlx "@railway/cli@$RAILWAY_CLI_VERSION" "$@"
+            pnpm dlx "@railway/cli@$RAILWAY_CLI_VERSION" "$@"
           }
 
-          deployments="$(railway deployment list \
+          changed=true
+          reason="No trustworthy production API revision was found."
+          deployments_file="$(mktemp)"
+          railway_error_file="$(mktemp)"
+          trap 'rm -f "$deployments_file" "$railway_error_file"' EXIT
+
+          if railway deployment list \
             --project "$RAILWAY_PROJECT_ID" \
             --environment "$RAILWAY_ENVIRONMENT" \
             --service api \
             --limit 100 \
-            --json)"
-
-          baseline="$(printf '%s' "$deployments" | node -e '
-            let input = "";
-            process.stdin.setEncoding("utf8");
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const deployments = JSON.parse(input);
+            --json > "$deployments_file" 2> "$railway_error_file"; then
+            if baseline="$(node -e '
+              const fs = require("node:fs");
+              const deployments = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
               for (const deployment of deployments) {
                 if (deployment.status !== "SUCCESS") continue;
                 const direct = deployment.meta?.commitHash;
                 if (typeof direct === "string" && /^[0-9a-f]{40}$/i.test(direct)) {
                   process.stdout.write(direct);
-                  return;
+                  process.exit(0);
                 }
-                const message = deployment.meta?.commitMessage ?? deployment.meta?.message ?? "";
+                const message = deployment.meta?.cliMessage ?? deployment.meta?.commitMessage ?? deployment.meta?.message ?? "";
                 const match = /github-sha:([0-9a-f]{40})/i.exec(message);
                 if (match) {
                   process.stdout.write(match[1]);
-                  return;
+                  process.exit(0);
                 }
               }
-            });
-          ')"
-
-          changed=true
-          reason="No trustworthy production API revision was found."
-
-          if [[ -n "$baseline" ]] && git cat-file -e "$baseline^{commit}" 2>/dev/null; then
-            if git merge-base --is-ancestor "$baseline" "$TARGET_SHA"; then
-              if git diff --quiet "$baseline" "$TARGET_SHA" -- \
-                packages/db/migrations \
-                packages/db/Dockerfile.flyway \
-                railway.flyway.json; then
-                changed=false
-                reason="No Flyway deployment files changed since API revision $baseline."
-              else
-                reason="Flyway deployment files changed since API revision $baseline."
+            ' "$deployments_file")"; then
+              if [[ -n "$baseline" ]] && git cat-file -e "$baseline^{commit}" 2>/dev/null; then
+                if git merge-base --is-ancestor "$baseline" "$TARGET_SHA"; then
+                  if git diff --quiet "$baseline" "$TARGET_SHA" -- \
+                    packages/db/migrations \
+                    packages/db/Dockerfile.flyway \
+                    railway.flyway.json; then
+                    changed=false
+                    reason="No Flyway deployment files changed since API revision $baseline."
+                  else
+                    reason="Flyway deployment files changed since API revision $baseline."
+                  fi
+                else
+                  reason="Production API revision $baseline is not an ancestor of $TARGET_SHA."
+                fi
+              elif [[ -n "$baseline" ]]; then
+                reason="Production API revision $baseline is unavailable in Git history."
               fi
             else
-              reason="Production API revision $baseline is not an ancestor of $TARGET_SHA."
+              reason="Railway deployment metadata could not be parsed; running Flyway defensively."
+              echo "$reason" >&2
             fi
-          elif [[ -n "$baseline" ]]; then
-            reason="Production API revision $baseline is unavailable in Git history."
+          else
+            reason="Railway API deployment history could not be read; running Flyway defensively."
+            echo "$reason" >&2
+            if [[ -s "$railway_error_file" ]]; then
+              sed -n '1,40p' "$railway_error_file" >&2
+            fi
           fi
 
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
