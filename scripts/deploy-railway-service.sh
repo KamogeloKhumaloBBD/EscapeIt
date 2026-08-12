@@ -80,8 +80,11 @@ for _ in $(seq 1 180); do
       echo "$service deployment $deployment_id succeeded."
       exit 0
       ;;
-    FAILED|CRASHED|REMOVED)
+    FAILED|CRASHED|REMOVED|SKIPPED)
       echo "$service deployment $deployment_id ended with status $status." >&2
+      if [[ "$status" == "SKIPPED" ]]; then
+        echo "Railway skipped an explicitly orchestrated deployment; ensure the service manifest has no watchPatterns." >&2
+      fi
       railway logs "$deployment_id" \
         --project "$railway_project_id" \
         --environment "$railway_environment" \

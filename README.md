@@ -218,7 +218,7 @@ flyway
 
 ```
 
-The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. Keep GitHub autodeploy disabled for `flyway`, `api`, and `web`; the production GitHub Actions workflow deploys them in order. Flyway is deployed only when its SQL, image, or Railway manifest changed since the last successful production API revision.
+The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. Keep GitHub autodeploy disabled for `flyway`, `api`, and `web`; the production GitHub Actions workflow deploys them in order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Flyway is deployed only when its SQL, image, or Railway manifest changed since the last successful production API revision.
 
 Configure the private GitHub repository with:
 
