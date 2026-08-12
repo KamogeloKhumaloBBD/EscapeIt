@@ -50,7 +50,7 @@ Better Auth users may be signed in without a workspace. The onboarding flow crea
 
 The Express workspace API exposes authenticated workspace, member, and invitation endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly. Invitation links expire after seven days, only their SHA-256 hashes are stored, and the signed-in email must match before acceptance.
 
-The authenticated application uses a shared workspace shell. The dashboard derives setup progress, connection health, counts, and recent activity from real API data rather than frontend placeholders.
+The authenticated application uses a shared workspace shell. Its analytics-first dashboard reads completed MCP activity from `GET /api/workspaces/current/analytics`, supports URL-backed UTC date, integration, and owner-only member filters, compares with the preceding period, and shows role-scoped tool, provider, reliability, and activity insights. Searchable, sortable ranking explorers use the paginated `/api/workspaces/current/analytics/rankings` endpoint. Owners receive workspace and per-member usage; members receive only their own usage. Setup and connection health remain visible when action is required.
 
 The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, enabled integration MCP tools, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 
