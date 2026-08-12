@@ -1,0 +1,172 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
+      RAILWAY_ENVIRONMENT: production
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_CLI_VERSION: 5.37.7
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Check out verified revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_SHA }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RAILWAY_TOKEN" || { echo "RAILWAY_TOKEN is not configured." >&2; exit 1; }
+          test -n "$RAILWAY_PROJECT_ID" || { echo "RAILWAY_PROJECT_ID is not configured." >&2; exit 1; }
+          test -n "$PRODUCTION_WEB_URL" || { echo "PRODUCTION_WEB_URL is not configured." >&2; exit 1; }
+          case "$PRODUCTION_WEB_URL" in
+            https://*) ;;
+            *) echo "PRODUCTION_WEB_URL must be an HTTPS origin." >&2; exit 1 ;;
+          esac
+
+      - name: Detect production Flyway changes
+        id: flyway
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          railway() {
+            pnpm dlx "@railway/cli@$RAILWAY_CLI_VERSION" "$@"
+          }
+
+          changed=true
+          reason="No trustworthy production API revision was found."
+          deployments_file="$(mktemp)"
+          railway_error_file="$(mktemp)"
+          trap 'rm -f "$deployments_file" "$railway_error_file"' EXIT
+
+          if railway deployment list \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --service api \
+            --limit 100 \
+            --json > "$deployments_file" 2> "$railway_error_file"; then
+            if baseline="$(node -e '
+              const fs = require("node:fs");
+              const deployments = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              for (const deployment of deployments) {
+                if (deployment.status !== "SUCCESS") continue;
+                const direct = deployment.meta?.commitHash;
+                if (typeof direct === "string" && /^[0-9a-f]{40}$/i.test(direct)) {
+                  process.stdout.write(direct);
+                  process.exit(0);
+                }
+                const message = deployment.meta?.cliMessage ?? deployment.meta?.commitMessage ?? deployment.meta?.message ?? "";
+                const match = /github-sha:([0-9a-f]{40})/i.exec(message);
+                if (match) {
+                  process.stdout.write(match[1]);
+                  process.exit(0);
+                }
+              }
+            ' "$deployments_file")"; then
+              if [[ -n "$baseline" ]] && git cat-file -e "$baseline^{commit}" 2>/dev/null; then
+                if git merge-base --is-ancestor "$baseline" "$TARGET_SHA"; then
+                  if git diff --quiet "$baseline" "$TARGET_SHA" -- \
+                    packages/db/migrations \
+                    packages/db/Dockerfile.flyway \
+                    railway.flyway.json; then
+                    changed=false
+                    reason="No Flyway deployment files changed since API revision $baseline."
+                  else
+                    reason="Flyway deployment files changed since API revision $baseline."
+                  fi
+                else
+                  reason="Production API revision $baseline is not an ancestor of $TARGET_SHA."
+                fi
+              elif [[ -n "$baseline" ]]; then
+                reason="Production API revision $baseline is unavailable in Git history."
+              fi
+            else
+              reason="Railway deployment metadata could not be parsed; running Flyway defensively."
+              echo "$reason" >&2
+            fi
+          else
+            reason="Railway API deployment history could not be read; running Flyway defensively."
+            echo "$reason" >&2
+            if [[ -s "$railway_error_file" ]]; then
+              sed -n '1,40p' "$railway_error_file" >&2
+            fi
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "$reason" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy Flyway
+        if: steps.flyway.outputs.changed == 'true'
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh flyway "$TARGET_SHA"
+
+      - name: Deploy API
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh api "$TARGET_SHA"
+
+      - name: Deploy web
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh web "$TARGET_SHA"
+
+      - name: Run smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="${PRODUCTION_WEB_URL%/}"
+          curl --fail --silent --show-error \
+            --location \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            --max-time 30 \
+            --output /dev/null \
+            "$origin/"
+
+          health="$(curl --fail --silent --show-error \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            --max-time 30 \
+            "$origin/api/health")"
+
+          HEALTH_RESPONSE="$health" node -e '
+            const health = JSON.parse(process.env.HEALTH_RESPONSE ?? "{}");
+            if (health.status !== "ok" || health.database !== "up") {
+              console.error("Production API health response is not healthy.");
+              process.exit(1);
+            }
+          '
