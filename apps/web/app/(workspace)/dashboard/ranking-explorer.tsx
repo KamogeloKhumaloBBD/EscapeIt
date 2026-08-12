@@ -73,6 +73,7 @@ export function RankingExplorer({
     membershipId?: string;
     provider?: string;
     start: string;
+    timeZone: string;
   };
   initialItems: RankingItem[];
   initialTotal: number;
@@ -123,6 +124,7 @@ export function RankingExplorer({
       query: debouncedQuery,
       sort,
       start: filters.start,
+      timeZone: filters.timeZone,
     });
     if (filters.provider !== undefined)
       parameters.set("provider", filters.provider);
@@ -296,7 +298,7 @@ export function RankingExplorer({
                         ) : (
                           <Avatar size="sm">
                             <AvatarFallback>
-                              {initials(item.name)}
+                              {initials(item.email)}
                             </AvatarFallback>
                           </Avatar>
                         )}

@@ -17,6 +17,7 @@ import {
 
 import { DashboardAnalytics } from "./dashboard-analytics";
 import { DashboardFilters } from "./dashboard-filters";
+import { DashboardTimeZone } from "./dashboard-time-zone";
 
 function queryValue(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -32,11 +33,17 @@ export default async function DashboardPage({
   const end = queryValue(parameters.end);
   const provider = queryValue(parameters.provider);
   const membershipId = queryValue(parameters.membershipId);
+  const timeZone = queryValue(parameters.timeZone);
+
+  if (timeZone === undefined) {
+    return <DashboardTimeZone loading />;
+  }
+
   const [workspaceState, integrationsState, analyticsState, memberListState] =
     await Promise.all([
       getCurrentWorkspaceState(),
       getIntegrationsState(),
-      getWorkspaceAnalyticsState(start, end, provider, membershipId),
+      getWorkspaceAnalyticsState(start, end, provider, membershipId, timeZone),
       getMemberListState(),
     ]);
 
@@ -57,6 +64,7 @@ export default async function DashboardPage({
   if (workspaceState.status !== "available") {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16 lg:px-10">
+        <DashboardTimeZone current={timeZone} />
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Workspace unavailable</AlertTitle>
@@ -71,10 +79,15 @@ export default async function DashboardPage({
   if (analyticsState.status === "invalid") {
     return (
       <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+        <DashboardTimeZone current={timeZone} />
         <WorkspacePageHeader
           action={
             <Button asChild variant="outline">
-              <Link href="/dashboard">Reset to 30 days</Link>
+              <Link
+                href={`/dashboard?timeZone=${encodeURIComponent(timeZone)}`}
+              >
+                Reset to 30 days
+              </Link>
             </Button>
           }
           description="Workspace tool usage, reliability, and recent activity."
@@ -96,6 +109,7 @@ export default async function DashboardPage({
   ) {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 py-16 lg:px-10">
+        <DashboardTimeZone current={timeZone} />
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Dashboard unavailable</AlertTitle>
@@ -128,6 +142,7 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+      <DashboardTimeZone current={timeZone} />
       <WorkspacePageHeader
         description="Workspace tool usage, reliability, and recent activity."
         eyebrow={`${workspaceState.workspace.role} workspace`}
@@ -190,6 +205,7 @@ export default async function DashboardPage({
           ...(membershipId === undefined ? {} : { membershipId }),
           ...(provider === undefined ? {} : { provider }),
           start: analyticsState.analytics.range.start,
+          timeZone: analyticsState.analytics.timeZone,
         }}
       />
     </main>

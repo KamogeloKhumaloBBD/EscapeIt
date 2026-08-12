@@ -17,11 +17,30 @@ const providerSchema = z
   .max(63)
   .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "The provider is invalid.");
 
+const timeZoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine(
+    (value) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: value }).format();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "The time zone is invalid." },
+  )
+  .default("UTC");
+
 const analyticsFilterShape = {
   end: dateOnlySchema.optional(),
   membershipId: z.string().min(1).max(128).optional(),
   provider: providerSchema.optional(),
   start: dateOnlySchema.optional(),
+  timeZone: timeZoneSchema,
 };
 
 function validateDatePair(

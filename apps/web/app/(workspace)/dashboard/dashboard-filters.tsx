@@ -115,7 +115,12 @@ export function DashboardFilters({
           disabled={pending}
           onClick={() => {
             startTransition(() => {
-              router.push("/dashboard");
+              const search = new URLSearchParams(searchParams.toString());
+              search.delete("end");
+              search.delete("membershipId");
+              search.delete("provider");
+              search.delete("start");
+              router.push(`/dashboard?${search.toString()}`);
             });
           }}
           size="sm"

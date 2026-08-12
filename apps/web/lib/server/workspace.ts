@@ -64,12 +64,14 @@ export const getWorkspaceAnalyticsState = cache(
     end?: string,
     provider?: string,
     membershipId?: string,
+    timeZone = "UTC",
   ): Promise<WorkspaceAnalyticsState> => {
     const search = new URLSearchParams();
     if (start !== undefined) search.set("start", start);
     if (end !== undefined) search.set("end", end);
     if (provider !== undefined) search.set("provider", provider);
     if (membershipId !== undefined) search.set("membershipId", membershipId);
+    search.set("timeZone", timeZone);
     const suffix = search.size === 0 ? "" : `?${search.toString()}`;
     const result = await requestApi(
       `/api/workspaces/current/analytics${suffix}`,

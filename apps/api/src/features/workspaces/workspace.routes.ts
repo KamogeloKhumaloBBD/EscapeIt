@@ -81,6 +81,7 @@ export function createWorkspaceRouter({
       parsed.data.end,
       parsed.data.provider,
       parsed.data.membershipId,
+      parsed.data.timeZone,
     );
     response.status(200).json({ data: analytics });
   });

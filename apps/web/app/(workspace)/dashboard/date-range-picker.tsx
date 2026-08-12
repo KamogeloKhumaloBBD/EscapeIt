@@ -99,7 +99,7 @@ export function DashboardDateRangePicker({
         <div className="border-t border-border px-3 py-3">
           {error === null ? (
             <p className="mb-3 text-xs text-muted-foreground">
-              Dates use UTC and may span up to 366 days.
+              Dates use your local time and may span up to 366 days.
             </p>
           ) : (
             <p className="mb-3 text-xs text-destructive" role="alert">

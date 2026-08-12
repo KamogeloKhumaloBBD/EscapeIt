@@ -6,8 +6,8 @@ import { RepositoryError } from "./repository-errors";
 import { requireMembership } from "./repository-helpers";
 
 export interface AnalyticsRange {
-  endExclusive: Date;
-  start: Date;
+  endExclusive: string;
+  start: string;
 }
 
 export interface WorkspaceAnalyticsInput {
@@ -16,6 +16,7 @@ export interface WorkspaceAnalyticsInput {
   provider?: ProviderKey | null;
   range: AnalyticsRange;
   selectedMembershipId?: string | null;
+  timeZone: string;
   workspaceId: string;
 }
 
@@ -32,6 +33,7 @@ export interface WorkspaceAnalyticsRankingInput {
   range: AnalyticsRange;
   selectedMembershipId?: string | null;
   sort: AnalyticsRankingSort;
+  timeZone: string;
   workspaceId: string;
 }
 
@@ -109,11 +111,7 @@ interface SummaryRow {
 }
 
 function validateRange(range: AnalyticsRange): void {
-  if (
-    !Number.isFinite(range.start.getTime()) ||
-    !Number.isFinite(range.endExclusive.getTime()) ||
-    range.start >= range.endExclusive
-  ) {
+  if (range.start >= range.endExclusive) {
     throw new RepositoryError("invalid", "The analytics range is invalid.");
   }
 }
@@ -235,8 +233,8 @@ async function readSummary(
       and category = 'mcp'
       and operation = 'mcp.tool.complete'
       and status <> 'started'
-      and "occurredAt" >= ${range.start}
-      and "occurredAt" < ${range.endExclusive}
+      and "occurredAt" >= (${range.start}::date::timestamp at time zone ${input.timeZone})
+      and "occurredAt" < (${range.endExclusive}::date::timestamp at time zone ${input.timeZone})
       and (${provider}::text is null or provider = ${provider})
       and (
         ${scopedMembershipId}::text is null
@@ -284,11 +282,12 @@ export async function getWorkspaceUsageAnalytics(
         ),
         transaction<DailyUsage[]>`
           with days as (
-            select generate_series(
-              ${input.range.start}::timestamptz at time zone 'UTC',
-              ${input.range.endExclusive}::timestamptz at time zone 'UTC' - interval '1 day',
-              interval '1 day'
-            ) as day
+            select
+              ${input.range.start}::date + offsets.day_offset::integer as day
+            from generate_series(
+              0,
+              (${input.range.endExclusive}::date - ${input.range.start}::date) - 1
+            ) as offsets(day_offset)
           )
           select
             to_char(days.day, 'YYYY-MM-DD') as date,
@@ -301,8 +300,8 @@ export async function getWorkspaceUsageAnalytics(
             and events.category = 'mcp'
             and events.operation = 'mcp.tool.complete'
             and events.status <> 'started'
-            and events."occurredAt" >= (days.day at time zone 'UTC')
-            and events."occurredAt" < ((days.day + interval '1 day') at time zone 'UTC')
+            and events."occurredAt" >= (days.day at time zone ${input.timeZone})
+            and events."occurredAt" < ((days.day + interval '1 day') at time zone ${input.timeZone})
             and (${provider}::text is null or events.provider = ${provider})
             and (
               ${scopedMembershipId}::text is null
@@ -324,8 +323,8 @@ export async function getWorkspaceUsageAnalytics(
             and operation = 'mcp.tool.complete'
             and status <> 'started'
             and provider is not null
-            and "occurredAt" >= ${input.range.start}
-            and "occurredAt" < ${input.range.endExclusive}
+            and "occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+            and "occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
             and (${provider}::text is null or provider = ${provider})
             and (
               ${scopedMembershipId}::text is null
@@ -350,8 +349,8 @@ export async function getWorkspaceUsageAnalytics(
             and status <> 'started'
             and provider is not null
             and nullif(metadata ->> 'toolName', '') is not null
-            and "occurredAt" >= ${input.range.start}
-            and "occurredAt" < ${input.range.endExclusive}
+            and "occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+            and "occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
             and (${provider}::text is null or provider = ${provider})
             and (
               ${scopedMembershipId}::text is null
@@ -385,8 +384,8 @@ export async function getWorkspaceUsageAnalytics(
               and events.category = 'mcp'
               and events.operation = 'mcp.tool.complete'
               and events.status <> 'started'
-              and events."occurredAt" >= ${input.range.start}
-              and events."occurredAt" < ${input.range.endExclusive}
+              and events."occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+              and events."occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
               and (${provider}::text is null or events.provider = ${provider})
               and (
                 ${scopedMembershipId}::text is null
@@ -426,8 +425,8 @@ export async function getWorkspaceUsageAnalytics(
         and events.status <> 'started'
         and events.provider is not null
         and nullif(events.metadata ->> 'toolName', '') is not null
-        and events."occurredAt" >= ${input.range.start}
-        and events."occurredAt" < ${input.range.endExclusive}
+        and events."occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+        and events."occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
         and (${provider}::text is null or events.provider = ${provider})
         and (
           ${scopedMembershipId}::text is null
@@ -470,6 +469,7 @@ export async function listWorkspaceToolUsage(
       scopedMembershipId,
       search,
       start: input.range.start,
+      timeZone: input.timeZone,
       workspaceId: input.workspaceId,
     };
     const totals = await transaction<{ total: number }[]>`
@@ -484,8 +484,8 @@ export async function listWorkspaceToolUsage(
           and events.status <> 'started'
           and events.provider is not null
           and nullif(events.metadata ->> 'toolName', '') is not null
-          and events."occurredAt" >= ${baseWhere.start}
-          and events."occurredAt" < ${baseWhere.end}
+          and events."occurredAt" >= (${baseWhere.start}::date::timestamp at time zone ${baseWhere.timeZone})
+          and events."occurredAt" < (${baseWhere.end}::date::timestamp at time zone ${baseWhere.timeZone})
           and (${baseWhere.provider}::text is null or events.provider = ${baseWhere.provider})
           and (
             ${baseWhere.scopedMembershipId}::text is null
@@ -514,8 +514,8 @@ export async function listWorkspaceToolUsage(
         and events.status <> 'started'
         and events.provider is not null
         and nullif(events.metadata ->> 'toolName', '') is not null
-        and events."occurredAt" >= ${baseWhere.start}
-        and events."occurredAt" < ${baseWhere.end}
+        and events."occurredAt" >= (${baseWhere.start}::date::timestamp at time zone ${baseWhere.timeZone})
+        and events."occurredAt" < (${baseWhere.end}::date::timestamp at time zone ${baseWhere.timeZone})
         and (${baseWhere.provider}::text is null or events.provider = ${baseWhere.provider})
         and (
           ${baseWhere.scopedMembershipId}::text is null
@@ -579,8 +579,8 @@ export async function listWorkspaceMemberUsage(
           and events.category = 'mcp'
           and events.operation = 'mcp.tool.complete'
           and events.status <> 'started'
-          and events."occurredAt" >= ${input.range.start}
-          and events."occurredAt" < ${input.range.endExclusive}
+          and events."occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+          and events."occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
           and (${scope.provider}::text is null or events.provider = ${scope.provider})
           and (
             ${scope.scopedMembershipId}::text is null
@@ -613,8 +613,8 @@ export async function listWorkspaceMemberUsage(
         and events.category = 'mcp'
         and events.operation = 'mcp.tool.complete'
         and events.status <> 'started'
-        and events."occurredAt" >= ${input.range.start}
-        and events."occurredAt" < ${input.range.endExclusive}
+        and events."occurredAt" >= (${input.range.start}::date::timestamp at time zone ${input.timeZone})
+        and events."occurredAt" < (${input.range.endExclusive}::date::timestamp at time zone ${input.timeZone})
         and (${scope.provider}::text is null or events.provider = ${scope.provider})
         and (
           ${scope.scopedMembershipId}::text is null

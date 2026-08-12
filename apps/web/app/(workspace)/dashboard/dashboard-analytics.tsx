@@ -246,6 +246,7 @@ export function DashboardAnalytics({
     membershipId?: string;
     provider?: string;
     start: string;
+    timeZone: string;
   };
 }) {
   const hasUsage = analytics.summary.toolCallCount > 0;
@@ -307,7 +308,7 @@ export function DashboardAnalytics({
           <CardHeader>
             <CardTitle id="usage-over-time">Usage over time</CardTitle>
             <CardDescription>
-              Completed MCP tool calls grouped by UTC day.
+              Completed MCP tool calls grouped by day in {analytics.timeZone}.
             </CardDescription>
             <CardAction>
               <Badge variant="secondary">
@@ -604,7 +605,9 @@ export function DashboardAnalytics({
                       />
                       <div className="relative flex items-center gap-3">
                         <Avatar>
-                          <AvatarFallback>{initials(item.email)}</AvatarFallback>
+                          <AvatarFallback>
+                            {initials(item.email)}
+                          </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">

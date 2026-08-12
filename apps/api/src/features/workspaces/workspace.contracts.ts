@@ -97,6 +97,7 @@ export interface WorkspaceAnalyticsResponse {
   summary: UsageSummaryContract;
   toolUsage: ToolUsageContract[];
   toolUsageTotal: number;
+  timeZone: string;
 }
 
 export interface AnalyticsRankingResponse {
@@ -104,5 +105,6 @@ export interface AnalyticsRankingResponse {
   items: MemberUsageContract[] | ToolUsageContract[];
   limit: number;
   offset: number;
+  timeZone: string;
   total: number;
 }

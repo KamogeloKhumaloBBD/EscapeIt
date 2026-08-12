@@ -69,12 +69,6 @@ export function createWorkspaceService(repository: {
   >;
   getOverviewForUser: (userId: string) => Promise<WorkspaceOverview | null>;
 }) {
-  function utcDay(value: Date): Date {
-    return new Date(
-      Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
-    );
-  }
-
   function parseDateOnly(value: string): Date | null {
     const parsed = new Date(`${value}T00:00:00.000Z`);
     return Number.isFinite(parsed.getTime()) &&
@@ -87,15 +81,50 @@ export function createWorkspaceService(repository: {
     return value.toISOString().slice(0, 10);
   }
 
-  function analyticsRanges(start: string | undefined, end: string | undefined) {
-    const today = utcDay(new Date());
-    const selectedEnd = end === undefined ? today : parseDateOnly(end);
+  function dateInTimeZone(value: Date, timeZone: string): string {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone,
+      year: "numeric",
+    }).formatToParts(value);
+    const year = parts.find((part) => part.type === "year")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    const day = parts.find((part) => part.type === "day")?.value;
+
+    if (year === undefined || month === undefined || day === undefined) {
+      throw new HttpError(
+        400,
+        "INVALID_ANALYTICS_TIME_ZONE",
+        "The analytics time zone is invalid.",
+      );
+    }
+
+    return `${year}-${month}-${day}`;
+  }
+
+  function analyticsRanges(
+    start: string | undefined,
+    end: string | undefined,
+    timeZone: string,
+  ) {
+    const today = dateInTimeZone(new Date(), timeZone);
+    const selectedEnd = parseDateOnly(end ?? today);
+
+    if (selectedEnd === null) {
+      throw new HttpError(
+        400,
+        "INVALID_ANALYTICS_RANGE",
+        "The analytics dates are invalid.",
+      );
+    }
+
     const selectedStart =
       start === undefined
-        ? new Date(today.getTime() - (defaultRangeDays - 1) * dayMs)
+        ? new Date(selectedEnd.getTime() - (defaultRangeDays - 1) * dayMs)
         : parseDateOnly(start);
 
-    if (selectedStart === null || selectedEnd === null) {
+    if (selectedStart === null) {
       throw new HttpError(
         400,
         "INVALID_ANALYTICS_RANGE",
@@ -111,7 +140,7 @@ export function createWorkspaceService(repository: {
       );
     }
 
-    if (selectedEnd > today) {
+    if (dateOnly(selectedEnd) > today) {
       throw new HttpError(
         400,
         "INVALID_ANALYTICS_RANGE",
@@ -138,10 +167,13 @@ export function createWorkspaceService(repository: {
 
     return {
       comparison: {
-        endExclusive: comparisonEndExclusive,
-        start: comparisonStart,
+        endExclusive: dateOnly(comparisonEndExclusive),
+        start: dateOnly(comparisonStart),
       },
-      range: { endExclusive, start: selectedStart },
+      range: {
+        endExclusive: dateOnly(endExclusive),
+        start: dateOnly(selectedStart),
+      },
     };
   }
 
@@ -227,8 +259,9 @@ export function createWorkspaceService(repository: {
     end: string | undefined,
     provider: string | undefined,
     selectedMembershipId: string | undefined,
+    timeZone: string,
   ): WorkspaceAnalyticsInput {
-    const ranges = analyticsRanges(start, end);
+    const ranges = analyticsRanges(start, end, timeZone);
 
     if (
       selectedMembershipId !== undefined &&
@@ -249,6 +282,7 @@ export function createWorkspaceService(repository: {
         : { provider: parseProviderKey(provider) }),
       range: ranges.range,
       ...(selectedMembershipId === undefined ? {} : { selectedMembershipId }),
+      timeZone,
       workspaceId: current.workspace.id,
     };
   }
@@ -294,6 +328,7 @@ export function createWorkspaceService(repository: {
       end: string | undefined,
       provider: string | undefined,
       selectedMembershipId: string | undefined,
+      timeZone: string,
     ): Promise<WorkspaceAnalyticsResponse> {
       const current = requireWorkspace(await repository.findForUser(userId));
       const input = analyticsInput(
@@ -302,17 +337,27 @@ export function createWorkspaceService(repository: {
         end,
         provider,
         selectedMembershipId,
+        timeZone,
       );
       const analytics = await repository.getAnalytics(input);
       const rangeContract = {
-        end: dateOnly(new Date(input.range.endExclusive.getTime() - dayMs)),
-        start: dateOnly(input.range.start),
+        end: dateOnly(
+          new Date(
+            new Date(`${input.range.endExclusive}T00:00:00.000Z`).getTime() -
+              dayMs,
+          ),
+        ),
+        start: input.range.start,
       };
       const comparisonRangeContract = {
         end: dateOnly(
-          new Date(input.comparison.endExclusive.getTime() - dayMs),
+          new Date(
+            new Date(
+              `${input.comparison.endExclusive}T00:00:00.000Z`,
+            ).getTime() - dayMs,
+          ),
         ),
-        start: dateOnly(input.comparison.start),
+        start: input.comparison.start,
       };
 
       return {
@@ -349,6 +394,7 @@ export function createWorkspaceService(repository: {
         summary: summaryContract(analytics.summary),
         toolUsage: previewTools(analytics.toolUsage),
         toolUsageTotal: analytics.toolUsageTotal,
+        timeZone,
       };
     },
 
@@ -365,6 +411,7 @@ export function createWorkspaceService(repository: {
         query: string;
         sort: AnalyticsRankingSort;
         start?: string | undefined;
+        timeZone: string;
       },
     ): Promise<AnalyticsRankingResponse> {
       const current = requireWorkspace(await repository.findForUser(userId));
@@ -374,6 +421,7 @@ export function createWorkspaceService(repository: {
         query.end,
         query.provider,
         query.membershipId,
+        query.timeZone,
       );
       const input: WorkspaceAnalyticsRankingInput = {
         direction: query.direction,
@@ -387,6 +435,7 @@ export function createWorkspaceService(repository: {
           ? {}
           : { selectedMembershipId: base.selectedMembershipId }),
         sort: query.sort,
+        timeZone: query.timeZone,
         workspaceId: base.workspaceId,
       };
 
@@ -404,6 +453,7 @@ export function createWorkspaceService(repository: {
           items: page.items.map(memberContract),
           limit: query.limit,
           offset: query.offset,
+          timeZone: query.timeZone,
           total: page.total,
         };
       }
@@ -414,6 +464,7 @@ export function createWorkspaceService(repository: {
         items: page.items.map(toolContract),
         limit: query.limit,
         offset: query.offset,
+        timeZone: query.timeZone,
         total: page.total,
       };
     },

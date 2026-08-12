@@ -110,6 +110,7 @@ export const workspaceAnalyticsSchema = z.object({
   summary: usageSummarySchema,
   toolUsage: z.array(toolUsageSchema),
   toolUsageTotal: z.number().int().nonnegative(),
+  timeZone: z.string(),
 });
 
 export const analyticsRankingSchema = z.discriminatedUnion("dimension", [
@@ -118,6 +119,7 @@ export const analyticsRankingSchema = z.discriminatedUnion("dimension", [
     items: z.array(toolUsageSchema),
     limit: z.number().int().positive(),
     offset: z.number().int().nonnegative(),
+    timeZone: z.string(),
     total: z.number().int().nonnegative(),
   }),
   z.object({
@@ -125,6 +127,7 @@ export const analyticsRankingSchema = z.discriminatedUnion("dimension", [
     items: z.array(memberUsageSchema),
     limit: z.number().int().positive(),
     offset: z.number().int().nonnegative(),
+    timeZone: z.string(),
     total: z.number().int().nonnegative(),
   }),
 ]);
