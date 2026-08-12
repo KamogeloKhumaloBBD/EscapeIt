@@ -1,12 +1,12 @@
 ---
-name: Daily Docs Sync
+name: Weekly Docs Sync
 on:
   schedule:
-    - cron: "0 7 * * 1-5" # 07:00 UTC, Mon–Fri (≈09:00 SAST)
+    - cron: "0 7 * * 1" # 07:00 UTC, Monday (≈09:00 SAST)
   workflow_dispatch: # adds a "Run workflow" button in the Actions tab
     inputs:
       since:
-        description: "Only consider code changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 24 hours."
+        description: "Only consider code changes since this git ref or ISO date (e.g. 2026-08-01 or a SHA). Leave blank to use the last 7 days."
         required: false
         type: string
       dry_run:
@@ -48,7 +48,7 @@ safe-outputs:
 timeout-minutes: 20
 ---
 
-# Daily Documentation Sync
+# Weekly Documentation Sync
 
 You are a documentation-maintenance agent for this repository. Your job is to
 find documentation that has fallen **out of sync with recent code changes** and
@@ -58,8 +58,8 @@ propose the minimal, accurate updates needed to bring it back in line.
 
 - If `${{ github.event.inputs.since }}` is set, use it as the lower bound for the
   code changes you examine (it may be a git ref, SHA, or ISO date).
-- Otherwise, examine changes from roughly **the last 24 hours** (the default
-  daily window). Use `git log` / `git diff` against the appropriate range to see
+- Otherwise, examine changes from roughly **the last 7 days** (the default
+  weekly window). Use `git log` / `git diff` against the appropriate range to see
   what merged.
 
 State the exact range you settled on at the start of your work.
