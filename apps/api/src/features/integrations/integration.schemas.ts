@@ -15,6 +15,18 @@ export const scopeSelectionSchema = z.object({
   externalIds: z.array(z.string().min(1).max(500)).max(100),
 });
 
+export const mcpToolSelectionSchema = z.object({
+  toolNames: z
+    .array(
+      z
+        .string()
+        .min(3)
+        .max(128)
+        .regex(/^[a-z][a-z0-9]*(_[a-z0-9]+)+$/),
+    )
+    .max(100),
+});
+
 export const scopeDiscoveryQuerySchema = z.object({
   cursor: z.string().max(64).optional(),
   query: z.string().trim().max(120).default(""),

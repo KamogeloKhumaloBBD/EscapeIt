@@ -59,6 +59,8 @@ function statusLabel(integration: IntegrationSummary): string {
   if (integration.installation.resource === null) return "Site required";
   if (integration.installation.selectedScopeCount === 0)
     return "Access required";
+  if (integration.installation.enabledMcpToolCount === 0)
+    return "Tools required";
   return "Ready";
 }
 
@@ -314,7 +316,9 @@ export default async function DashboardPage() {
                         <ItemActions>
                           <span className="text-xs text-muted-foreground">
                             {integration.installation?.selectedScopeCount ?? 0}{" "}
-                            projects
+                            projects ·{" "}
+                            {integration.installation?.enabledMcpToolCount ?? 0}{" "}
+                            tools
                           </span>
                           <ArrowRightIcon aria-hidden="true" />
                         </ItemActions>

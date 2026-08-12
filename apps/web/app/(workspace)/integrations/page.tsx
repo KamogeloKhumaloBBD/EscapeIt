@@ -134,6 +134,8 @@ export default async function IntegrationsPage() {
               integration.installation?.resource !== undefined;
             const scopesSelected =
               (integration.installation?.selectedScopeCount ?? 0) > 0;
+            const toolsSelected =
+              (integration.installation?.enabledMcpToolCount ?? 0) > 0;
 
             return (
               <Card
@@ -191,11 +193,12 @@ export default async function IntegrationsPage() {
                       complete={scopesSelected}
                       label="Allowed scopes"
                     />
+                    <PipelineStep complete={toolsSelected} label="MCP tools" />
                   </div>
 
                   <div className="mt-6 flex items-center justify-between gap-4">
                     <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
-                      {integration.installation?.selectedScopeCount ?? 0} scopes
+                      {integration.installation?.enabledMcpToolCount ?? 0} tools
                     </span>
                     <Button
                       asChild

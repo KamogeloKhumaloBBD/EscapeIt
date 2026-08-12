@@ -2,6 +2,7 @@ import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
+  connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
   createMcpToken,
@@ -17,6 +18,7 @@ import {
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   listIntegrationScopes,
+  listIntegrationMcpTools,
   listMcpTokens,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
@@ -24,15 +26,13 @@ import {
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
-  parseProviderKey,
-  parseScopeKey,
   replaceIntegrationAccountCredentials,
+  replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   resolveMcpToken,
   revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
-  type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { Router } from "express";
@@ -53,8 +53,6 @@ import {
   type McpAccessServiceDependencies,
 } from "./features/mcp-access/mcp-access.service";
 import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
-import { createJiraMcpToolProvider } from "./features/mcp-access/jira-mcp-tools";
-import type { McpToolProvider } from "./features/mcp-access/mcp-tool-provider";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -62,16 +60,13 @@ import {
   type MemberServiceDependencies,
 } from "./features/members/member.service";
 import { createRequireAuthentication } from "./http/authentication";
-import type { IntegrationAdapter } from "./integrations/integration-adapter";
-import {
-  createJiraAdapter,
-  type JiraAdapter,
-} from "./integrations/jira-adapter";
+import { createJiraProviderModule } from "./integrations/jira";
 import { createLogger } from "./logging";
 import {
-  createProviderRegistry,
-  type ProviderDefinition,
-} from "./integrations/provider-registry";
+  isProviderModule,
+  type ProviderModule,
+} from "./integrations/provider-module";
+import { createProviderRegistry } from "./integrations/provider-registry";
 import { createProviderAccountRuntime } from "./integrations/provider-account-runtime";
 import { createCredentialEncryption } from "./security/credential-encryption";
 
@@ -115,36 +110,21 @@ const requireAuthentication = createRequireAuthentication({
 const credentialEncryption = createCredentialEncryption(
   config.credentialEncryptionKey,
 );
-const providerDefinitions: ProviderDefinition[] = [];
-const integrationAdapters = new Map<ProviderKey, IntegrationAdapter>();
-let jiraAdapter: JiraAdapter | null = null;
-
-if (config.atlassianOAuth !== null) {
-  const jiraProvider = parseProviderKey("jira");
-  providerDefinitions.push({
-    capabilities: ["context", "user-accounts", "scopes"],
-    description: "Bring Jira projects and work items into your context layer.",
-    displayName: "Jira",
-    key: jiraProvider,
-    notificationEvents: [],
-    scopeKinds: [
-      {
-        displayName: "Project",
-        key: parseScopeKey("jira.project"),
-      },
-    ],
-  });
-  jiraAdapter = createJiraAdapter({
-    ...config.atlassianOAuth,
-    redirectUri: new URL(
-      "/api/integrations/jira/oauth/callback",
-      config.publicAppUrl,
-    ).toString(),
-  });
-  integrationAdapters.set(jiraProvider, jiraAdapter);
-}
-
-const providerRegistry = createProviderRegistry(providerDefinitions);
+const providerModules: ProviderModule[] = [
+  createJiraProviderModule({
+    oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+].filter(isProviderModule);
+const providerRegistry = createProviderRegistry(
+  providerModules.map((providerModule) => providerModule.definition),
+);
+const integrationAdapters = new Map(
+  providerModules.map(
+    (providerModule) =>
+      [providerModule.definition.key, providerModule.adapter] as const,
+  ),
+);
 const workspaceRepository = {
   createForUser: (input: Parameters<typeof createWorkspaceForUser>[1]) =>
     createWorkspaceForUser(connection.client, input),
@@ -230,6 +210,9 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     appendActivityEvent(connection.client, input),
   configure: (input: Parameters<typeof configureIntegration>[1]) =>
     configureIntegration(connection.client, input),
+  connectAccountWithResource: (
+    input: Parameters<typeof connectIntegrationAccountWithResource>[1],
+  ) => connectIntegrationAccountWithResource(connection.client, input),
   disconnectAccount: (workspaceId, integrationId, membershipId) =>
     disconnectIntegrationAccount(
       connection.client,
@@ -276,6 +259,13 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       integrationId,
       membershipId,
     ),
+  listMcpTools: (workspaceId, integrationId, membershipId) =>
+    listIntegrationMcpTools(
+      connection.client,
+      workspaceId,
+      integrationId,
+      membershipId,
+    ),
   markAccountValidated: (workspaceId, integrationId, membershipId) =>
     markIntegrationAccountValidated(
       connection.client,
@@ -309,6 +299,14 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       membershipId,
       scopes,
     ),
+  replaceMcpTools: (workspaceId, integrationId, membershipId, toolNames) =>
+    replaceIntegrationMcpTools(
+      connection.client,
+      workspaceId,
+      integrationId,
+      membershipId,
+      toolNames,
+    ),
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
 };
@@ -333,27 +331,28 @@ const integrationService = createIntegrationService({
   providerRegistry,
   repository: integrationRepository,
 });
-const mcpToolProviders: McpToolProvider[] = [];
+const mcpToolProviders = providerModules.flatMap((providerModule) => {
+  if (providerModule.createMcpToolProvider === undefined) {
+    return [];
+  }
 
-if (jiraAdapter !== null) {
-  mcpToolProviders.push(
-    createJiraMcpToolProvider({
+  return [
+    providerModule.createMcpToolProvider({
       accountRuntime: providerAccountRuntime,
-      adapter: jiraAdapter,
       repository: {
         appendActivity: (input) =>
           appendActivityEvent(connection.client, input),
-        findAccess: (workspaceId, membershipId) =>
+        findAccess: (workspaceId, membershipId, provider) =>
           findMemberIntegrationAccess(
             connection.client,
             workspaceId,
             membershipId,
-            parseProviderKey("jira"),
+            provider,
           ),
       },
     }),
-  );
-}
+  ];
+});
 const apiRouter = Router();
 apiRouter.use(
   "/workspaces",

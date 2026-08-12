@@ -54,9 +54,14 @@ export interface IntegrationAdapter {
 export class ProviderAdapterError extends Error {
   readonly code:
     | "authorization_expired"
+    | "content_too_large"
+    | "forbidden"
     | "inaccessible_resource"
+    | "invalid_request"
     | "invalid_response"
-    | "temporarily_unavailable";
+    | "not_found"
+    | "temporarily_unavailable"
+    | "unsupported_content";
 
   constructor(
     code: ProviderAdapterError["code"],

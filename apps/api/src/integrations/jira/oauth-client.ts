@@ -5,7 +5,7 @@ import {
   type OAuthCredentials,
   type ProviderIdentity,
   type ProviderResource,
-} from "./integration-adapter";
+} from "../integration-adapter";
 
 const tokenSchema = z.object({
   access_token: z.string().min(1),
@@ -39,6 +39,17 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     throw new ProviderAdapterError("invalid_response");
   }
+}
+
+function responseError(status: number): ProviderAdapterError {
+  if (status === 401) return new ProviderAdapterError("authorization_expired");
+  if (status === 403) return new ProviderAdapterError("forbidden");
+  if (status === 404) return new ProviderAdapterError("not_found");
+  if (status === 400 || status === 409 || status === 422) {
+    return new ProviderAdapterError("invalid_request");
+  }
+  if (status === 413) return new ProviderAdapterError("content_too_large");
+  return new ProviderAdapterError("temporarily_unavailable");
 }
 
 function toCredentials(value: z.infer<typeof tokenSchema>): OAuthCredentials {
@@ -111,14 +122,73 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
     }
 
     if (!response.ok) {
-      throw new ProviderAdapterError(
-        response.status === 401 || response.status === 403
-          ? "authorization_expired"
-          : "temporarily_unavailable",
-      );
+      throw responseError(response.status);
     }
 
     return readJson(response);
+  }
+
+  async function authenticatedBinaryRequest(
+    url: string,
+    accessToken: string,
+    maximumBytes: number,
+  ): Promise<{ bytes: Uint8Array; contentType: string }> {
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        headers: {
+          accept: "*/*",
+          authorization: `Bearer ${accessToken}`,
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new ProviderAdapterError("temporarily_unavailable");
+    }
+
+    if (!response.ok) throw responseError(response.status);
+
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+      throw new ProviderAdapterError("content_too_large");
+    }
+
+    if (response.body === null) {
+      throw new ProviderAdapterError("invalid_response");
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+
+    try {
+      for (;;) {
+        const result = await reader.read();
+        if (result.done) break;
+        received += result.value.byteLength;
+        if (received > maximumBytes) {
+          await reader.cancel();
+          throw new ProviderAdapterError("content_too_large");
+        }
+        chunks.push(result.value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const bytes = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    return {
+      bytes,
+      contentType: response.headers.get("content-type")?.split(";", 1)[0] ?? "",
+    };
   }
 
   return {
@@ -190,12 +260,43 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
     async getJson(url: string, accessToken: string): Promise<unknown> {
       return authenticatedRequest(url, accessToken);
     },
+    getBytes(
+      url: string,
+      accessToken: string,
+      maximumBytes: number,
+    ): Promise<{ bytes: Uint8Array; contentType: string }> {
+      return authenticatedBinaryRequest(url, accessToken, maximumBytes);
+    },
     async postJson(
       url: string,
       accessToken: string,
       body: unknown,
     ): Promise<unknown> {
       return authenticatedRequest(url, accessToken, { body, method: "POST" });
+    },
+    async postWithoutResponse(
+      url: string,
+      accessToken: string,
+      body: unknown,
+    ): Promise<void> {
+      let response: Response;
+
+      try {
+        response = await fetch(url, {
+          body: JSON.stringify(body),
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        throw new ProviderAdapterError("temporarily_unavailable");
+      }
+
+      if (!response.ok) throw responseError(response.status);
     },
     async refreshCredentials(credentials: OAuthCredentials) {
       return requestToken({

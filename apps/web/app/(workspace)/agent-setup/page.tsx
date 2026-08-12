@@ -1,7 +1,4 @@
-import {
-  KeyIcon,
-  WarningCircleIcon
-} from "@phosphor-icons/react/dist/ssr";
+import { KeyIcon, WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { redirect } from "next/navigation";
 
 import {

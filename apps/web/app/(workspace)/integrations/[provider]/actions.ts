@@ -16,13 +16,18 @@ const actionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("validate"), provider: z.string() }),
   z.object({
     externalId: z.string().min(1),
-    intent: z.literal("select-site"),
+    intent: z.literal("select-resource"),
     provider: z.string(),
   }),
   z.object({
     externalIds: z.array(z.string().min(1)).max(100),
     intent: z.literal("save-scopes"),
     provider: z.string(),
+  }),
+  z.object({
+    intent: z.literal("save-mcp-tools"),
+    provider: z.string(),
+    toolNames: z.array(z.string().min(3).max(128)).max(100),
   }),
 ]);
 
@@ -41,9 +46,11 @@ export async function integrationAction(
   const raw =
     intent === "save-scopes"
       ? { externalIds: formData.getAll("externalIds"), intent, provider }
-      : intent === "select-site"
-        ? { externalId: formData.get("externalId"), intent, provider }
-        : { intent, provider };
+      : intent === "save-mcp-tools"
+        ? { intent, provider, toolNames: formData.getAll("toolNames") }
+        : intent === "select-resource"
+          ? { externalId: formData.get("externalId"), intent, provider }
+          : { intent, provider };
   const parsed = actionSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -74,7 +81,16 @@ export async function integrationAction(
         method: "PUT",
       });
       break;
-    case "select-site":
+    case "save-mcp-tools":
+      result = await requestApi(
+        `/api/integrations/${encodedProvider}/mcp-tools`,
+        {
+          body: { toolNames: parsed.data.toolNames },
+          method: "PUT",
+        },
+      );
+      break;
+    case "select-resource":
       result = await requestApi(
         `/api/integrations/${encodedProvider}/installation`,
         {
@@ -112,8 +128,9 @@ export async function integrationAction(
   const messages: Record<(typeof parsed.data)["intent"], string> = {
     "disconnect-account": "Your provider account was disconnected.",
     "disconnect-installation": "The workspace integration was disconnected.",
-    "save-scopes": "Project access was updated.",
-    "select-site": "The workspace site was selected.",
+    "save-scopes": "Workspace access was updated.",
+    "save-mcp-tools": "MCP tool access was updated.",
+    "select-resource": "The workspace resource was selected.",
     validate: "The connection is healthy.",
   };
 
