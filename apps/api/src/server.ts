@@ -61,6 +61,7 @@ import {
 } from "./features/members/member.service";
 import { createRequireAuthentication } from "./http/authentication";
 import { createJiraProviderModule } from "./integrations/jira";
+import { createConfluenceProviderModule } from "./integrations/confluence";
 import { createLogger } from "./logging";
 import {
   isProviderModule,
@@ -112,6 +113,10 @@ const credentialEncryption = createCredentialEncryption(
 );
 const providerModules: ProviderModule[] = [
   createJiraProviderModule({
+    oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createConfluenceProviderModule({
     oauth: config.atlassianOAuth,
     publicAppUrl: config.publicAppUrl,
   }),

@@ -1,7 +1,7 @@
 import { parseProviderKey, parseScopeKey } from "@context-layer/db";
 import { z } from "zod";
 
-import { createAtlassianOAuthClient } from "./oauth-client";
+import { createJiraOAuthClient } from "./oauth-client";
 import {
   adfToTextValue,
   extractAttachment,
@@ -190,14 +190,6 @@ const worklogPageSchema = z.object({
 });
 
 const createdIssueSchema = z.object({ id: z.string(), key: z.string() });
-
-export const jiraOAuthScopes = [
-  "offline_access",
-  "read:me",
-  "read:jira-user",
-  "read:jira-work",
-  "write:jira-work",
-] as const;
 
 export type { JiraAttachmentContent, JiraTextValue } from "./content";
 
@@ -523,10 +515,7 @@ export function createJiraAdapter(config: {
   clientSecret: string;
   redirectUri: string;
 }): JiraAdapter {
-  const oauth = createAtlassianOAuthClient({
-    ...config,
-    scopes: jiraOAuthScopes,
-  });
+  const oauth = createJiraOAuthClient(config);
 
   async function discoverProjects(
     credentials: OAuthCredentials,

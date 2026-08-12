@@ -512,7 +512,7 @@ export default async function IntegrationDetailPage({
             <CardHeader>
               <CardTitle>MCP tools</CardTitle>
               <CardDescription>
-                Only enabled tools are advertised to agents using workspace MCP
+                Only enabled tools are shown to agents using workspace MCP
                 tokens. Tool access still respects workspace scope governance
                 and each member&apos;s {integration.displayName} permissions.
               </CardDescription>

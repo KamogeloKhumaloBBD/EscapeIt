@@ -66,6 +66,7 @@ export class ProviderAdapterError extends Error {
   constructor(
     code: ProviderAdapterError["code"],
     message = "The provider request could not be completed.",
+    readonly providerStatus?: number,
   ) {
     super(message);
     this.name = "ProviderAdapterError";
