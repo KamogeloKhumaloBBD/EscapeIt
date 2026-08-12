@@ -5,8 +5,8 @@ import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
-import { initialNotificationActionState } from "@/app/(workspace)/notifications/action-state";
-import { notificationAction } from "@/app/(workspace)/notifications/actions";
+import { initialNotificationActionState } from "@/app/(workspace)/integrations/[provider]/notification-action-state";
+import { notificationAction } from "@/app/(workspace)/integrations/[provider]/notification-actions";
 import {
   AlertDialog,
   AlertDialogCancel,

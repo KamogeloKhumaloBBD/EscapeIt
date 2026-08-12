@@ -4,8 +4,8 @@ import { PlusIcon } from "@phosphor-icons/react";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { createChannelAction } from "@/app/(workspace)/notifications/actions";
-import { initialNotificationActionState } from "@/app/(workspace)/notifications/action-state";
+import { createChannelAction } from "@/app/(workspace)/integrations/[provider]/notification-actions";
+import { initialNotificationActionState } from "@/app/(workspace)/integrations/[provider]/notification-action-state";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

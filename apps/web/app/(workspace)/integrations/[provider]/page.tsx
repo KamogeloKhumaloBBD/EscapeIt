@@ -44,11 +44,19 @@ import {
   getScopeDiscoveryState,
 } from "@/lib/server/integration";
 import {
+  getNotificationChannelsState,
+  getNotificationPreferencesState,
+} from "@/lib/server/notification";
+import {
   DisconnectInstallation,
   McpToolSelector,
   ResourceSelector,
   SimpleIntegrationAction,
 } from "./integration-forms";
+import {
+  NotificationChannelsSection,
+  NotificationEventsSection,
+} from "./notification-sections";
 import { OAuthNotice } from "./oauth-notice";
 import { ScopeSelector } from "./scope-selector";
 
@@ -88,6 +96,7 @@ export default async function IntegrationDetailPage({
   const hasScopes =
     integration.capabilities.includes("scopes") && scopeLabels !== undefined;
   const hasMcpTools = integration.capabilities.includes("context");
+  const hasNotifications = integration.capabilities.includes("notifications");
   const isInstallationConnected =
     integration.installation?.status === "connected";
   const configuredResource =
@@ -108,14 +117,27 @@ export default async function IntegrationDetailPage({
     integration.permissions.canManageScopes &&
     integration.currentAccount?.status === "connected" &&
     integration.installation?.resource !== null;
-  const [resourcesState, scopesState] = await Promise.all([
-    needsResourceSelection
-      ? getIntegrationResourcesState(provider)
-      : Promise.resolve({ status: "not-found" } as const),
-    canDiscoverScopes
-      ? getScopeDiscoveryState(provider)
-      : Promise.resolve({ status: "not-found" } as const),
-  ]);
+  const [resourcesState, scopesState, channelsState, preferencesState] =
+    await Promise.all([
+      needsResourceSelection
+        ? getIntegrationResourcesState(provider)
+        : Promise.resolve({ status: "not-found" } as const),
+      canDiscoverScopes
+        ? getScopeDiscoveryState(provider)
+        : Promise.resolve({ status: "not-found" } as const),
+      hasNotifications
+        ? getNotificationChannelsState()
+        : Promise.resolve({ status: "not-found" } as const),
+      hasNotifications
+        ? getNotificationPreferencesState()
+        : Promise.resolve({ status: "not-found" } as const),
+    ]);
+  const notificationChannels =
+    channelsState.status === "available"
+      ? channelsState.data.filter((channel) => channel.provider === provider)
+      : [];
+  const notificationPreferences =
+    preferencesState.status === "available" ? preferencesState.data : [];
   const summaryMetrics = [
     ...(hasAccount
       ? [
@@ -146,6 +168,9 @@ export default async function IntegrationDetailPage({
     ...(hasMcpTools
       ? [["Enabled MCP tools", String(enabledMcpTools.length)]]
       : []),
+    ...(hasNotifications
+      ? [["Connected channels", String(notificationChannels.length)]]
+      : []),
   ];
   let nextSectionNumber = 0;
   const accountSectionNumber = hasAccount ? (nextSectionNumber += 1) : null;
@@ -154,6 +179,9 @@ export default async function IntegrationDetailPage({
     : null;
   const scopeSectionNumber = hasScopes ? (nextSectionNumber += 1) : null;
   const toolSectionNumber = hasMcpTools ? (nextSectionNumber += 1) : null;
+  const notificationSectionNumber = hasNotifications
+    ? (nextSectionNumber += 1)
+    : null;
   const summaryGridColumns =
     summaryMetrics.length === 4
       ? "sm:grid-cols-4"
@@ -579,6 +607,16 @@ export default async function IntegrationDetailPage({
               )}
             </CardContent>
           </Card>
+        ) : null}
+
+        {hasNotifications ? (
+          <div className="relative space-y-6">
+            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+              {String(notificationSectionNumber).padStart(2, "0")}
+            </span>
+            <NotificationChannelsSection channels={notificationChannels} />
+            <NotificationEventsSection preferences={notificationPreferences} />
+          </div>
         ) : null}
       </div>
     </main>

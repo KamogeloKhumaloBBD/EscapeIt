@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import type { NotificationActionState } from "@/app/(workspace)/notifications/action-state";
+import type { NotificationActionState } from "@/app/(workspace)/integrations/[provider]/notification-action-state";
 import { requestApi } from "@/lib/server/api-client";
 
 const actionSchema = z.discriminatedUnion("intent", [
@@ -87,7 +87,7 @@ export async function notificationAction(
     };
   }
 
-  revalidatePath("/notifications");
+  revalidatePath("/integrations/teams");
 
   const messages: Record<(typeof parsed.data)["intent"], string> = {
     "delete-channel": "The notification channel was removed.",
@@ -147,6 +147,6 @@ export async function createChannelAction(
     };
   }
 
-  revalidatePath("/notifications");
+  revalidatePath("/integrations/teams");
   return { message: "The Teams channel was connected.", status: "success" };
 }

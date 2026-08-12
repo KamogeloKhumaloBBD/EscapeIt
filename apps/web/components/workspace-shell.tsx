@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BellRingingIcon,
   CirclesFourIcon,
   HouseIcon,
   KeyIcon,
@@ -46,7 +45,6 @@ const navigation = [
     label: "Integrations",
   },
   { href: "/members", icon: UsersThreeIcon, label: "Members" },
-  { href: "/notifications", icon: BellRingingIcon, label: "Notifications" },
   { href: "/agent-setup", icon: KeyIcon, label: "Agent Setup" },
 ] as const;
 
@@ -83,9 +81,7 @@ function WorkspaceBreadcrumbs() {
                 ? "Agent Setup"
                 : pathname.startsWith("/members")
                   ? "Members"
-                  : pathname.startsWith("/notifications")
-                    ? "Notifications"
-                    : "Overview"}
+                  : "Overview"}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
