@@ -90,6 +90,17 @@ that no longer works, a signature that changed, a flag that was renamed, a step
 that is now wrong, a link that now 404s, or a documented behavior that the code
 no longer exhibits.
 
+**API reference:** `docs/api.md` is the canonical reference for the Express
+API's public endpoints (routes under `apps/api/src/features/*/*.routes.ts`).
+Treat it like any other doc in this scan — if an endpoint changed (added,
+removed, renamed, request/response shape changed, auth/permission requirements
+changed) in this review window, check whether `docs/api.md` reflects that. If
+the file does not exist yet, or has no entry for an endpoint that changed in
+this window, that counts as out of sync: create the file (if missing) or add/
+update just that endpoint's entry. Do not use this pass to retroactively
+document the entire existing API surface — stay scoped to endpoints touched by
+changes in the current review window, the same as every other doc.
+
 ## 4. Make the updates
 
 For each confirmed mismatch, edit the documentation to match the current code.
