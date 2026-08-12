@@ -3,6 +3,7 @@ import {
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
   clearNotificationPreferenceOverride,
+  connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
   createMcpToken,
@@ -15,11 +16,13 @@ import {
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
   findNotificationChannel,
+  findMemberIntegrationAccess,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   listIntegrationScopes,
+  listIntegrationMcpTools,
   listMcpTokens,
   listNotificationChannels,
   listNotificationPreferenceOverrides,
@@ -31,8 +34,8 @@ import {
   markWorkspaceIntegrationValidated,
   parseNotificationEventKey,
   parseProviderKey,
-  parseScopeKey,
   replaceIntegrationAccountCredentials,
+  replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   resolveMcpToken,
   revokeMcpToken,
@@ -73,14 +76,17 @@ import {
   type NotificationServiceDependencies,
 } from "./features/notifications/notification.service";
 import { createRequireAuthentication } from "./http/authentication";
-import { createJiraAdapter } from "./integrations/jira-adapter";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
+import { createJiraProviderModule } from "./integrations/jira";
+import { createConfluenceProviderModule } from "./integrations/confluence";
 import { createLogger } from "./logging";
 import {
-  createProviderRegistry,
-  type ProviderDefinition,
-} from "./integrations/provider-registry";
+  isProviderModule,
+  type ProviderModule,
+} from "./integrations/provider-module";
+import { createProviderRegistry } from "./integrations/provider-registry";
+import { createProviderAccountRuntime } from "./integrations/provider-account-runtime";
 import { createCredentialEncryption } from "./security/credential-encryption";
 
 const config = parseApiConfig(process.env);
@@ -123,49 +129,40 @@ const requireAuthentication = createRequireAuthentication({
 const credentialEncryption = createCredentialEncryption(
   config.credentialEncryptionKey,
 );
-const providerDefinitions: ProviderDefinition[] = [];
-const integrationAdapters = new Map<
-  ProviderKey,
-  ReturnType<typeof createJiraAdapter>
->();
+const providerModules: ProviderModule[] = [
+  createJiraProviderModule({
+    oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createConfluenceProviderModule({
+    oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+].filter(isProviderModule);
+const integrationAdapters = new Map(
+  providerModules.map(
+    (providerModule) =>
+      [providerModule.definition.key, providerModule.adapter] as const,
+  ),
+);
 
-if (config.atlassianOAuth !== null) {
-  const jiraProvider = parseProviderKey("jira");
-  providerDefinitions.push({
-    capabilities: ["context", "user-accounts", "scopes"],
-    description: "Bring Jira projects and work items into your context layer.",
-    displayName: "Jira",
-    key: jiraProvider,
-    notificationEvents: [],
-    scopeKinds: [
-      {
-        displayName: "Project",
-        key: parseScopeKey("jira.project"),
-      },
-    ],
-  });
-  integrationAdapters.set(
-    jiraProvider,
-    createJiraAdapter({
-      ...config.atlassianOAuth,
-      redirectUri: new URL(
-        "/api/integrations/jira/oauth/callback",
-        config.publicAppUrl,
-      ).toString(),
-    }),
-  );
-}
-
+// Teams is a notification-only provider (a webhook secret, no OAuth account
+// or MCP context) so it doesn't fit the OAuth-shaped ProviderModule/
+// IntegrationAdapter contract that Jira/Confluence use. It's registered
+// alongside providerModules rather than inside it, with its own adapter map
+// consumed only by the notification service.
+//
 // Teams channels are dispatched manually today (a "Send test message" action
 // only) — no domain event relays into a channel yet. These two events exist
 // so the registry has something to validate/list against; wire real Jira
 // event relaying into `notificationService` here once that's built.
 const teamsProvider = parseProviderKey("teams");
-providerDefinitions.push({
+const teamsDefinition = {
   capabilities: ["notifications", "webhooks"],
   description: "Send workspace notifications to a Microsoft Teams channel.",
   displayName: "Microsoft Teams",
   key: teamsProvider,
+  mcpTools: [],
   notificationEvents: [
     {
       defaultEnabled: true,
@@ -178,14 +175,18 @@ providerDefinitions.push({
       key: parseNotificationEventKey("teams.integration-error"),
     },
   ],
+  presentation: {},
   scopeKinds: [],
-});
+} satisfies ProviderModule["definition"];
 const notificationChannelAdapters = new Map<
   ProviderKey,
   NotificationChannelAdapter
 >([[teamsProvider, createTeamsAdapter()]]);
 
-const providerRegistry = createProviderRegistry(providerDefinitions);
+const providerRegistry = createProviderRegistry([
+  ...providerModules.map((providerModule) => providerModule.definition),
+  teamsDefinition,
+]);
 const workspaceRepository = {
   createForUser: (input: Parameters<typeof createWorkspaceForUser>[1]) =>
     createWorkspaceForUser(connection.client, input),
@@ -271,6 +272,9 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     appendActivityEvent(connection.client, input),
   configure: (input: Parameters<typeof configureIntegration>[1]) =>
     configureIntegration(connection.client, input),
+  connectAccountWithResource: (
+    input: Parameters<typeof connectIntegrationAccountWithResource>[1],
+  ) => connectIntegrationAccountWithResource(connection.client, input),
   disconnectAccount: (workspaceId, integrationId, membershipId) =>
     disconnectIntegrationAccount(
       connection.client,
@@ -317,6 +321,13 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       integrationId,
       membershipId,
     ),
+  listMcpTools: (workspaceId, integrationId, membershipId) =>
+    listIntegrationMcpTools(
+      connection.client,
+      workspaceId,
+      integrationId,
+      membershipId,
+    ),
   markAccountValidated: (workspaceId, integrationId, membershipId) =>
     markIntegrationAccountValidated(
       connection.client,
@@ -350,10 +361,32 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       membershipId,
       scopes,
     ),
+  replaceMcpTools: (workspaceId, integrationId, membershipId, toolNames) =>
+    replaceIntegrationMcpTools(
+      connection.client,
+      workspaceId,
+      integrationId,
+      membershipId,
+      toolNames,
+    ),
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
 };
+const providerAccountRuntime = createProviderAccountRuntime({
+  credentialEncryption,
+  repository: {
+    findAccount: (workspaceId, integrationId, membershipId) =>
+      integrationRepository.findAccount(
+        workspaceId,
+        integrationId,
+        membershipId,
+      ),
+    replaceAccountCredentials: (input, expectedEnvelope) =>
+      integrationRepository.replaceAccountCredentials(input, expectedEnvelope),
+  },
+});
 const integrationService = createIntegrationService({
+  accountRuntime: providerAccountRuntime,
   adapters: integrationAdapters,
   credentialEncryption,
   oauthStateSecret: config.betterAuthSecret,
@@ -408,6 +441,28 @@ const notificationService = createNotificationService({
   providerRegistry,
   repository: notificationRepository,
 });
+const mcpToolProviders = providerModules.flatMap((providerModule) => {
+  if (providerModule.createMcpToolProvider === undefined) {
+    return [];
+  }
+
+  return [
+    providerModule.createMcpToolProvider({
+      accountRuntime: providerAccountRuntime,
+      repository: {
+        appendActivity: (input) =>
+          appendActivityEvent(connection.client, input),
+        findAccess: (workspaceId, membershipId, provider) =>
+          findMemberIntegrationAccess(
+            connection.client,
+            workspaceId,
+            membershipId,
+            provider,
+          ),
+      },
+    }),
+  ];
+});
 const apiRouter = Router();
 apiRouter.use(
   "/workspaces",
@@ -450,6 +505,7 @@ const app = createApp({
     logger,
     publicAppUrl: config.publicAppUrl,
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
+    toolProviders: mcpToolProviders,
   }),
 });
 

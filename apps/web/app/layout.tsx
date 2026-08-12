@@ -24,7 +24,13 @@ export default function RootLayout({
     <html lang="en" className={cn("font-sans", instrumentSans.variable)}>
       <body>
         <TooltipProvider>{children}</TooltipProvider>
-        <Toaster closeButton position="top-right" richColors theme="light" />
+        <Toaster
+          closeButton
+          position="top-right"
+          richColors
+          theme="light"
+          visibleToasts={1}
+        />
       </body>
     </html>
   );

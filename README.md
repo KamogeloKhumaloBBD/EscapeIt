@@ -8,7 +8,7 @@ Context Layer is a pnpm monorepo containing an independently deployable Next.js 
 - pnpm 11.21.0
 - Docker Desktop or another Compose-compatible runtime
 - A Resend API key and verified sender for passwordless sign-in
-- An Atlassian OAuth 2.0 app when developing the Jira integration
+- An Atlassian OAuth 2.0 app when developing the Jira or Confluence integrations
 
 ## Start locally
 
@@ -52,13 +52,13 @@ The Express workspace API exposes authenticated workspace, member, and invitatio
 
 The authenticated application uses a shared workspace shell. The dashboard derives setup progress, connection health, counts, and recent activity from real API data rather than frontend placeholders.
 
-The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
+The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, enabled integration MCP tools, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 
 - Providers are registered in API code using stable keys and capability metadata. Jira, Bitbucket, Confluence, and Teams are intended initial adapters, not database-level special cases.
 - Provider installation configuration is workspace-wide; member account credentials remain member-specific.
 - Notification-channel and provider credentials are stored only as authenticated AES-256-GCM envelopes.
 - Integration-account and channel IDs are allocated before encryption because each envelope is cryptographically bound to its record ID and purpose.
-- Provider scopes are deny-by-default: an empty allowlist grants no resource access.
+- Provider scopes and MCP tools are deny-by-default: an empty resource allowlist grants no resource access, and an empty tool allowlist exposes no provider tools.
 - Provider scope and event keys are namespaced, such as `jira.project` and `jira.issue.updated`, so new adapters do not require schema changes.
 - Notification preferences store only member overrides. When no override exists, the API uses the event's `defaultEnabled` value from the provider registry.
 - Invitation and MCP secrets are never stored, only their 32-byte SHA-256 hashes.
@@ -75,7 +75,46 @@ POST <PUBLIC_APP_URL>/api/mcp
 Authorization: Bearer <token>
 ```
 
-MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. This foundation release intentionally registers no tools, so a connected client receives an empty `tools/list` result. Provider and unified-context tools will attach to this gateway in later slices.
+MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. Tools are discovered per request from the integrations available to that member. Workspace owners explicitly choose the MCP tools enabled for each integration, and those choices apply to every member token while remaining constrained by each member's provider identity. A disconnected provider, disconnected personal account, empty resource allowlist, or empty tool allowlist contributes no tools. Tool choices are retained when an integration is disconnected but remain unavailable until it is ready again.
+
+When Jira is ready, the gateway can expose fifteen individually selected tools:
+
+- `jira_get_myself`
+- `jira_get_issue`
+- `jira_search_issues`
+- `jira_get_assigned_issues`
+- `jira_get_issue_comments`
+- `jira_list_projects`
+- `jira_get_create_metadata`
+- `jira_get_issue_changelog`
+- `jira_get_issue_transitions`
+- `jira_get_issue_worklogs`
+- `jira_list_issue_attachments`
+- `jira_get_issue_attachment`
+- `jira_create_issue`
+- `jira_add_comment`
+- `jira_transition_issue`
+
+Jira search accepts structured filters rather than raw JQL. The API builds bounded JQL internally and always adds the workspace's selected Jira project IDs. Results and mutations are additionally constrained by the token owner's Jira permissions. Write tools are labeled in the owner UI and carry MCP write/destructive annotations so clients can present approval UX.
+
+Responses contain normalized, bounded fields instead of raw Jira payloads. Atlassian document descriptions and comments retain compatible plain text and add bounded Markdown rendering. Attachment retrieval is read-only: UTF-8 text and Markdown are decoded, PDF and DOCX files are converted to bounded extracted text, and PNG, JPEG, GIF, or WebP images can be returned inline. Source attachments are capped at 10 MiB, inline images at 5 MiB, and extracted text at 50,000 characters. SVG, archives, legacy DOC, executables, unsupported formats, and oversized files are rejected; attachment bytes are never persisted or logged.
+
+When Confluence is ready, the gateway can expose twelve individually selected tools:
+
+- `confluence_get_myself`
+- `confluence_list_spaces`
+- `confluence_list_pages`
+- `confluence_get_page`
+- `confluence_search_pages`
+- `confluence_get_page_children`
+- `confluence_get_page_comments`
+- `confluence_list_page_attachments`
+- `confluence_get_page_attachment`
+- `confluence_create_page`
+- `confluence_update_page`
+- `confluence_add_page_comment`
+
+Confluence pages are limited to the workspace's selected space IDs and the invoking member's own Confluence permissions. Search accepts structured title and text filters; the adapter builds bounded CQL internally and never accepts arbitrary CQL. Page bodies and comments return normalized plain text and bounded Markdown. Write tools accept a validated, bounded native Atlassian Document Format document and send it directly to Confluence, supporting headings, formatting, links, lists, quotes, code blocks, rules, and tables without using Markdown as an intermediate representation. Drafts, moves, ownership changes, deletion, and uploads are not exposed. Confluence attachment retrieval uses the same type and size policies as Jira, validates page and space ownership first, and follows only a single credential-free redirect to an Atlassian-controlled media host.
 
 Codex can read the bearer token from an environment variable:
 
@@ -87,14 +126,15 @@ bearer_token_env_var = "CONTEXT_LAYER_TOKEN"
 
 The Agent Setup page also provides copyable Claude, VS Code, and generic HTTP examples without embedding the token in committed configuration.
 
-## Jira OAuth
+## Atlassian OAuth
 
-Jira is the first registered provider. The workspace owner connects Jira, chooses one Jira Cloud site, and selects a workspace-wide project allowlist. Every workspace member authorizes their own Atlassian account; provider calls use that member's encrypted OAuth credentials and remain constrained by both the allowlist and Jira's own permissions.
+Jira and Confluence share the configured Atlassian OAuth application but maintain separate workspace installations, member credentials, scopes, and MCP-tool selections. The workspace owner selects one site during each provider's resource-level consent flow, then chooses a workspace-wide project or space allowlist. Every member authorizes their own Atlassian account for each provider; calls use that member's encrypted OAuth credentials and remain constrained by both the workspace allowlist and Atlassian's permissions. OAuth access tokens are refreshed shortly before expiry and rotating refresh tokens are replaced atomically.
 
-Create a resource-level OAuth 2.0 integration in the Atlassian Developer Console. Enable the Jira Platform and User Identity APIs, configure the scopes used by the API adapter, and register this exact local callback:
+Create a resource-level OAuth 2.0 integration in the Atlassian Developer Console. Enable the Jira Platform, Confluence, and User Identity APIs; configure the Jira scopes documented by the adapter plus `read:space:confluence`, `read:page:confluence`, `read:comment:confluence`, `read:attachment:confluence`, `search:confluence`, `write:page:confluence`, and `write:comment:confluence`; and register both exact local callbacks:
 
 ```text
 http://localhost:3000/api/integrations/jira/oauth/callback
+http://localhost:3000/api/integrations/confluence/oauth/callback
 ```
 
 Then configure both values:
@@ -104,7 +144,7 @@ ATLASSIAN_OAUTH_CLIENT_ID=...
 ATLASSIAN_OAUTH_CLIENT_SECRET=...
 ```
 
-If both are absent, the core application still starts and Jira is omitted from the catalogue. Supplying only one is rejected. The callback is derived from `PUBLIC_APP_URL`, so a deployed environment must register `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks.
+If both are absent, the core application still starts and both Atlassian providers are omitted from the catalogue. Supplying only one is rejected. Callbacks are derived from `PUBLIC_APP_URL`, so a deployed environment must register both `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback` and `${PUBLIC_APP_URL}/api/integrations/confluence/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks. Configure the Confluence API scopes and callback before deploying code that registers the provider. Accounts authorized before Confluence write scopes were enabled must reconnect before invoking write tools.
 
 ## Commands
 

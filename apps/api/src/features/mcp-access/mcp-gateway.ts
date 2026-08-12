@@ -10,16 +10,15 @@ import {
 import type { Request, RequestHandler } from "express";
 import type { Logger } from "pino";
 
-const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
+import type { McpPrincipal, McpToolProvider } from "./mcp-tool-provider";
 
-export interface McpPrincipal extends ResolvedMcpPrincipal {
-  correlationId: string;
-}
+const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
 
 export interface McpGatewayDependencies {
   logger: Logger;
   publicAppUrl: string;
   resolveToken: (tokenHash: Uint8Array) => Promise<ResolvedMcpPrincipal | null>;
+  toolProviders?: readonly McpToolProvider[];
 }
 
 type AuthenticatedMcpRequest = Request & { auth?: AuthInfo };
@@ -66,24 +65,31 @@ export function createMcpGateway({
   logger,
   publicAppUrl,
   resolveToken,
+  toolProviders = [],
 }: McpGatewayDependencies): RequestHandler {
   const allowedOrigin = new URL(publicAppUrl).origin;
   const handler = createMcpHandler(
-    ({ authInfo }) => {
+    async ({ authInfo }) => {
       const principal = authInfo?.extra?.principal;
 
       if (!isMcpPrincipal(principal)) {
         throw new Error("The MCP principal is unavailable.");
       }
 
-      return new McpServer(
+      const server = new McpServer(
         { name: "context-layer", version: "0.1.0" },
         {
           capabilities: { tools: {} },
           instructions:
-            "Context Layer connects coding agents to workspace context. No tools are available in this foundation release.",
+            "Context Layer connects coding agents to allowlisted workspace context using the authenticated member's provider accounts.",
         },
       );
+
+      for (const provider of toolProviders) {
+        await provider.registerTools(server, principal);
+      }
+
+      return server;
     },
     {
       legacy: "stateless",

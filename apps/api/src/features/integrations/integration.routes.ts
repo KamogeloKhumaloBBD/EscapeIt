@@ -9,6 +9,7 @@ import {
 } from "../../integrations/oauth-state";
 import {
   installationSelectionSchema,
+  mcpToolSelectionSchema,
   oauthCallbackSchema,
   providerParameterSchema,
   scopeDiscoveryQuerySchema,
@@ -240,6 +241,23 @@ export function createIntegrationRouter({
       correlationId(request.id),
     );
     response.status(200).json({ data: scopes });
+  });
+
+  router.put("/:provider/mcp-tools", async (request, response) => {
+    const provider = requireProvider(request.params.provider);
+    const parsed = mcpToolSelectionSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      throw validationError(parsed.error);
+    }
+
+    const tools = await service.replaceMcpTools(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      provider,
+      parsed.data.toolNames,
+      correlationId(request.id),
+    );
+    response.status(200).json({ data: tools });
   });
 
   router.post("/:provider/validate", async (request, response) => {

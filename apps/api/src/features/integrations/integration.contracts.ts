@@ -11,6 +11,7 @@ export interface IntegrationAccountContract {
 }
 
 export interface IntegrationInstallationContract {
+  enabledMcpToolCount: number;
   lastValidatedAt: string | null;
   resource: IntegrationResourceContract | null;
   selectedScopeCount: number;
@@ -21,6 +22,7 @@ export interface IntegrationPermissionsContract {
   canConnectAccount: boolean;
   canManageInstallation: boolean;
   canManageScopes: boolean;
+  canManageMcpTools: boolean;
 }
 
 export interface IntegrationSummaryContract {
@@ -34,15 +36,31 @@ export interface IntegrationSummaryContract {
     | "connect_account"
     | "connect_provider"
     | "ready"
+    | "select_tools"
     | "select_scopes"
-    | "select_site"
+    | "select_resource"
     | "wait_for_owner";
   permissions: IntegrationPermissionsContract;
+  presentation: {
+    accountLabel?: string;
+    resourceLabel?: string;
+    scopeLabels?: { plural: string; singular: string };
+  };
   provider: string;
+  resourceSelection?: "application" | "authorization";
 }
 
 export interface IntegrationDetailContract extends IntegrationSummaryContract {
+  mcpTools: readonly IntegrationMcpToolContract[];
   selectedScopes: readonly IntegrationScopeContract[];
+}
+
+export interface IntegrationMcpToolContract {
+  description: string;
+  displayName: string;
+  enabled: boolean;
+  kind: "read" | "write";
+  name: string;
 }
 
 export interface IntegrationScopeContract {

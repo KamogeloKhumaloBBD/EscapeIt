@@ -1,8 +1,4 @@
-import {
-  KeyIcon,
-  PlugsIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { KeyIcon, WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { redirect } from "next/navigation";
 
 import {
@@ -232,16 +228,6 @@ export default async function AgentSetupPage() {
               <EndpointField endpoint={endpoint} />
             </CardContent>
           </Card>
-
-          <Alert>
-            <PlugsIcon aria-hidden="true" />
-            <AlertTitle>Gateway ready, tools coming next</AlertTitle>
-            <AlertDescription>
-              Clients can authenticate and discover the server now. The tool
-              list is intentionally empty until provider and unified-context
-              slices are added.
-            </AlertDescription>
-          </Alert>
 
           <Card>
             <CardHeader>
