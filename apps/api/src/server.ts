@@ -27,6 +27,8 @@ import {
   listMcpTokens,
   listNotificationChannels,
   listNotificationChannelsForWorkspace,
+  listNotificationChannelSources,
+  listNotificationChannelSourcesForWorkspace,
   listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
@@ -39,10 +41,12 @@ import {
   replaceIntegrationAccountCredentials,
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
+  replaceNotificationChannelSources,
   resolveMcpToken,
   revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  setIntegrationNotificationsEnabled,
   setIntegrationWebhookRegistration,
   setNotificationPreferenceOverride,
   updateNotificationChannel,
@@ -158,29 +162,20 @@ const integrationAdapters = new Map(
 // alongside providerModules rather than inside it, with its own adapter map
 // consumed only by the notification service.
 //
-// Teams channels are dispatched manually today (a "Send test message" action
-// only) — no domain event relays into a channel yet. These two events exist
-// so the registry has something to validate/list against; wire real Jira
-// event relaying into `notificationService` here once that's built.
+// Teams is a notification destination (it hosts channels other providers'
+// events get routed to), not a source — it has the "notification-channels"
+// capability, not "notifications" (which means "declares events", the
+// source side). See notification_channel_sources for the per-channel
+// routing that decides which source providers a given Teams channel hears
+// from.
 const teamsProvider = parseProviderKey("teams");
 const teamsDefinition = {
-  capabilities: ["notifications", "webhooks"],
+  capabilities: ["notification-channels", "webhooks"],
   description: "Send workspace notifications to a Microsoft Teams channel.",
   displayName: "Microsoft Teams",
   key: teamsProvider,
   mcpTools: [],
-  notificationEvents: [
-    {
-      defaultEnabled: true,
-      displayName: "Integration disconnected",
-      key: parseNotificationEventKey("teams.integration-disconnected"),
-    },
-    {
-      defaultEnabled: true,
-      displayName: "Integration connection error",
-      key: parseNotificationEventKey("teams.integration-error"),
-    },
-  ],
+  notificationEvents: [],
   presentation: {},
   scopeKinds: [],
 } satisfies ProviderModule["definition"];
@@ -196,10 +191,26 @@ const webhookReceivers = new Map<ProviderKey, WebhookReceiver>([
     createJiraWebhookReceiver({
       credentialEncryption,
       database: connection.client,
-      findIntegrationByToken: (token) =>
-        findIntegrationByWebhookToken(connection.client, jiraProvider, token),
+      findIntegrationByToken: async (token) => {
+        const integration = await findIntegrationByWebhookToken(
+          connection.client,
+          jiraProvider,
+          token,
+        );
+        return integration === null
+          ? null
+          : {
+              notificationsEnabled: integration.notificationsEnabled,
+              workspaceId: integration.workspaceId,
+            };
+      },
       listNotificationChannels: (workspaceId) =>
         listNotificationChannelsForWorkspace(connection.client, workspaceId),
+      listNotificationChannelSources: (workspaceId) =>
+        listNotificationChannelSourcesForWorkspace(
+          connection.client,
+          workspaceId,
+        ),
       notificationChannelAdapters,
     }),
   ],
@@ -408,6 +419,19 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     ),
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
+  setNotificationsEnabled: (
+    workspaceId,
+    integrationId,
+    ownerMembershipId,
+    enabled,
+  ) =>
+    setIntegrationNotificationsEnabled(
+      connection.client,
+      workspaceId,
+      integrationId,
+      ownerMembershipId,
+      enabled,
+    ),
 };
 const providerAccountRuntime = createProviderAccountRuntime({
   credentialEncryption,
@@ -426,6 +450,8 @@ const integrationService = createIntegrationService({
   accountRuntime: providerAccountRuntime,
   adapters: integrationAdapters,
   credentialEncryption,
+  listNotificationChannels: (workspaceId) =>
+    listNotificationChannelsForWorkspace(connection.client, workspaceId),
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,
@@ -456,11 +482,26 @@ const notificationRepository: NotificationServiceDependencies["repository"] = {
     findCurrentWorkspaceForUser(connection.client, userId),
   listChannels: (workspaceId, membershipId) =>
     listNotificationChannels(connection.client, workspaceId, membershipId),
+  listChannelSources: (workspaceId, channelId) =>
+    listNotificationChannelSources(connection.client, workspaceId, channelId),
   listPreferenceOverrides: (workspaceId, membershipId) =>
     listNotificationPreferenceOverrides(
       connection.client,
       workspaceId,
       membershipId,
+    ),
+  replaceChannelSources: (
+    workspaceId,
+    channelId,
+    ownerMembershipId,
+    providers,
+  ) =>
+    replaceNotificationChannelSources(
+      connection.client,
+      workspaceId,
+      channelId,
+      ownerMembershipId,
+      providers,
     ),
   setPreferenceOverride: (workspaceId, membershipId, eventKey, enabled) =>
     setNotificationPreferenceOverride(

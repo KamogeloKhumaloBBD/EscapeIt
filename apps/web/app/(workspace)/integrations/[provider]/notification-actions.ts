@@ -17,9 +17,9 @@ const actionSchema = z.discriminatedUnion("intent", [
     intent: z.literal("test-channel"),
   }),
   z.object({
-    enabled: z.enum(["true", "false"]).transform((value) => value === "true"),
-    eventKey: z.string().min(1),
-    intent: z.literal("set-preference"),
+    channelId: z.string().min(1),
+    intent: z.literal("set-channel-sources"),
+    providers: z.array(z.string().min(1)).max(50),
   }),
 ]);
 
@@ -29,11 +29,11 @@ export async function notificationAction(
 ): Promise<NotificationActionState> {
   const intent = formData.get("intent");
   const raw =
-    intent === "set-preference"
+    intent === "set-channel-sources"
       ? {
-          enabled: formData.get("enabled"),
-          eventKey: formData.get("eventKey"),
+          channelId: formData.get("channelId"),
           intent,
+          providers: formData.getAll("providers"),
         }
       : { channelId: formData.get("channelId"), intent };
   const parsed = actionSchema.safeParse(raw);
@@ -54,14 +54,14 @@ export async function notificationAction(
         { method: "DELETE" },
       );
       break;
-    case "set-preference":
-      result = await requestApi("/api/notifications/preferences", {
-        body: {
-          enabled: parsed.data.enabled,
-          eventKey: parsed.data.eventKey,
+    case "set-channel-sources":
+      result = await requestApi(
+        `/api/notifications/channels/${encodeURIComponent(parsed.data.channelId)}/sources`,
+        {
+          body: { providers: parsed.data.providers },
+          method: "PUT",
         },
-        method: "PUT",
-      });
+      );
       break;
     case "test-channel":
       result = await requestApi(
@@ -91,7 +91,7 @@ export async function notificationAction(
 
   const messages: Record<(typeof parsed.data)["intent"], string> = {
     "delete-channel": "The notification channel was removed.",
-    "set-preference": "Your notification preference was updated.",
+    "set-channel-sources": "Channel subscriptions were updated.",
     "test-channel": "A test notification was sent to Teams.",
   };
 

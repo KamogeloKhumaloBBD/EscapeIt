@@ -29,6 +29,11 @@ const actionSchema = z.discriminatedUnion("intent", [
     provider: z.string(),
     toolNames: z.array(z.string().min(3).max(128)).max(100),
   }),
+  z.object({
+    enabled: z.enum(["true", "false"]).transform((value) => value === "true"),
+    intent: z.literal("set-notifications-enabled"),
+    provider: z.string(),
+  }),
 ]);
 
 function safeProvider(value: FormDataEntryValue | null): string {
@@ -50,7 +55,9 @@ export async function integrationAction(
         ? { intent, provider, toolNames: formData.getAll("toolNames") }
         : intent === "select-resource"
           ? { externalId: formData.get("externalId"), intent, provider }
-          : { intent, provider };
+          : intent === "set-notifications-enabled"
+            ? { enabled: formData.get("enabled"), intent, provider }
+            : { intent, provider };
   const parsed = actionSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -99,6 +106,15 @@ export async function integrationAction(
         },
       );
       break;
+    case "set-notifications-enabled":
+      result = await requestApi(
+        `/api/integrations/${encodedProvider}/notifications`,
+        {
+          body: { enabled: parsed.data.enabled },
+          method: "PUT",
+        },
+      );
+      break;
     case "validate":
       result = await requestApi(
         `/api/integrations/${encodedProvider}/validate`,
@@ -131,6 +147,7 @@ export async function integrationAction(
     "save-scopes": "Workspace access was updated.",
     "save-mcp-tools": "MCP tool access was updated.",
     "select-resource": "The workspace resource was selected.",
+    "set-notifications-enabled": "Notification settings were updated.",
     validate: "The connection is healthy.",
   };
 

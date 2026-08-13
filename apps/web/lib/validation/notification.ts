@@ -8,6 +8,7 @@ const notificationChannelSchema = z.object({
   lastValidatedAt: z.iso.datetime().nullable(),
   name: z.string(),
   provider: z.string(),
+  sourceProviders: z.array(z.string()),
   status: connectionStatusSchema,
 });
 

@@ -40,22 +40,21 @@ import {
 } from "@/components/ui/item";
 import {
   getIntegrationResourcesState,
+  getIntegrationsState,
   getIntegrationState,
   getScopeDiscoveryState,
 } from "@/lib/server/integration";
-import {
-  getNotificationChannelsState,
-  getNotificationPreferencesState,
-} from "@/lib/server/notification";
+import { getNotificationChannelsState } from "@/lib/server/notification";
 import {
   DisconnectInstallation,
   McpToolSelector,
+  NotificationsToggle,
   ResourceSelector,
   SimpleIntegrationAction,
 } from "./integration-forms";
 import {
   NotificationChannelsSection,
-  NotificationEventsSection,
+  NotificationRoutingSection,
 } from "./notification-sections";
 import { OAuthNotice } from "./oauth-notice";
 import { ScopeSelector } from "./scope-selector";
@@ -97,6 +96,9 @@ export default async function IntegrationDetailPage({
     integration.capabilities.includes("scopes") && scopeLabels !== undefined;
   const hasMcpTools = integration.capabilities.includes("context");
   const hasNotifications = integration.capabilities.includes("notifications");
+  const hasNotificationChannels = integration.capabilities.includes(
+    "notification-channels",
+  );
   const isInstallationConnected =
     integration.installation?.status === "connected";
   const configuredResource =
@@ -117,7 +119,7 @@ export default async function IntegrationDetailPage({
     integration.permissions.canManageScopes &&
     integration.currentAccount?.status === "connected" &&
     integration.installation?.resource !== null;
-  const [resourcesState, scopesState, channelsState, preferencesState] =
+  const [resourcesState, scopesState, channelsState, integrationsState] =
     await Promise.all([
       needsResourceSelection
         ? getIntegrationResourcesState(provider)
@@ -125,19 +127,29 @@ export default async function IntegrationDetailPage({
       canDiscoverScopes
         ? getScopeDiscoveryState(provider)
         : Promise.resolve({ status: "not-found" } as const),
-      hasNotifications
+      hasNotificationChannels
         ? getNotificationChannelsState()
         : Promise.resolve({ status: "not-found" } as const),
-      hasNotifications
-        ? getNotificationPreferencesState()
+      hasNotificationChannels
+        ? getIntegrationsState()
         : Promise.resolve({ status: "not-found" } as const),
     ]);
   const notificationChannels =
     channelsState.status === "available"
       ? channelsState.data.filter((channel) => channel.provider === provider)
       : [];
-  const notificationPreferences =
-    preferencesState.status === "available" ? preferencesState.data : [];
+  const connectedIntegrationCount = new Set(
+    notificationChannels.flatMap((channel) => channel.sourceProviders),
+  ).size;
+  const notificationSourceOptions =
+    integrationsState.status === "available"
+      ? integrationsState.data
+          .filter((item) => item.capabilities.includes("notifications"))
+          .map((item) => ({
+            displayName: item.displayName,
+            provider: item.provider,
+          }))
+      : [];
   const summaryMetrics = [
     ...(hasAccount
       ? [
@@ -169,7 +181,13 @@ export default async function IntegrationDetailPage({
       ? [["Enabled MCP tools", String(enabledMcpTools.length)]]
       : []),
     ...(hasNotifications
-      ? [["Connected channels", String(notificationChannels.length)]]
+      ? [["Notifications", integration.notificationsEnabled ? "On" : "Off"]]
+      : []),
+    ...(hasNotificationChannels
+      ? [
+          ["Connected channels", String(notificationChannels.length)],
+          ["Connected integrations", String(connectedIntegrationCount)],
+        ]
       : []),
   ];
   let nextSectionNumber = 0;
@@ -182,8 +200,11 @@ export default async function IntegrationDetailPage({
   const notificationSectionNumber = hasNotifications
     ? (nextSectionNumber += 1)
     : null;
+  const notificationChannelSectionNumber = hasNotificationChannels
+    ? (nextSectionNumber += 1)
+    : null;
   const summaryGridColumns =
-    summaryMetrics.length === 4
+    summaryMetrics.length >= 4
       ? "sm:grid-cols-4"
       : summaryMetrics.length === 3
         ? "sm:grid-cols-3"
@@ -610,12 +631,42 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasNotifications ? (
-          <div className="relative space-y-6">
+          <Card className="relative overflow-visible">
             <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
               {String(notificationSectionNumber).padStart(2, "0")}
             </span>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>
+                Send {integration.displayName} updates to any workspace
+                notification channel subscribed to it.
+              </CardDescription>
+              <CardAction>
+                <Badge variant="secondary">
+                  {integration.notificationsEnabled ? "On" : "Off"}
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <NotificationsToggle
+                disabled={!integration.permissions.canManageNotifications}
+                enabled={integration.notificationsEnabled}
+                provider={provider}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {hasNotificationChannels ? (
+          <div className="relative space-y-6">
+            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+              {String(notificationChannelSectionNumber).padStart(2, "0")}
+            </span>
             <NotificationChannelsSection channels={notificationChannels} />
-            <NotificationEventsSection preferences={notificationPreferences} />
+            <NotificationRoutingSection
+              channels={notificationChannels}
+              sourceOptions={notificationSourceOptions}
+            />
           </div>
         ) : null}
       </div>

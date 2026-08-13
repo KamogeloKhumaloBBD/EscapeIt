@@ -4,6 +4,7 @@ export interface NotificationChannelContract {
   lastValidatedAt: string | null;
   name: string;
   provider: string;
+  sourceProviders: readonly string[];
   status: "connected" | "disconnected" | "error";
 }
 

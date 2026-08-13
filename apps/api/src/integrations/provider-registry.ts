@@ -16,6 +16,7 @@ export const providerCapabilities = [
   "user-accounts",
   "scopes",
   "notifications",
+  "notification-channels",
   "webhooks",
 ] as const;
 
@@ -212,10 +213,10 @@ function validateDefinition(
 
   if (
     definition.notificationChannelConfigurationSchema !== undefined &&
-    !capabilities.has("notifications")
+    !capabilities.has("notification-channels")
   ) {
     throw new ProviderRegistryError(
-      `Provider ${definition.key} has a channel schema without the notifications capability.`,
+      `Provider ${definition.key} has a channel schema without the notification-channels capability.`,
     );
   }
 

@@ -10,6 +10,7 @@ import {
   type IntegrationConnectionContext,
   type IntegrationMcpTool,
   type IntegrationScope,
+  type NotificationChannel,
   type ProviderKey,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
@@ -132,12 +133,21 @@ interface IntegrationRepository {
     webhookRegistrationId: string | null,
   ): Promise<void>;
   saveAccount(input: SaveIntegrationAccountInput): Promise<IntegrationAccount>;
+  setNotificationsEnabled(
+    workspaceId: string,
+    integrationId: string,
+    ownerMembershipId: string,
+    enabled: boolean,
+  ): Promise<Integration>;
 }
 
 export interface IntegrationServiceDependencies {
   accountRuntime: ProviderAccountRuntime;
   adapters: ReadonlyMap<ProviderKey, IntegrationAdapter>;
   credentialEncryption: CredentialEncryption;
+  listNotificationChannels: (
+    workspaceId: string,
+  ) => Promise<NotificationChannel[]>;
   oauthStateSecret: string;
   providerRegistry: ProviderRegistry;
   repository: IntegrationRepository;
@@ -325,6 +335,7 @@ function buildSummary(
   account: IntegrationAccount | null,
   scopes: readonly IntegrationScope[],
   selectedMcpTools: readonly IntegrationMcpTool[],
+  connectedChannelCount: number,
 ): IntegrationSummaryContract {
   const resource = integration === null ? null : readResource(integration);
   const isOwner = role === "owner";
@@ -336,10 +347,20 @@ function buildSummary(
   const hasResource = definition.presentation.resourceLabel !== undefined;
   const hasScopes = definition.capabilities.includes("scopes");
   const hasMcpTools = definition.capabilities.includes("context");
+  const hasNotificationChannels = definition.capabilities.includes(
+    "notification-channels",
+  );
   const isInstallationConnected = integration?.status === "connected";
   let nextStep: IntegrationSummaryContract["nextStep"];
 
-  if (integration === null) {
+  if (hasNotificationChannels) {
+    nextStep =
+      connectedChannelCount > 0
+        ? "ready"
+        : isOwner
+          ? "connect_provider"
+          : "wait_for_owner";
+  } else if (integration === null) {
     nextStep = isOwner ? "connect_provider" : "wait_for_owner";
   } else if (
     definition.resourceSelection === "authorization" &&
@@ -396,6 +417,8 @@ function buildSummary(
       canConnectAccount: hasAccount && (integration !== null || isOwner),
       canManageInstallation: isOwner,
       canManageMcpTools: hasMcpTools && isOwner && isInstallationConnected,
+      canManageNotifications:
+        definition.capabilities.includes("notifications") && isOwner,
       canManageScopes:
         hasScopes &&
         isOwner &&
@@ -414,6 +437,7 @@ export function createIntegrationService({
   accountRuntime,
   adapters,
   credentialEncryption,
+  listNotificationChannels,
   oauthStateSecret,
   providerRegistry,
   repository,
@@ -461,6 +485,14 @@ export function createIntegrationService({
     );
   }
 
+  async function countConnectedChannels(
+    workspaceId: string,
+    provider: ProviderKey,
+  ): Promise<number> {
+    const channels = await listNotificationChannels(workspaceId);
+    return channels.filter((channel) => channel.provider === provider).length;
+  }
+
   async function detailFor(
     workspace: CurrentWorkspace,
     provider: ProviderKey,
@@ -479,9 +511,15 @@ export function createIntegrationService({
             integration.id,
             workspace.membership.id,
           );
-    const [scopes, selectedMcpTools] =
+    const [scopes, selectedMcpTools, connectedChannelCount] =
       integration === null
-        ? ([[], []] as const)
+        ? [
+            [],
+            [],
+            definition.capabilities.includes("notification-channels")
+              ? await countConnectedChannels(workspace.workspace.id, provider)
+              : 0,
+          ]
         : await Promise.all([
             repository.listScopes(
               workspace.workspace.id,
@@ -493,6 +531,9 @@ export function createIntegrationService({
               integration.id,
               workspace.membership.id,
             ),
+            definition.capabilities.includes("notification-channels")
+              ? countConnectedChannels(workspace.workspace.id, provider)
+              : 0,
           ]);
 
     return {
@@ -503,8 +544,10 @@ export function createIntegrationService({
         account,
         scopes,
         selectedMcpTools,
+        connectedChannelCount,
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
+      notificationsEnabled: integration?.notificationsEnabled ?? false,
       selectedScopes: scopes.map(toScopeContract),
     };
   }
@@ -864,13 +907,23 @@ export function createIntegrationService({
 
     async list(userId: string): Promise<readonly IntegrationSummaryContract[]> {
       const workspace = await current(userId);
-      const installed = await repository.listIntegrations(
-        workspace.workspace.id,
-        workspace.membership.id,
-      );
+      const [installed, channels] = await Promise.all([
+        repository.listIntegrations(
+          workspace.workspace.id,
+          workspace.membership.id,
+        ),
+        listNotificationChannels(workspace.workspace.id),
+      ]);
       const installedByProvider = new Map(
         installed.map((integration) => [integration.provider, integration]),
       );
+      const channelCountByProvider = new Map<ProviderKey, number>();
+      for (const channel of channels) {
+        channelCountByProvider.set(
+          channel.provider,
+          (channelCountByProvider.get(channel.provider) ?? 0) + 1,
+        );
+      }
 
       return Promise.all(
         providerRegistry.list().map(async (definition) => {
@@ -905,6 +958,7 @@ export function createIntegrationService({
             account,
             scopes,
             selectedMcpTools,
+            channelCountByProvider.get(definition.key) ?? 0,
           );
         }),
       );
@@ -1206,6 +1260,65 @@ export function createIntegrationService({
       } catch (error) {
         mapProviderError(error);
       }
+    },
+
+    async setNotificationsEnabled(
+      userId: string,
+      providerValue: string,
+      enabled: boolean,
+      correlationId: string,
+    ) {
+      const workspace = await current(userId);
+
+      if (workspace.membership.role !== "owner") {
+        throw new HttpError(
+          403,
+          "FORBIDDEN",
+          "Workspace owner access is required.",
+        );
+      }
+
+      const provider = providerFromInput(providerValue, providerRegistry);
+      const definition = providerRegistry.require(provider);
+
+      if (!definition.capabilities.includes("notifications")) {
+        throw new HttpError(
+          400,
+          "INVALID_REQUEST",
+          `${definition.displayName} does not send notifications.`,
+        );
+      }
+
+      const integration = await repository.findIntegration(
+        workspace.workspace.id,
+        workspace.membership.id,
+        provider,
+      );
+
+      if (integration === null) {
+        throw new HttpError(
+          404,
+          "INTEGRATION_NOT_FOUND",
+          "Integration not found.",
+        );
+      }
+
+      await repository.setNotificationsEnabled(
+        workspace.workspace.id,
+        integration.id,
+        workspace.membership.id,
+        enabled,
+      );
+
+      await appendActivity(
+        workspace,
+        correlationId,
+        provider,
+        "integration.notifications.set",
+        `${definition.displayName} notifications ${enabled ? "enabled" : "disabled"}`,
+      );
+
+      return detailFor(workspace, provider);
     },
   };
 }

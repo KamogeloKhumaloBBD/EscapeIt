@@ -30,16 +30,18 @@ import {
   ItemSeparator,
   ItemTitle,
 } from "@/components/ui/item";
-import type {
-  NotificationChannel,
-  NotificationPreference,
-} from "@/lib/validation/notification";
+import type { NotificationChannel } from "@/lib/validation/notification";
 import { AddChannelDialog } from "./add-channel-dialog";
 import {
+  ChannelSourceToggle,
   DeleteChannelButton,
-  PreferenceToggle,
   TestChannelButton,
 } from "./notification-forms";
+
+export interface NotificationSourceOption {
+  displayName: string;
+  provider: string;
+}
 
 export function NotificationChannelsSection({
   channels,
@@ -51,7 +53,7 @@ export function NotificationChannelsSection({
       <CardHeader>
         <CardTitle>Connected channels</CardTitle>
         <CardDescription>
-          Each channel receives every enabled event below.
+          Configure which integrations each channel hears from in Routing below.
         </CardDescription>
         <CardAction>
           <AddChannelDialog />
@@ -114,51 +116,72 @@ export function NotificationChannelsSection({
   );
 }
 
-export function NotificationEventsSection({
-  preferences,
+export function NotificationRoutingSection({
+  channels,
+  sourceOptions,
 }: {
-  preferences: NotificationPreference[];
+  channels: NotificationChannel[];
+  sourceOptions: NotificationSourceOption[];
 }) {
   return (
     <Card className="relative overflow-visible">
       <CardHeader>
-        <CardTitle>Events</CardTitle>
+        <CardTitle>Routing</CardTitle>
         <CardDescription>
-          Choose which workspace events are sent to your connected channels.
+          Choose which integrations each channel hears from. A channel with no
+          integrations selected receives nothing.
         </CardDescription>
         <CardAction>
-          <Badge variant="secondary">
-            {preferences.filter((preference) => preference.enabled).length}{" "}
-            enabled
-          </Badge>
+          <Badge variant="secondary">{sourceOptions.length} available</Badge>
         </CardAction>
       </CardHeader>
       <CardContent>
-        {preferences.length === 0 ? (
+        {channels.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No events available yet</EmptyTitle>
+              <EmptyTitle>No channels connected yet</EmptyTitle>
               <EmptyDescription>
-                Notification events will appear here as they become available.
+                Connect a Teams channel above to configure its routing.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : sourceOptions.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No integrations send notifications yet</EmptyTitle>
+              <EmptyDescription>
+                Turn on notifications for an integration to route its updates
+                here.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <ItemGroup className="gap-0">
-            {preferences.map((preference, index) => (
-              <div key={preference.eventKey}>
-                {index > 0 ? <ItemSeparator /> : null}
-                <Item>
-                  <ItemContent>
-                    <ItemTitle>{preference.displayName}</ItemTitle>
-                  </ItemContent>
-                  <ItemActions>
-                    <PreferenceToggle
-                      enabled={preference.enabled}
-                      eventKey={preference.eventKey}
-                    />
-                  </ItemActions>
-                </Item>
+            {channels.map((channel, channelIndex) => (
+              <div key={channel.id}>
+                {channelIndex > 0 ? <ItemSeparator /> : null}
+                <div className="py-4">
+                  <p className="text-sm font-semibold">{channel.name}</p>
+                  <div className="mt-3 divide-y divide-border">
+                    {sourceOptions.map((option) => (
+                      <Item className="px-0" key={option.provider}>
+                        <ItemContent>
+                          <ItemTitle>{option.displayName}</ItemTitle>
+                        </ItemContent>
+                        <ItemActions>
+                          <ChannelSourceToggle
+                            channelId={channel.id}
+                            currentSources={channel.sourceProviders}
+                            enabled={channel.sourceProviders.includes(
+                              option.provider,
+                            )}
+                            provider={option.provider}
+                          />
+                        </ItemActions>
+                      </Item>
+                    ))}
+                  </div>
+                </div>
               </div>
             ))}
           </ItemGroup>

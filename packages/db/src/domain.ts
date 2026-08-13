@@ -126,6 +126,7 @@ export interface Integration {
   id: string;
   lastErrorCode: string | null;
   lastValidatedAt: Date | null;
+  notificationsEnabled: boolean;
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;
@@ -195,6 +196,15 @@ export interface NotificationChannel {
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;
+  workspaceId: string;
+}
+
+export interface NotificationChannelSource {
+  channelId: string;
+  createdAt: Date;
+  createdByMembershipId: string;
+  id: string;
+  provider: ProviderKey;
   workspaceId: string;
 }
 

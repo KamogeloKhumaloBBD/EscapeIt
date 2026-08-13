@@ -1,11 +1,15 @@
-import { parseProviderKey, parseScopeKey } from "@context-layer/db";
+import {
+  parseNotificationEventKey,
+  parseProviderKey,
+  parseScopeKey,
+} from "@context-layer/db";
 
 import type { ProviderDefinition } from "../provider-registry";
 
 export const jiraProvider = parseProviderKey("jira");
 
 export const jiraDefinition = {
-  capabilities: ["context", "user-accounts", "scopes"],
+  capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Jira projects and work items into your context layer.",
   displayName: "Jira",
   key: jiraProvider,
@@ -101,7 +105,13 @@ export const jiraDefinition = {
       name: "jira_transition_issue",
     },
   ],
-  notificationEvents: [],
+  notificationEvents: [
+    {
+      defaultEnabled: true,
+      displayName: "Issue updated",
+      key: parseNotificationEventKey("jira.issue-updated"),
+    },
+  ],
   presentation: {
     accountLabel: "Atlassian account",
     resourceLabel: "Jira site",

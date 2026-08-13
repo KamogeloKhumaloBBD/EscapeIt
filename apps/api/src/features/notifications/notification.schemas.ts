@@ -21,3 +21,7 @@ export const preferenceOverrideSchema = z.object({
 export const channelParameterSchema = z.object({
   channelId: z.string().min(1).max(191),
 });
+
+export const channelSourcesSchema = z.object({
+  providers: z.array(providerParameterSchema).max(50),
+});

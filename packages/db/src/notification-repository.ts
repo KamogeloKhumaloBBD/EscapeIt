@@ -5,6 +5,7 @@ import type {
   EncryptedCredentialEnvelope,
   JsonObject,
   NotificationChannel,
+  NotificationChannelSource,
   NotificationEventKey,
   NotificationPreference,
   ProviderKey,
@@ -260,4 +261,85 @@ export function resolveNotificationPreference(
   override: Pick<NotificationPreference, "enabled"> | null | undefined,
 ): boolean {
   return override?.enabled ?? defaultEnabled;
+}
+
+export async function replaceNotificationChannelSources(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+  ownerMembershipId: string,
+  providers: readonly ProviderKey[],
+): Promise<NotificationChannelSource[]> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+
+    const channels = await transaction<{ id: string }[]>`
+      select id
+      from notification_channels
+      where "workspaceId" = ${workspaceId} and id = ${channelId}
+      for update
+    `;
+
+    if (channels[0] === undefined) {
+      throw new RepositoryError("not_found", "Notification channel not found.");
+    }
+
+    if (new Set(providers).size !== providers.length) {
+      throw new RepositoryError("invalid", "Duplicate source provider.");
+    }
+
+    await transaction`
+      delete from notification_channel_sources
+      where "workspaceId" = ${workspaceId} and "channelId" = ${channelId}
+    `;
+
+    const selected: NotificationChannelSource[] = [];
+
+    for (const provider of providers) {
+      const rows = await transaction<NotificationChannelSource[]>`
+        insert into notification_channel_sources (
+          id,
+          "workspaceId",
+          "channelId",
+          provider,
+          "createdByMembershipId"
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${channelId},
+          ${provider},
+          ${ownerMembershipId}
+        )
+        returning *
+      `;
+      selected.push(requireReturnedRow(rows[0]));
+    }
+
+    return selected;
+  });
+}
+
+export async function listNotificationChannelSources(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+): Promise<NotificationChannelSource[]> {
+  return database<NotificationChannelSource[]>`
+    select *
+    from notification_channel_sources
+    where "workspaceId" = ${workspaceId} and "channelId" = ${channelId}
+    order by provider
+  `;
+}
+
+export async function listNotificationChannelSourcesForWorkspace(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<NotificationChannelSource[]> {
+  return database<NotificationChannelSource[]>`
+    select *
+    from notification_channel_sources
+    where "workspaceId" = ${workspaceId}
+    order by "channelId", provider
+  `;
 }

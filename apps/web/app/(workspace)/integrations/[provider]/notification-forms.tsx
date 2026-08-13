@@ -1,7 +1,7 @@
 "use client";
 
 import { TrashIcon, WarningIcon } from "@phosphor-icons/react";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -118,30 +118,42 @@ export function DeleteChannelButton({
   );
 }
 
-export function PreferenceToggle({
+export function ChannelSourceToggle({
+  channelId,
+  currentSources,
   enabled,
-  eventKey,
+  provider,
 }: {
+  channelId: string;
+  currentSources: readonly string[];
   enabled: boolean;
-  eventKey: string;
+  provider: string;
 }) {
-  const [state, formAction, isPending] = useActionState(
+  const [state, formAction] = useActionState(
     notificationAction,
     initialNotificationActionState,
   );
+  const [isPending, startTransition] = useTransition();
   useActionToast(state);
 
   return (
     <Switch
-      aria-label={`Toggle ${eventKey}`}
+      aria-label={`Toggle ${provider}`}
       checked={enabled}
       disabled={isPending}
       onCheckedChange={(checked) => {
+        const nextSources = checked
+          ? [...currentSources, provider]
+          : currentSources.filter((source) => source !== provider);
         const formData = new FormData();
-        formData.set("intent", "set-preference");
-        formData.set("eventKey", eventKey);
-        formData.set("enabled", String(checked));
-        formAction(formData);
+        formData.set("intent", "set-channel-sources");
+        formData.set("channelId", channelId);
+        nextSources.forEach((source) => {
+          formData.append("providers", source);
+        });
+        startTransition(() => {
+          formAction(formData);
+        });
       }}
     />
   );

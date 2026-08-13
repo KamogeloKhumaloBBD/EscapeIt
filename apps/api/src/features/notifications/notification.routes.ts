@@ -5,6 +5,7 @@ import { HttpError } from "../../errors";
 import type { AuthenticatedLocals } from "../../http/authentication";
 import {
   channelParameterSchema,
+  channelSourcesSchema,
   createChannelSchema,
   preferenceOverrideSchema,
   updateChannelSchema,
@@ -102,6 +103,26 @@ export function createNotificationRouter({
       correlationId(request.id),
     );
     response.status(204).send();
+  });
+
+  router.put("/channels/:channelId/sources", async (request, response) => {
+    const params = channelParameterSchema.safeParse(request.params);
+    const body = channelSourcesSchema.safeParse(request.body);
+
+    if (!params.success) {
+      throw validationError(params.error);
+    }
+
+    if (!body.success) {
+      throw validationError(body.error);
+    }
+
+    const channel = await service.setChannelSources(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      params.data.channelId,
+      body.data.providers,
+    );
+    response.status(200).json({ data: channel });
   });
 
   router.post("/channels/:channelId/test", async (request, response) => {

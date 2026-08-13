@@ -127,6 +127,13 @@ export default async function IntegrationsPage() {
           className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
         >
           {integrations.map((integration) => {
+            const hasAccount =
+              integration.capabilities.includes("user-accounts");
+            const hasScopes = integration.capabilities.includes("scopes");
+            const hasMcpTools = integration.capabilities.includes("context");
+            const hasNotificationChannels = integration.capabilities.includes(
+              "notification-channels",
+            );
             const accountConnected =
               integration.currentAccount?.status === "connected";
             const resourceSelected =
@@ -136,6 +143,7 @@ export default async function IntegrationsPage() {
               (integration.installation?.selectedScopeCount ?? 0) > 0;
             const toolsSelected =
               (integration.installation?.enabledMcpToolCount ?? 0) > 0;
+            const hasAnyPipelineStep = hasAccount || hasScopes || hasMcpTools;
 
             return (
               <Card
@@ -180,25 +188,52 @@ export default async function IntegrationsPage() {
                     ))}
                   </div>
 
-                  <div className="mt-5 divide-y divide-border border-y border-border">
-                    <PipelineStep
-                      complete={accountConnected}
-                      label="Your account"
-                    />
-                    <PipelineStep
-                      complete={resourceSelected}
-                      label="Workspace resource"
-                    />
-                    <PipelineStep
-                      complete={scopesSelected}
-                      label="Allowed scopes"
-                    />
-                    <PipelineStep complete={toolsSelected} label="MCP tools" />
-                  </div>
+                  {hasAnyPipelineStep ? (
+                    <div className="mt-5 divide-y divide-border border-y border-border">
+                      {hasAccount ? (
+                        <PipelineStep
+                          complete={accountConnected}
+                          label="Your account"
+                        />
+                      ) : null}
+                      {hasAccount ? (
+                        <PipelineStep
+                          complete={resourceSelected}
+                          label="Workspace resource"
+                        />
+                      ) : null}
+                      {hasScopes ? (
+                        <PipelineStep
+                          complete={scopesSelected}
+                          label="Allowed scopes"
+                        />
+                      ) : null}
+                      {hasMcpTools ? (
+                        <PipelineStep
+                          complete={toolsSelected}
+                          label="MCP tools"
+                        />
+                      ) : null}
+                    </div>
+                  ) : hasNotificationChannels ? (
+                    <div className="mt-5 flex flex-1 flex-col items-center justify-center gap-2 border-y border-dashed border-border py-8 text-center">
+                      <PlugsConnectedIcon
+                        aria-hidden="true"
+                        className="size-5 text-muted-foreground/55"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {integration.nextStep === "ready"
+                          ? "Relaying notifications to connected channels."
+                          : "Connect a channel to start relaying notifications."}
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="mt-6 flex items-center justify-between gap-4">
                     <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
-                      {integration.installation?.enabledMcpToolCount ?? 0} tools
+                      {hasNotificationChannels
+                        ? "Notification relay"
+                        : `${String(integration.installation?.enabledMcpToolCount ?? 0)} tools`}
                     </span>
                     <Button
                       asChild

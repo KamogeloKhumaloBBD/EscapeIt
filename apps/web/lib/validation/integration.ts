@@ -52,6 +52,7 @@ const integrationSummarySchema = z.object({
     canConnectAccount: z.boolean(),
     canManageInstallation: z.boolean(),
     canManageMcpTools: z.boolean(),
+    canManageNotifications: z.boolean(),
     canManageScopes: z.boolean(),
   }),
   presentation: z.object({
@@ -68,6 +69,7 @@ const integrationSummarySchema = z.object({
 export const integrationListSchema = z.array(integrationSummarySchema);
 export const integrationDetailSchema = integrationSummarySchema.extend({
   mcpTools: z.array(integrationMcpToolSchema),
+  notificationsEnabled: z.boolean(),
   selectedScopes: z.array(integrationScopeSchema),
 });
 export const integrationResourcesSchema = z.array(resourceSchema);

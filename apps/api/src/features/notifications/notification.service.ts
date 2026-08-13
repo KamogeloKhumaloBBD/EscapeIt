@@ -5,6 +5,7 @@ import {
   type CurrentWorkspace,
   type EncryptedCredentialEnvelope,
   type NotificationChannel,
+  type NotificationChannelSource,
   type NotificationPreference,
   type ProviderKey,
 } from "@context-layer/db";
@@ -53,10 +54,20 @@ interface NotificationRepository {
     workspaceId: string,
     membershipId: string,
   ): Promise<NotificationChannel[]>;
+  listChannelSources(
+    workspaceId: string,
+    channelId: string,
+  ): Promise<NotificationChannelSource[]>;
   listPreferenceOverrides(
     workspaceId: string,
     membershipId: string,
   ): Promise<NotificationPreference[]>;
+  replaceChannelSources(
+    workspaceId: string,
+    channelId: string,
+    ownerMembershipId: string,
+    providers: readonly ProviderKey[],
+  ): Promise<NotificationChannelSource[]>;
   setPreferenceOverride(
     workspaceId: string,
     membershipId: string,
@@ -83,6 +94,7 @@ export interface NotificationServiceDependencies {
 
 function toChannelContract(
   channel: NotificationChannel,
+  sourceProviders: readonly string[],
 ): NotificationChannelContract {
   return {
     id: channel.id,
@@ -90,6 +102,7 @@ function toChannelContract(
     lastValidatedAt: channel.lastValidatedAt?.toISOString() ?? null,
     name: channel.name,
     provider: channel.provider,
+    sourceProviders,
     status: channel.status,
   };
 }
@@ -206,7 +219,7 @@ export function createNotificationService({
         workspaceId: workspace.workspace.id,
       });
 
-      return toChannelContract(channel);
+      return toChannelContract(channel, []);
     },
 
     async deleteChannel(
@@ -270,7 +283,18 @@ export function createNotificationService({
         workspace.membership.id,
       );
 
-      return channels.map(toChannelContract);
+      return Promise.all(
+        channels.map(async (channel) => {
+          const sources = await repository.listChannelSources(
+            workspace.workspace.id,
+            channel.id,
+          );
+          return toChannelContract(
+            channel,
+            sources.map((source) => source.provider),
+          );
+        }),
+      );
     },
 
     async listPreferences(
@@ -458,7 +482,62 @@ export function createNotificationService({
         workspaceId: workspace.workspace.id,
       });
 
-      return toChannelContract(channel);
+      const sources = await repository.listChannelSources(
+        workspace.workspace.id,
+        channel.id,
+      );
+
+      return toChannelContract(
+        channel,
+        sources.map((source) => source.provider),
+      );
+    },
+
+    async setChannelSources(
+      userId: string,
+      channelId: string,
+      providersInput: readonly string[],
+    ): Promise<NotificationChannelContract> {
+      const workspace = await requireWorkspace(repository, userId);
+
+      if (workspace.membership.role !== "owner") {
+        throw new HttpError(
+          403,
+          "FORBIDDEN",
+          "Only the workspace owner can manage notification channels.",
+        );
+      }
+
+      const channel = await repository.findChannel(
+        workspace.workspace.id,
+        channelId,
+      );
+
+      if (channel === null) {
+        throw new HttpError(
+          404,
+          "NOT_FOUND",
+          "Notification channel not found.",
+        );
+      }
+
+      const providers = providersInput.map((provider) => {
+        const providerKey = parseProviderKey(provider);
+        providerRegistry.require(providerKey);
+        return providerKey;
+      });
+
+      const sources = await repository.replaceChannelSources(
+        workspace.workspace.id,
+        channelId,
+        workspace.membership.id,
+        providers,
+      );
+
+      return toChannelContract(
+        channel,
+        sources.map((source) => source.provider),
+      );
     },
   };
 }

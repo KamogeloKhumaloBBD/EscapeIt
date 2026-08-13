@@ -5,12 +5,16 @@ import {
   parseProviderKey,
   type DatabaseClient,
   type NotificationChannel,
+  type NotificationChannelSource,
 } from "@context-layer/db";
 import { z } from "zod";
 
+import type {
+  NotificationCard,
+  NotificationChannelAdapter,
+} from "../notification-channel-adapter";
 import type { WebhookReceiver } from "../../features/webhooks/webhook-receiver";
 import { WebhookReceiverError } from "../../features/webhooks/webhook-receiver";
-import type { NotificationChannelAdapter } from "../notification-channel-adapter";
 import type { CredentialEncryption } from "../../security/credential-encryption";
 
 const changelogItemSchema = z.object({
@@ -32,6 +36,7 @@ const jiraWebhookPayloadSchema = z.object({
     }),
     id: z.string().min(1),
     key: z.string().min(1),
+    self: z.url().optional(),
   }),
   timestamp: z.number(),
   webhookEvent: z.string().min(1),
@@ -44,18 +49,27 @@ export interface JiraWebhookReceiverDependencies {
   database: DatabaseClient;
   findIntegrationByToken: (
     token: string,
-  ) => Promise<{ workspaceId: string } | null>;
+  ) => Promise<{ notificationsEnabled: boolean; workspaceId: string } | null>;
   listNotificationChannels: (
     workspaceId: string,
   ) => Promise<NotificationChannel[]>;
+  listNotificationChannelSources: (
+    workspaceId: string,
+  ) => Promise<NotificationChannelSource[]>;
   notificationChannelAdapters: ReadonlyMap<string, NotificationChannelAdapter>;
+}
+
+function statusChangeOf(
+  changelogItems: readonly z.infer<typeof changelogItemSchema>[],
+) {
+  return changelogItems.find((item) => item.field === "status");
 }
 
 function summarize(
   issueKey: string,
   changelogItems: readonly z.infer<typeof changelogItemSchema>[],
 ): string {
-  const statusChange = changelogItems.find((item) => item.field === "status");
+  const statusChange = statusChangeOf(changelogItems);
 
   if (statusChange !== undefined) {
     return `Jira issue ${issueKey} moved from ${statusChange.fromString ?? "?"} to ${statusChange.toString ?? "?"}`;
@@ -64,27 +78,69 @@ function summarize(
   return `Jira issue ${issueKey} updated`;
 }
 
+function buildCard(
+  issue: z.infer<typeof jiraWebhookPayloadSchema>["issue"],
+  changelogItems: readonly z.infer<typeof changelogItemSchema>[],
+): NotificationCard {
+  const statusChange = statusChangeOf(changelogItems);
+  const browseUrl =
+    issue.self === undefined
+      ? undefined
+      : new URL(`/browse/${issue.key}`, issue.self).toString();
+
+  return {
+    ...(browseUrl === undefined ? {} : { actionUrl: browseUrl }),
+    facts: [
+      { title: "Issue", value: `${issue.key} — ${issue.fields.summary}` },
+      { title: "Project", value: issue.fields.project.key },
+      { title: "Status", value: issue.fields.status.name },
+      ...(statusChange === undefined
+        ? []
+        : [
+            {
+              title: "Changed from",
+              value: statusChange.fromString ?? "—",
+            },
+          ]),
+    ],
+    summary: summarize(issue.key, changelogItems),
+    title: `Jira · ${issue.key}`,
+  };
+}
+
 async function notifyChannels(
   workspaceId: string,
-  card: { summary: string; title: string },
+  card: NotificationCard,
   {
     credentialEncryption,
     listNotificationChannels,
+    listNotificationChannelSources,
     notificationChannelAdapters,
   }: Pick<
     JiraWebhookReceiverDependencies,
     | "credentialEncryption"
     | "listNotificationChannels"
+    | "listNotificationChannelSources"
     | "notificationChannelAdapters"
   >,
 ): Promise<void> {
-  const channels = await listNotificationChannels(workspaceId);
+  const [channels, sources] = await Promise.all([
+    listNotificationChannels(workspaceId),
+    listNotificationChannelSources(workspaceId),
+  ]);
+  const subscribedChannelIds = new Set(
+    sources
+      .filter((source) => source.provider === jiraProvider)
+      .map((source) => source.channelId),
+  );
 
   await Promise.all(
     channels
       .filter(
         (channel) =>
-          channel.status === "connected" && channel.credentialEnvelope !== null,
+          channel.status === "connected" &&
+          channel.credentialEnvelope !== null &&
+          subscribedChannelIds.has(channel.id),
       )
       .map(async (channel) => {
         const adapter = notificationChannelAdapters.get(channel.provider);
@@ -114,6 +170,7 @@ export function createJiraWebhookReceiver({
   database,
   findIntegrationByToken,
   listNotificationChannels,
+  listNotificationChannelSources,
   notificationChannelAdapters,
 }: JiraWebhookReceiverDependencies): WebhookReceiver {
   return {
@@ -175,16 +232,14 @@ export function createJiraWebhookReceiver({
         workspaceId: integration.workspaceId,
       });
 
-      if (!alreadyRecorded) {
+      if (!alreadyRecorded && integration.notificationsEnabled) {
         await notifyChannels(
           integration.workspaceId,
-          {
-            summary,
-            title: `Jira · ${issue.fields.project.key}`,
-          },
+          buildCard(issue, changelogItems),
           {
             credentialEncryption,
             listNotificationChannels,
+            listNotificationChannelSources,
             notificationChannelAdapters,
           },
         );

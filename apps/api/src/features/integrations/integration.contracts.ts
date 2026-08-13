@@ -21,6 +21,7 @@ export interface IntegrationInstallationContract {
 export interface IntegrationPermissionsContract {
   canConnectAccount: boolean;
   canManageInstallation: boolean;
+  canManageNotifications: boolean;
   canManageScopes: boolean;
   canManageMcpTools: boolean;
 }
@@ -52,6 +53,7 @@ export interface IntegrationSummaryContract {
 
 export interface IntegrationDetailContract extends IntegrationSummaryContract {
   mcpTools: readonly IntegrationMcpToolContract[];
+  notificationsEnabled: boolean;
   selectedScopes: readonly IntegrationScopeContract[];
 }
 

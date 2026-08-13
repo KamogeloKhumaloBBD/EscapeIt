@@ -775,6 +775,29 @@ export async function setIntegrationWebhookRegistration(
   return requireReturnedRow(rows[0]);
 }
 
+export async function setIntegrationNotificationsEnabled(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  ownerMembershipId: string,
+  enabled: boolean,
+): Promise<Integration> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+
+    const rows = await transaction<Integration[]>`
+      update integrations
+      set
+        "notificationsEnabled" = ${enabled},
+        "updatedAt" = now()
+      where id = ${integrationId} and "workspaceId" = ${workspaceId}
+      returning *
+    `;
+
+    return requireReturnedRow(rows[0]);
+  });
+}
+
 export async function findIntegrationByWebhookToken(
   database: DatabaseClient,
   provider: ProviderKey,

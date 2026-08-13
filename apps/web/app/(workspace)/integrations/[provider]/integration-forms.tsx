@@ -2,7 +2,7 @@
 
 import { PlugsConnectedIcon, WarningIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import type {
   IntegrationDetail,
   IntegrationMcpTool,
@@ -397,5 +398,48 @@ export function McpToolSelector({
         Save MCP tools
       </SubmitButton>
     </form>
+  );
+}
+
+export function NotificationsToggle({
+  disabled = false,
+  enabled,
+  provider,
+}: {
+  disabled?: boolean;
+  enabled: boolean;
+  provider: string;
+}) {
+  const [state, formAction] = useActionState(
+    integrationAction,
+    initialIntegrationActionState,
+  );
+  const [isPending, startTransition] = useTransition();
+  useActionToast(state);
+
+  return (
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldTitle>Send notifications</FieldTitle>
+        <FieldDescription>
+          When on, updates from this integration are relayed to every workspace
+          notification channel subscribed to it.
+        </FieldDescription>
+      </FieldContent>
+      <Switch
+        aria-label="Send notifications"
+        checked={enabled}
+        disabled={disabled || isPending}
+        onCheckedChange={(checked) => {
+          const formData = new FormData();
+          formData.set("intent", "set-notifications-enabled");
+          formData.set("provider", provider);
+          formData.set("enabled", String(checked));
+          startTransition(() => {
+            formAction(formData);
+          });
+        }}
+      />
+    </Field>
   );
 }
