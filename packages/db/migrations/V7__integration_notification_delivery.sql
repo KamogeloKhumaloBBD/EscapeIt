@@ -1,3 +1,28 @@
+alter table integrations
+  add column "webhookToken" text,
+  add column "webhookRegistrationId" text,
+  add column "notificationEventKeys" text[] not null default '{}';
+
+alter table integrations
+  add constraint integrations_webhook_token_unique unique ("webhookToken");
+
+alter table integrations
+  add constraint integrations_webhook_token_length check (
+    "webhookToken" is null or char_length("webhookToken") between 32 and 128
+  );
+
+create index integrations_webhook_token_idx
+  on integrations ("webhookToken")
+  where "webhookToken" is not null;
+
+alter table integration_scopes
+  add column "externalKey" text;
+
+alter table integration_scopes
+  add constraint integration_scopes_external_key_length check (
+    "externalKey" is null or char_length("externalKey") between 1 and 500
+  );
+
 create table notification_channel_sources (
   id text primary key,
   "workspaceId" text not null,
