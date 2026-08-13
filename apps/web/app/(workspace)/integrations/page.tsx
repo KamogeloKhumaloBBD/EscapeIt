@@ -2,7 +2,6 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   CircleIcon,
-  PlugsConnectedIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
@@ -19,13 +18,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { getIntegrationsState } from "@/lib/server/integration";
 import type { IntegrationSummary } from "@/lib/validation/integration";
@@ -87,6 +79,9 @@ export default async function IntegrationsPage() {
   if (state.status === "anonymous") redirect("/sign-in");
 
   const integrations = state.status === "available" ? state.data : [];
+  const hasGitHub = integrations.some(
+    (integration) => integration.provider === "github",
+  );
 
   return (
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
@@ -104,23 +99,6 @@ export default async function IntegrationsPage() {
             We couldn&apos;t load the provider catalogue. Refresh to try again.
           </AlertDescription>
         </Alert>
-      ) : integrations.length === 0 ? (
-        <Card className="mt-10">
-          <CardContent>
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <PlugsConnectedIcon aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No providers configured</EmptyTitle>
-                <EmptyDescription>
-                  Configure a provider on the API deployment to make it
-                  available here.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </CardContent>
-        </Card>
       ) : (
         <section
           aria-label="Available integrations"
@@ -219,6 +197,58 @@ export default async function IntegrationsPage() {
               </Card>
             );
           })}
+
+          {hasGitHub ? null : (
+            <Card className="h-full border-dashed shadow-none">
+              <CardHeader className="border-b border-border pb-5">
+                <div className="flex items-start gap-4">
+                  <ProviderMark
+                    displayName="GitHub"
+                    provider="github"
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-xl">GitHub</CardTitle>
+                      <Badge variant="secondary">Not configured</Badge>
+                    </div>
+                    <CardDescription className="mt-2 line-clamp-2">
+                      Bring allowlisted GitHub repositories, code, issues, and
+                      pull requests into your context layer.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex flex-1 flex-col">
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    ["context", "Context"],
+                    ["user-accounts", "User Accounts"],
+                    ["scopes", "Scopes"],
+                  ].map(([capability, label]) => (
+                    <Badge key={capability} variant="secondary">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+
+                <div className="mt-5 divide-y divide-border border-y border-border">
+                  <PipelineStep complete={false} label="Your account" />
+                  <PipelineStep complete={false} label="Workspace resource" />
+                  <PipelineStep complete={false} label="Allowed scopes" />
+                  <PipelineStep complete={false} label="MCP tools" />
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-4">
+                  <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
+                    GitHub App credentials required
+                  </span>
+                  <Button disabled>Configure API</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </section>
       )}
     </main>

@@ -40,8 +40,8 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="mt-5 text-lg leading-8">
-            Context Layer connects authorized Jira and Confluence resources to
-            an MCP client.
+            Context Layer connects authorized Jira, Confluence, and GitHub
+            resources to an MCP client.
           </p>
           <p className="mt-4 text-sm text-[#817b73]">
             Last updated: 13 August 2026
@@ -55,19 +55,19 @@ export default function PrivacyPage() {
               <li>Your Context Layer account name and email address.</li>
               <li>Your workspace membership, role, and configuration.</li>
               <li>
-                Selected Jira projects or Confluence spaces and connection
-                status.
+                Selected Jira projects, Confluence spaces, or GitHub
+                repositories and connection status.
               </li>
-              <li>Encrypted Atlassian OAuth access and refresh tokens.</li>
+              <li>Encrypted provider OAuth access and refresh tokens.</li>
               <li>MCP token hashes and MCP activity records.</li>
             </ul>
           </section>
 
           <section className={sectionClassName}>
-            <h2 className={headingClassName}>Atlassian identity</h2>
+            <h2 className={headingClassName}>Provider identity</h2>
             <p>
-              Context Layer does not store Atlassian account IDs or profile
-              names. The identity tools retrieve that information from Atlassian
+              Context Layer does not store provider account IDs or profile
+              names. Identity tools retrieve that information from the provider
               when invoked and return it directly to the MCP client.
             </p>
           </section>
@@ -75,9 +75,10 @@ export default function PrivacyPage() {
           <section className={sectionClassName}>
             <h2 className={headingClassName}>Content handling</h2>
             <p>
-              Read tools return requested Jira and Confluence content to the MCP
-              client. Write tools send content from the MCP client to Atlassian.
-              Context Layer does not store that content in its database.
+              Read tools return requested Jira, Confluence, and GitHub content
+              to the MCP client. Write tools send content from the MCP client to
+              the selected provider. Context Layer does not store that content
+              in its database.
             </p>
           </section>
 
