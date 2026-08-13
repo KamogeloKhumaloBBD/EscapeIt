@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { ResolvedMcpPrincipal } from "@context-layer/db";
+import type {
+  ResolvedMcpPrincipal,
+  ResolvedOAuthAccess,
+} from "@context-layer/db";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import {
   createMcpHandler,
@@ -13,10 +16,12 @@ import type { Logger } from "pino";
 import type { McpPrincipal, McpToolProvider } from "./mcp-tool-provider";
 
 const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
+const oauthAccessTokenPattern = /^ctx_oauth_at_[A-Za-z0-9_-]{32,256}$/;
 
 export interface McpGatewayDependencies {
   logger: Logger;
   publicAppUrl: string;
+  resolveOAuthToken: (token: string) => Promise<ResolvedOAuthAccess | null>;
   resolveToken: (tokenHash: Uint8Array) => Promise<ResolvedMcpPrincipal | null>;
   toolProviders?: readonly McpToolProvider[];
 }
@@ -43,7 +48,7 @@ function readBearerToken(header: string | undefined): string | null {
 
   const match = /^Bearer\s+(.+)$/i.exec(header);
   const token = match?.[1];
-  return token !== undefined && tokenPattern.test(token) ? token : null;
+  return token !== undefined && token.length <= 512 ? token : null;
 }
 
 function isMcpPrincipal(value: unknown): value is McpPrincipal {
@@ -55,19 +60,24 @@ function isMcpPrincipal(value: unknown): value is McpPrincipal {
     "correlationId",
     "membershipId",
     "role",
-    "tokenId",
+    "userEmail",
     "userId",
+    "userName",
     "workspaceId",
+    "workspaceName",
   ].every((key) => typeof Reflect.get(value, key) === "string");
 }
 
 export function createMcpGateway({
   logger,
   publicAppUrl,
+  resolveOAuthToken,
   resolveToken,
   toolProviders = [],
 }: McpGatewayDependencies): RequestHandler {
   const allowedOrigin = new URL(publicAppUrl).origin;
+  const resourceMetadata = `${publicAppUrl.replace(/\/$/, "")}/.well-known/oauth-protected-resource/api/mcp`;
+  const challenge = `Bearer resource_metadata="${resourceMetadata}", scope="mcp:access"`;
   const handler = createMcpHandler(
     async ({ authInfo }) => {
       const principal = authInfo?.extra?.principal;
@@ -119,19 +129,47 @@ export function createMcpGateway({
     const rawToken = readBearerToken(request.headers.authorization);
 
     if (rawToken === null) {
-      response.setHeader("WWW-Authenticate", 'Bearer realm="context-layer"');
+      response.setHeader("WWW-Authenticate", challenge);
       writeError(response, 401, -32_001, "Authentication required.");
       return;
     }
 
-    let resolved: ResolvedMcpPrincipal | null;
+    let principal: McpPrincipal | null = null;
+    let credentialClientId: string | null = null;
+    let scopes: string[] = [];
 
     try {
-      resolved = await resolveToken(
-        createHash("sha256").update(rawToken, "utf8").digest(),
-      );
+      if (tokenPattern.test(rawToken)) {
+        const resolved = await resolveToken(
+          createHash("sha256").update(rawToken, "utf8").digest(),
+        );
+
+        if (resolved !== null) {
+          const { tokenId, ...identity } = resolved;
+          credentialClientId = tokenId;
+          principal = {
+            ...identity,
+            correlationId:
+              typeof request.id === "string" ? request.id : tokenId,
+          };
+        }
+      } else if (oauthAccessTokenPattern.test(rawToken)) {
+        const resolved = await resolveOAuthToken(
+          rawToken.slice("ctx_oauth_at_".length),
+        );
+
+        if (resolved?.scopes.includes("mcp:access") === true) {
+          credentialClientId = resolved.clientId;
+          scopes = resolved.scopes;
+          principal = {
+            ...resolved.identity,
+            correlationId:
+              typeof request.id === "string" ? request.id : resolved.clientId,
+          };
+        }
+      }
     } catch {
-      request.log.error("Unable to resolve MCP access token");
+      request.log.error("Unable to resolve MCP credential");
       writeError(
         response,
         503,
@@ -141,21 +179,18 @@ export function createMcpGateway({
       return;
     }
 
-    if (resolved === null) {
-      response.setHeader("WWW-Authenticate", 'Bearer realm="context-layer"');
+    if (principal === null || credentialClientId === null) {
+      response.setHeader("WWW-Authenticate", challenge);
       writeError(response, 401, -32_001, "Authentication required.");
       return;
     }
 
-    const correlationId =
-      typeof request.id === "string" ? request.id : resolved.tokenId;
-    const principal: McpPrincipal = { ...resolved, correlationId };
     const authenticatedRequest = request as AuthenticatedMcpRequest;
     authenticatedRequest.headers.authorization = undefined;
     authenticatedRequest.auth = {
-      clientId: resolved.tokenId,
+      clientId: credentialClientId,
       extra: { principal },
-      scopes: [],
+      scopes,
       token: "[redacted]",
     };
     response.setHeader("Cache-Control", "no-store");

@@ -100,6 +100,16 @@ export {
   type ResolvedMcpPrincipal,
 } from "./mcp-token-repository";
 export {
+  findMcpOAuthClient,
+  listMcpOAuthConnections,
+  resolveMcpIdentityForWorkspace,
+  resolveOAuthAccessToken,
+  revokeMcpOAuthConnection,
+  type McpOAuthConnection,
+  type ResolvedMcpIdentity,
+  type ResolvedOAuthAccess,
+} from "./mcp-oauth-repository";
+export {
   createNotificationChannel,
   clearNotificationPreferenceOverride,
   listNotificationChannels,

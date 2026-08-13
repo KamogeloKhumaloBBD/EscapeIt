@@ -6,13 +6,13 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
 import {
-  inviteMemberAction,
-  revokeInvitationAction,
-} from "@/app/(workspace)/members/actions";
-import {
   initialInviteMemberState,
   initialRevokeInvitationState,
 } from "@/app/(workspace)/members/action-state";
+import {
+  inviteMemberAction,
+  revokeInvitationAction,
+} from "@/app/(workspace)/members/actions";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -24,12 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -67,7 +62,7 @@ export function InviteMemberForm() {
       ref={formReference}
       action={formAction}
       aria-busy={pending}
-      className="flex flex-col gap-4 sm:flex-row sm:items-end"
+      className="flex flex-col gap-4 sm:flex-row sm:items-end justify-items-center"
     >
       <Field className="flex-1" data-invalid={state.fieldError !== undefined}>
         <FieldLabel htmlFor="invitation-email">Email address</FieldLabel>
@@ -88,15 +83,6 @@ export function InviteMemberForm() {
           required
           type="email"
         />
-        {state.fieldError === undefined ? (
-          <FieldDescription id="invitation-email-description">
-            They will have seven days to accept.
-          </FieldDescription>
-        ) : (
-          <FieldError id="invitation-email-error">
-            {state.fieldError}
-          </FieldError>
-        )}
       </Field>
       <InviteSubmitButton />
     </form>
@@ -137,7 +123,7 @@ export function RevokeInvitationButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="destructive">
           Revoke
         </Button>
       </AlertDialogTrigger>

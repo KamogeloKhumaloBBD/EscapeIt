@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   rewrites() {
     return Promise.resolve([
       {
+        destination: `${apiInternalUrl.replace(/\/$/, "")}/.well-known/:path*`,
+        source: "/.well-known/:path*",
+      },
+      {
         destination: `${apiInternalUrl.replace(/\/$/, "")}/api/:path*`,
         source: "/api/:path*",
       },

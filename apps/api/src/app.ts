@@ -16,19 +16,23 @@ import { createLogger } from "./logging";
 export interface AppDependencies {
   allowedOrigin: string;
   apiRouter: Router;
+  authorizationServerMetadataHandler: RequestHandler;
   authHandler: RequestHandler;
   checkDatabase: () => Promise<boolean>;
   logger?: Logger;
   mcpHandler: RequestHandler;
+  protectedResourceMetadataHandler: RequestHandler;
 }
 
 export function createApp({
   allowedOrigin,
   apiRouter,
+  authorizationServerMetadataHandler,
   authHandler,
   checkDatabase,
   logger = createLogger(),
   mcpHandler,
+  protectedResourceMetadataHandler,
 }: AppDependencies) {
   const app = express();
 
@@ -51,9 +55,26 @@ export function createApp({
   app.use(
     cors({
       credentials: true,
+      exposedHeaders: ["WWW-Authenticate"],
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       origin: allowedOrigin,
     }),
+  );
+
+  app.get(
+    [
+      "/.well-known/oauth-authorization-server",
+      "/.well-known/oauth-authorization-server/api/auth",
+    ],
+    authorizationServerMetadataHandler,
+  );
+  app.get(
+    [
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/api/mcp",
+      "/api/mcp/.well-known/oauth-protected-resource",
+    ],
+    protectedResourceMetadataHandler,
   );
 
   app.all("/api/auth/*splat", authHandler);

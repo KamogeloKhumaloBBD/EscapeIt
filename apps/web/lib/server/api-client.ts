@@ -8,6 +8,7 @@ const defaultTimeoutMs = 10_000;
 
 export interface ApiResult {
   data: unknown;
+  location: string | null;
   ok: boolean;
   setCookies: string[];
   status: number;
@@ -81,6 +82,7 @@ export async function requestApi(
 
     return {
       data: await readJson(response),
+      location: response.headers.get("location"),
       ok: response.ok,
       setCookies: response.headers.getSetCookie(),
       status: response.status,
@@ -88,6 +90,7 @@ export async function requestApi(
   } catch {
     return {
       data: null,
+      location: null,
       ok: false,
       setCookies: [],
       status: 503,

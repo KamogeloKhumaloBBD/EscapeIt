@@ -3,15 +3,19 @@ import { redirect } from "next/navigation";
 import { SignInForm } from "@/app/sign-in/sign-in-form";
 import { SignInShell } from "@/app/sign-in/sign-in-shell";
 import { getAuthSessionStatus } from "@/lib/server/auth-session";
-import { safeReturnPath } from "@/lib/validation/return-path";
+import {
+  oauthAuthorizationReturnPath,
+  safeReturnPath,
+} from "@/lib/validation/return-path";
 
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const returnTo = safeReturnPath(query.returnTo);
+  const returnTo =
+    safeReturnPath(query.returnTo) ?? oauthAuthorizationReturnPath(query);
   const sessionStatus = await getAuthSessionStatus();
 
   if (sessionStatus === "authenticated") {
