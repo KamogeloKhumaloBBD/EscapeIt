@@ -74,6 +74,7 @@ import { createRequireAuthentication } from "./http/authentication";
 import { createWebRequestHandler } from "./http/web-request-handler";
 import { createJiraProviderModule } from "./integrations/jira";
 import { createConfluenceProviderModule } from "./integrations/confluence";
+import { createBitbucketProviderModule } from "./integrations/bitbucket";
 import { createGitHubProviderModule } from "./integrations/github";
 import { createLogger } from "./logging";
 import {
@@ -135,6 +136,10 @@ const providerModules: ProviderModule[] = [
   }),
   createConfluenceProviderModule({
     oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createBitbucketProviderModule({
+    oauth: config.bitbucketOAuth,
     publicAppUrl: config.publicAppUrl,
   }),
   createGitHubProviderModule({

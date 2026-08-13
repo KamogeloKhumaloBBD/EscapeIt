@@ -25,6 +25,8 @@ const apiEnvironmentSchema = z.object({
   RESEND_API_KEY: z.string().min(1),
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
+  BITBUCKET_OAUTH_CLIENT_ID: optionalCredential,
+  BITBUCKET_OAUTH_CLIENT_SECRET: optionalCredential,
   GITHUB_APP_CLIENT_ID: optionalCredential,
   GITHUB_APP_CLIENT_SECRET: optionalCredential,
   GITHUB_APP_SLUG: z.preprocess(
@@ -41,8 +43,14 @@ export interface AtlassianOAuthConfig {
   clientSecret: string;
 }
 
+export interface BitbucketOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface ApiConfig {
   atlassianOAuth: AtlassianOAuthConfig | null;
+  bitbucketOAuth: BitbucketOAuthConfig | null;
   authEmailFrom: string;
   betterAuthSecret: string;
   betterAuthUrl: string;
@@ -94,6 +102,15 @@ export function parseApiConfig(
     );
   }
 
+  if (
+    (parsed.BITBUCKET_OAUTH_CLIENT_ID === undefined) !==
+    (parsed.BITBUCKET_OAUTH_CLIENT_SECRET === undefined)
+  ) {
+    throw new Error(
+      "BITBUCKET_OAUTH_CLIENT_ID and BITBUCKET_OAUTH_CLIENT_SECRET must be configured together.",
+    );
+  }
+
   const githubValues = [
     parsed.GITHUB_APP_CLIENT_ID,
     parsed.GITHUB_APP_CLIENT_SECRET,
@@ -117,6 +134,14 @@ export function parseApiConfig(
         : {
             clientId: parsed.ATLASSIAN_OAUTH_CLIENT_ID,
             clientSecret: parsed.ATLASSIAN_OAUTH_CLIENT_SECRET,
+          },
+    bitbucketOAuth:
+      parsed.BITBUCKET_OAUTH_CLIENT_ID === undefined ||
+      parsed.BITBUCKET_OAUTH_CLIENT_SECRET === undefined
+        ? null
+        : {
+            clientId: parsed.BITBUCKET_OAUTH_CLIENT_ID,
+            clientSecret: parsed.BITBUCKET_OAUTH_CLIENT_SECRET,
           },
     authEmailFrom: parsed.AUTH_EMAIL_FROM,
     betterAuthSecret: parsed.BETTER_AUTH_SECRET,
