@@ -125,6 +125,12 @@ interface IntegrationRepository {
     membershipId: string,
     toolNames: readonly string[],
   ): Promise<IntegrationMcpTool[]>;
+  registerWebhook(
+    workspaceId: string,
+    integrationId: string,
+    webhookToken: string,
+    webhookRegistrationId: string | null,
+  ): Promise<void>;
   saveAccount(input: SaveIntegrationAccountInput): Promise<IntegrationAccount>;
 }
 
@@ -135,6 +141,7 @@ export interface IntegrationServiceDependencies {
   oauthStateSecret: string;
   providerRegistry: ProviderRegistry;
   repository: IntegrationRepository;
+  webhookPublicUrl: string;
 }
 
 function providerFromInput(
@@ -410,6 +417,7 @@ export function createIntegrationService({
   oauthStateSecret,
   providerRegistry,
   repository,
+  webhookPublicUrl,
 }: IntegrationServiceDependencies) {
   async function current(userId: string) {
     return requireWorkspace(await repository.findCurrentWorkspace(userId));
@@ -949,8 +957,36 @@ export function createIntegrationService({
           integration,
           account,
           adapter,
-          (credentials) =>
-            adapter.resolveScopes(credentials, resource, externalIds),
+          async (credentials) => {
+            const scopes = await adapter.resolveScopes(
+              credentials,
+              resource,
+              externalIds,
+            );
+
+            if (adapter.registerWebhooks !== undefined) {
+              const webhookToken =
+                integration.webhookToken ?? crypto.randomUUID();
+              const callbackUrl = new URL(
+                `/api/webhooks/${provider}/${webhookToken}`,
+                webhookPublicUrl,
+              ).toString();
+              const webhookRegistrationId = await adapter.registerWebhooks(
+                credentials,
+                resource,
+                callbackUrl,
+                scopes,
+              );
+              await repository.registerWebhook(
+                workspace.workspace.id,
+                integration.id,
+                webhookToken,
+                webhookRegistrationId,
+              );
+            }
+
+            return scopes;
+          },
         );
         const scopes = await repository.replaceScopes(
           workspace.workspace.id,

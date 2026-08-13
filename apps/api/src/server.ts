@@ -15,6 +15,7 @@ import {
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findIntegrationByWebhookToken,
   findNotificationChannel,
   findMemberIntegrationAccess,
   findWorkspaceInvitationByToken,
@@ -25,6 +26,7 @@ import {
   listIntegrationMcpTools,
   listMcpTokens,
   listNotificationChannels,
+  listNotificationChannelsForWorkspace,
   listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
@@ -41,6 +43,7 @@ import {
   revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  setIntegrationWebhookRegistration,
   setNotificationPreferenceOverride,
   updateNotificationChannel,
   type ProviderKey,
@@ -75,10 +78,13 @@ import {
   createNotificationService,
   type NotificationServiceDependencies,
 } from "./features/notifications/notification.service";
+import { createWebhookHandler } from "./features/webhooks/webhook.routes";
+import type { WebhookReceiver } from "./features/webhooks/webhook-receiver";
 import { createRequireAuthentication } from "./http/authentication";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createJiraProviderModule } from "./integrations/jira";
+import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
 import { createConfluenceProviderModule } from "./integrations/confluence";
 import { createLogger } from "./logging";
 import {
@@ -182,6 +188,23 @@ const notificationChannelAdapters = new Map<
   ProviderKey,
   NotificationChannelAdapter
 >([[teamsProvider, createTeamsAdapter()]]);
+
+const jiraProvider = parseProviderKey("jira");
+const webhookReceivers = new Map<ProviderKey, WebhookReceiver>([
+  [
+    jiraProvider,
+    createJiraWebhookReceiver({
+      credentialEncryption,
+      database: connection.client,
+      findIntegrationByToken: (token) =>
+        findIntegrationByWebhookToken(connection.client, jiraProvider, token),
+      listNotificationChannels: (workspaceId) =>
+        listNotificationChannelsForWorkspace(connection.client, workspaceId),
+      notificationChannelAdapters,
+    }),
+  ],
+]);
+const webhookHandler = createWebhookHandler({ receivers: webhookReceivers });
 
 const providerRegistry = createProviderRegistry([
   ...providerModules.map((providerModule) => providerModule.definition),
@@ -342,6 +365,20 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       integrationId,
       membershipId,
     ),
+  registerWebhook: async (
+    workspaceId,
+    integrationId,
+    webhookToken,
+    webhookRegistrationId,
+  ) => {
+    await setIntegrationWebhookRegistration(
+      connection.client,
+      workspaceId,
+      integrationId,
+      webhookToken,
+      webhookRegistrationId,
+    );
+  },
   replaceAccountCredentials: (
     input: Parameters<typeof replaceIntegrationAccountCredentials>[1],
     expectedEnvelope: Parameters<
@@ -392,6 +429,7 @@ const integrationService = createIntegrationService({
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,
+  webhookPublicUrl: config.webhookPublicUrl,
 });
 const notificationRepository: NotificationServiceDependencies["repository"] = {
   appendActivity: (input: Parameters<typeof appendActivityEvent>[1]) =>
@@ -507,6 +545,7 @@ const app = createApp({
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
     toolProviders: mcpToolProviders,
   }),
+  webhookHandler,
 });
 
 const server = app.listen(config.port, () => {

@@ -129,6 +129,8 @@ export interface Integration {
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;
+  webhookRegistrationId: string | null;
+  webhookToken: string | null;
   workspaceId: string;
 }
 
@@ -161,6 +163,7 @@ export interface IntegrationScope {
   createdByMembershipId: string;
   displayName: string;
   externalId: string;
+  externalKey: string | null;
   id: string;
   integrationId: string;
   scopeKey: ScopeKey;

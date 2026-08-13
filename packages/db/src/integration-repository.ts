@@ -47,6 +47,7 @@ export interface SaveIntegrationAccountInput {
 export interface SelectedIntegrationScopeInput {
   displayName: string;
   externalId: string;
+  externalKey: string | null;
   scopeKey: ScopeKey;
 }
 
@@ -701,6 +702,7 @@ export async function replaceIntegrationScopes(
           "integrationId",
           "scopeKey",
           "externalId",
+          "externalKey",
           "displayName",
           "createdByMembershipId"
         ) values (
@@ -709,6 +711,7 @@ export async function replaceIntegrationScopes(
           ${integrationId},
           ${scope.scopeKey},
           ${scope.externalId},
+          ${scope.externalKey},
           ${scope.displayName.trim()},
           ${ownerMembershipId}
         )
@@ -750,6 +753,40 @@ export async function listWorkspaceIntegrations(
     where "workspaceId" = ${workspaceId}
     order by provider
   `;
+}
+
+export async function setIntegrationWebhookRegistration(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  webhookToken: string,
+  webhookRegistrationId: string | null,
+): Promise<Integration> {
+  const rows = await database<Integration[]>`
+    update integrations
+    set
+      "webhookToken" = ${webhookToken},
+      "webhookRegistrationId" = ${webhookRegistrationId},
+      "updatedAt" = now()
+    where id = ${integrationId} and "workspaceId" = ${workspaceId}
+    returning *
+  `;
+
+  return requireReturnedRow(rows[0]);
+}
+
+export async function findIntegrationByWebhookToken(
+  database: DatabaseClient,
+  provider: ProviderKey,
+  webhookToken: string,
+): Promise<Integration | null> {
+  const rows = await database<Integration[]>`
+    select *
+    from integrations
+    where provider = ${provider} and "webhookToken" = ${webhookToken}
+  `;
+
+  return rows[0] ?? null;
 }
 
 export async function findIntegrationAccountForMember(

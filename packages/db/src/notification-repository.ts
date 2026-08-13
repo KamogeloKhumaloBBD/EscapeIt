@@ -146,6 +146,18 @@ export async function listNotificationChannels(
   `;
 }
 
+export async function listNotificationChannelsForWorkspace(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<NotificationChannel[]> {
+  return database<NotificationChannel[]>`
+    select *
+    from notification_channels
+    where "workspaceId" = ${workspaceId}
+    order by "createdAt", id
+  `;
+}
+
 export async function findNotificationChannel(
   database: DatabaseClient,
   workspaceId: string,
