@@ -2,6 +2,7 @@ import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
+  connectIntegrationAccountWithoutResource,
   connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
@@ -254,6 +255,9 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     appendActivityEvent(connection.client, input),
   configure: (input: Parameters<typeof configureIntegration>[1]) =>
     configureIntegration(connection.client, input),
+  connectAccountWithoutResource: (
+    input: Parameters<typeof connectIntegrationAccountWithoutResource>[1],
+  ) => connectIntegrationAccountWithoutResource(connection.client, input),
   connectAccountWithResource: (
     input: Parameters<typeof connectIntegrationAccountWithResource>[1],
   ) => connectIntegrationAccountWithResource(connection.client, input),

@@ -66,6 +66,7 @@ export {
   type WorkspaceRole,
 } from "./domain";
 export {
+  connectIntegrationAccountWithoutResource,
   connectIntegrationAccountWithResource,
   configureIntegration,
   disconnectIntegrationAccount,
@@ -84,6 +85,7 @@ export {
   replaceIntegrationAccountCredentials,
   saveIntegrationAccount,
   type ConfigureIntegrationInput,
+  type ConnectIntegrationAccountWithoutResourceInput,
   type ConnectIntegrationAccountWithResourceInput,
   type IntegrationConnectionContext,
   type MemberIntegrationAccess,

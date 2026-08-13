@@ -58,6 +58,11 @@ export interface ConnectIntegrationAccountWithResourceInput {
   installation: ConfigureIntegrationInput;
 }
 
+export interface ConnectIntegrationAccountWithoutResourceInput {
+  account: SaveIntegrationAccountInput;
+  provider: ProviderKey;
+}
+
 export interface MemberIntegrationAccess {
   account: IntegrationAccount | null;
   enabledMcpToolNames: string[];
@@ -461,7 +466,6 @@ export async function disconnectWorkspaceIntegration(
       update integrations
       set
         status = 'disconnected',
-        configuration = '{}'::jsonb,
         "lastValidatedAt" = null,
         "lastErrorCode" = null,
         "updatedAt" = now()
@@ -611,6 +615,80 @@ export async function connectIntegrationAccountWithResource(
         "lastErrorCode" = excluded."lastErrorCode",
         "updatedAt" = now()
       returning *
+    `;
+
+    return { account: requireReturnedRow(accounts[0]), integration };
+  });
+}
+
+export async function connectIntegrationAccountWithoutResource(
+  database: DatabaseClient,
+  input: ConnectIntegrationAccountWithoutResourceInput,
+): Promise<IntegrationConnectionContext> {
+  validateCredentialState(input.account);
+
+  if (input.account.status !== "connected") {
+    throw new RepositoryError(
+      "invalid",
+      "The account must be connected when clearing its unavailable resource.",
+    );
+  }
+
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(
+      transaction,
+      input.account.workspaceId,
+      input.account.membershipId,
+    );
+    const integrations = await transaction<Integration[]>`
+      update integrations
+      set
+        status = 'disconnected',
+        configuration = '{}'::jsonb,
+        "configuredByMembershipId" = ${input.account.membershipId},
+        "lastValidatedAt" = null,
+        "lastErrorCode" = null,
+        "updatedAt" = now()
+      where
+        id = ${input.account.integrationId}
+        and "workspaceId" = ${input.account.workspaceId}
+        and provider = ${input.provider}
+      returning *
+    `;
+    const integration = requireReturnedRow(integrations[0]);
+    const accounts = await transaction<IntegrationAccount[]>`
+      insert into integration_accounts (
+        id,
+        "workspaceId",
+        "integrationId",
+        "membershipId",
+        status,
+        "credentialEnvelope",
+        "lastValidatedAt",
+        "lastErrorCode"
+      ) values (
+        ${input.account.accountId},
+        ${input.account.workspaceId},
+        ${input.account.integrationId},
+        ${input.account.membershipId},
+        ${input.account.status},
+        ${input.account.credentialEnvelope},
+        ${input.account.lastValidatedAt ?? null},
+        ${input.account.lastErrorCode ?? null}
+      )
+      on conflict ("integrationId", "membershipId") do update set
+        status = excluded.status,
+        "credentialEnvelope" = excluded."credentialEnvelope",
+        "lastValidatedAt" = excluded."lastValidatedAt",
+        "lastErrorCode" = excluded."lastErrorCode",
+        "updatedAt" = now()
+      returning *
+    `;
+    await transaction`
+      delete from integration_scopes
+      where
+        "workspaceId" = ${input.account.workspaceId}
+        and "integrationId" = ${input.account.integrationId}
     `;
 
     return { account: requireReturnedRow(accounts[0]), integration };

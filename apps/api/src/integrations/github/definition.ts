@@ -117,6 +117,7 @@ const githubMcpToolRows = [
 ] as const;
 
 export const githubDefinition = {
+  autoSelectSingleResourceAfterAuthorization: true,
   capabilities: ["context", "user-accounts", "scopes"],
   description:
     "Bring allowlisted GitHub repositories, code, issues, and pull requests into your context layer.",

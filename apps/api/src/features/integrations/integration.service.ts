@@ -2,6 +2,7 @@ import {
   InvalidIntegrationKeyError,
   parseProviderKey,
   type AppendActivityEventInput,
+  type ConnectIntegrationAccountWithoutResourceInput,
   type ConnectIntegrationAccountWithResourceInput,
   type CurrentWorkspace,
   type EncryptedCredentialEnvelope,
@@ -60,6 +61,9 @@ interface IntegrationRepository {
   }): Promise<Integration>;
   connectAccountWithResource(
     input: ConnectIntegrationAccountWithResourceInput,
+  ): Promise<IntegrationConnectionContext>;
+  connectAccountWithoutResource(
+    input: ConnectIntegrationAccountWithoutResourceInput,
   ): Promise<IntegrationConnectionContext>;
   disconnectAccount(
     workspaceId: string,
@@ -657,11 +661,38 @@ export function createIntegrationService({
         const credentials = await adapter.exchangeAuthorizationCode(code);
         const resources = await adapter.discoverResources(credentials);
         const configuredResource = readResource(context.integration);
+        const configuredResourceIsAccessible =
+          configuredResource !== null &&
+          resources.some(
+            (resource) => resource.externalId === configuredResource.externalId,
+          );
+        const replaceUnavailableApplicationResource =
+          configuredResource !== null &&
+          !configuredResourceIsAccessible &&
+          definition.resourceSelection === "application" &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner";
         const authorizationResource =
           configuredResource === null &&
           definition.resourceSelection === "authorization"
             ? resources[0]
             : null;
+        const applicationResource =
+          (configuredResource === null ||
+            replaceUnavailableApplicationResource) &&
+          definition.resourceSelection === "application" &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner" &&
+          resources.length === 1
+            ? resources[0]
+            : null;
+        const reconnectResource =
+          configuredResourceIsAccessible &&
+          context.integration.status !== "connected"
+            ? configuredResource
+            : null;
+        const connectionResource =
+          authorizationResource ?? applicationResource ?? reconnectResource;
 
         if (
           configuredResource === null &&
@@ -673,9 +704,8 @@ export function createIntegrationService({
 
         if (
           configuredResource !== null &&
-          !resources.some(
-            (resource) => resource.externalId === configuredResource.externalId,
-          )
+          !configuredResourceIsAccessible &&
+          !replaceUnavailableApplicationResource
         ) {
           throw new ProviderAdapterError("inaccessible_resource");
         }
@@ -695,13 +725,20 @@ export function createIntegrationService({
           workspaceId: workspace.workspace.id,
         };
 
-        if (authorizationResource === null) {
-          await repository.saveAccount(accountInput);
+        if (connectionResource === null) {
+          if (replaceUnavailableApplicationResource) {
+            await repository.connectAccountWithoutResource({
+              account: accountInput,
+              provider,
+            });
+          } else {
+            await repository.saveAccount(accountInput);
+          }
         } else {
           await repository.connectAccountWithResource({
             account: accountInput,
             installation: {
-              configuration: { ...authorizationResource },
+              configuration: { ...connectionResource },
               configuredByMembershipId: workspace.membership.id,
               lastValidatedAt: new Date(),
               provider,
@@ -720,7 +757,28 @@ export function createIntegrationService({
           { grantedScopes: credentials.scopes },
         );
 
-        return { resources };
+        const followUpAuthorization =
+          connectionResource === null &&
+          resources.length === 0 &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner" &&
+          adapter.buildInstallationAuthorizationUrl !== undefined
+            ? (() => {
+                const state = createOAuthState(
+                  oauthStateSecret,
+                  workspace.membership.id,
+                  provider,
+                );
+
+                return {
+                  authorizationUrl:
+                    adapter.buildInstallationAuthorizationUrl(state),
+                  state,
+                };
+              })()
+            : null;
+
+        return { followUpAuthorization, resources };
       } catch (error) {
         mapProviderError(error);
       }
