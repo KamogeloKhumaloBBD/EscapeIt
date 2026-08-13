@@ -11,12 +11,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "1.6.27",
     "@context-layer/db": "workspace:*",
     "@context-layer/email": "workspace:*",
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.0.0",
     "@node-rs/argon2": "2.0.2",
-    "better-auth": "1.6.26",
+    "better-auth": "1.6.27",
     "cors": "2.8.6",
     "express": "5.2.1",
     "helmet": "8.3.0",

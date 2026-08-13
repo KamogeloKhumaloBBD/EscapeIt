@@ -13,6 +13,7 @@ import {
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
   findMemberIntegrationAccess,
+  findMcpOAuthClient,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
@@ -21,6 +22,7 @@ import {
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
+  listMcpOAuthConnections,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaceMemberUsage,
@@ -33,11 +35,14 @@ import {
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   resolveMcpToken,
+  resolveOAuthAccessToken,
   revokeMcpToken,
+  revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
+import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
 import { Router } from "express";
 
 import { createApp } from "./app";
@@ -56,6 +61,9 @@ import {
   type McpAccessServiceDependencies,
 } from "./features/mcp-access/mcp-access.service";
 import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
+import { createMcpConnectionRouter } from "./features/mcp-access/mcp-connection.routes";
+import { createMcpConnectionService } from "./features/mcp-access/mcp-connection.service";
+import { createProtectedResourceMetadataHandler } from "./features/mcp-access/mcp-oauth-metadata";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -63,6 +71,7 @@ import {
   type MemberServiceDependencies,
 } from "./features/members/member.service";
 import { createRequireAuthentication } from "./http/authentication";
+import { createWebRequestHandler } from "./http/web-request-handler";
 import { createJiraProviderModule } from "./integrations/jira";
 import { createConfluenceProviderModule } from "./integrations/confluence";
 import { createGitHubProviderModule } from "./integrations/github";
@@ -89,9 +98,13 @@ const authService = createAuth({
   baseUrl: config.betterAuthUrl,
   databaseUrl: config.database.url,
   logger,
+  mcpResourceUrl: `${config.publicAppUrl.replace(/\/$/, "")}/api/mcp`,
   resendApiKey: config.resendApiKey,
   secret: config.betterAuthSecret,
   trustedOrigins: [config.publicAppUrl],
+  findWorkspaceIdForUser: async (userId) =>
+    (await findCurrentWorkspaceForUser(connection.client, userId))?.workspace
+      .id ?? null,
 });
 const requireAuthentication = createRequireAuthentication({
   async getSession(headers) {
@@ -170,6 +183,13 @@ const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
 };
 const mcpAccessService = createMcpAccessService({
   repository: mcpAccessRepository,
+});
+const mcpConnectionService = createMcpConnectionService({
+  findClient: (clientId) => findMcpOAuthClient(connection.client, clientId),
+  listConnections: (userId) =>
+    listMcpOAuthConnections(connection.client, userId),
+  revokeConnection: (userId, consentId) =>
+    revokeMcpOAuthConnection(connection.client, userId, consentId),
 });
 const memberRepository: MemberServiceDependencies["repository"] = {
   acceptInvitation: (input) =>
@@ -385,6 +405,13 @@ apiRouter.use(
   }),
 );
 apiRouter.use(
+  "/mcp-connections",
+  createMcpConnectionRouter({
+    requireAuthentication,
+    service: mcpConnectionService,
+  }),
+);
+apiRouter.use(
   createMemberRouter({ requireAuthentication, service: memberService }),
 );
 apiRouter.use(
@@ -400,14 +427,23 @@ apiRouter.use(
 const app = createApp({
   allowedOrigin: config.publicAppUrl,
   apiRouter,
+  authorizationServerMetadataHandler: createWebRequestHandler(
+    oauthProviderAuthServerMetadata(authService.auth),
+    config.publicAppUrl,
+  ),
   authHandler: toNodeHandler(authService.auth),
   checkDatabase: () => checkDatabaseReadiness(connection),
   logger,
   mcpHandler: createMcpGateway({
     logger,
     publicAppUrl: config.publicAppUrl,
+    resolveOAuthToken: (token) =>
+      resolveOAuthAccessToken(connection.client, token),
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
     toolProviders: mcpToolProviders,
+  }),
+  protectedResourceMetadataHandler: createProtectedResourceMetadataHandler({
+    publicAppUrl: config.publicAppUrl,
   }),
 });
 

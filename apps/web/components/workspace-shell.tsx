@@ -5,6 +5,7 @@ import {
   HouseIcon,
   KeyIcon,
   PlugsConnectedIcon,
+  UserCircleGearIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -46,6 +47,7 @@ const navigation = [
   },
   { href: "/members", icon: UsersThreeIcon, label: "Members" },
   { href: "/agent-setup", icon: KeyIcon, label: "Agent Setup" },
+  { href: "/account", icon: UserCircleGearIcon, label: "Settings" },
 ] as const;
 
 function WorkspaceBreadcrumbs() {
@@ -79,9 +81,11 @@ function WorkspaceBreadcrumbs() {
               ? "Integrations"
               : pathname.startsWith("/agent-setup")
                 ? "Agent Setup"
-                : pathname.startsWith("/members")
-                  ? "Members"
-                  : "Overview"}
+                : pathname.startsWith("/account")
+                  ? "Account settings"
+                  : pathname.startsWith("/members")
+                    ? "Members"
+                    : "Overview"}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -163,9 +167,7 @@ export function WorkspaceShell({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="p-1">
-            <SignOutForm />
-          </div>
+          <SignOutForm />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

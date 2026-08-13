@@ -1,7 +1,7 @@
-import type { ResolvedMcpPrincipal } from "@context-layer/db";
+import type { ResolvedMcpIdentity } from "@context-layer/db";
 import type { McpServer } from "@modelcontextprotocol/server";
 
-export interface McpPrincipal extends ResolvedMcpPrincipal {
+export interface McpPrincipal extends ResolvedMcpIdentity {
   correlationId: string;
 }
 

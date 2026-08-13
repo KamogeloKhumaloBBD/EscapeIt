@@ -12,13 +12,14 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
 import {
-  createMcpTokenAction,
-  revokeMcpTokenAction,
-} from "@/app/(workspace)/agent-setup/actions";
-import {
   initialCreateMcpTokenState,
   initialRevokeMcpTokenState,
 } from "@/app/(workspace)/agent-setup/action-state";
+import {
+  createMcpTokenAction,
+  revokeMcpTokenAction,
+} from "@/app/(workspace)/agent-setup/actions";
+import { McpClientMark } from "@/components/mcp/client-mark";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,12 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   InputGroup,
@@ -133,7 +129,7 @@ export function CreateTokenForm() {
         ref={formReference}
         action={formAction}
         aria-busy={pending}
-        className="flex flex-col gap-4 sm:flex-row sm:items-center justify-items-center"
+        className="flex flex-col gap-4 sm:flex-row sm:items-end justify-items-center"
       >
         <Field className="flex-1" data-invalid={state.fieldError !== undefined}>
           <FieldLabel htmlFor="mcp-token-name">Token name</FieldLabel>
@@ -153,15 +149,11 @@ export function CreateTokenForm() {
             placeholder="My coding agent"
             required
           />
-          {state.fieldError === undefined ? (
-            <FieldDescription id="mcp-token-name-description">
-              Use a name that identifies the client or machine.
-            </FieldDescription>
-          ) : (
+          {state.fieldError !== undefined ? (
             <FieldError id="mcp-token-name-error">
               {state.fieldError}
             </FieldError>
-          )}
+          ) : null}
         </Field>
         <CreateTokenSubmitButton />
       </form>
@@ -200,8 +192,8 @@ function TokenRevealDialog({ rawToken }: { rawToken: string }) {
         <div className="flex gap-3 bg-muted/55 p-4 text-sm text-muted-foreground">
           <KeyIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <p>
-            Store it in your client&apos;s environment or secure credential
-            store. Never commit it to the repository.
+            Store it in a secure credential store. Never commit it to the
+            repository or share it with another person.
           </p>
         </div>
         <DialogFooter showCloseButton />
@@ -248,7 +240,7 @@ export function RevokeTokenButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        <Button size="sm" variant="destructive">
           Revoke
         </Button>
       </AlertDialogTrigger>
@@ -349,6 +341,61 @@ export function ClientSetupTabs({ endpoint }: { endpoint: string }) {
       <TabsContent value="generic">
         <CodeExample code={examples.generic} />
       </TabsContent>
+    </Tabs>
+  );
+}
+
+export function OAuthClientSetupTabs({ endpoint }: { endpoint: string }) {
+  const commands = {
+    claude: `claude mcp add --transport http --scope user context-layer "${endpoint}"`,
+    codex: `codex mcp add context-layer --url "${endpoint}"`,
+    generic: endpoint,
+  };
+
+  return (
+    <Tabs defaultValue="codex">
+      <TabsList className="max-w-full overflow-x-auto" variant="line">
+        <TabsTrigger value="codex">
+          <McpClientMark clientName="Codex" size="sm" />
+          Codex
+        </TabsTrigger>
+        <TabsTrigger value="claude">
+          <McpClientMark clientName="Claude Code" size="sm" />
+          Claude Code
+        </TabsTrigger>
+        <TabsTrigger value="generic">
+          <McpClientMark clientName="Generic HTTP" size="sm" />
+          Generic HTTP
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent className="space-y-4" value="codex">
+        <CodeExample code={commands.codex} />
+        <p className="text-xs leading-5 text-muted-foreground">
+          If the browser does not open, run{" "}
+          <code>codex mcp login context-layer</code>. Verify with{" "}
+          <code>codex mcp list</code>.
+        </p>
+      </TabsContent>
+      <TabsContent className="space-y-4" value="claude">
+        <CodeExample code={commands.claude} />
+        <p className="text-xs leading-5 text-muted-foreground">
+          If authentication does not start, run{" "}
+          <code>claude mcp login context-layer</code> or open <code>/mcp</code>.
+          Verify with <code>claude mcp list</code>.
+        </p>
+      </TabsContent>
+      <TabsContent className="space-y-4" value="generic">
+        <CodeExample code={commands.generic} />
+        <p className="text-xs text-muted-foreground">
+          Use a Streamable HTTP client with OAuth 2.1 discovery support.
+          Required scope: <code>mcp:access</code>. Resource audience:{" "}
+          <code>{endpoint}</code>.
+        </p>
+      </TabsContent>
+      <div className="mt-5 border-t pt-4 text-xs text-muted-foreground">
+        Try: “Use Context Layer to show the workspace sources and tools I can
+        access.”
+      </div>
     </Tabs>
   );
 }

@@ -58,8 +58,11 @@ export default function PrivacyPage() {
                 Selected Jira projects, Confluence spaces, or GitHub
                 repositories and connection status.
               </li>
-              <li>Encrypted provider OAuth access and refresh tokens.</li>
-              <li>MCP token hashes and MCP activity records.</li>
+              <li>Encrypted Atlassian OAuth access and refresh tokens.</li>
+              <li>
+                MCP client consent records, hashed OAuth credentials, personal
+                token hashes, and MCP activity records.
+              </li>
             </ul>
           </section>
 
@@ -88,8 +91,10 @@ export default function PrivacyPage() {
               Disconnecting an integration clears its stored OAuth credentials.
               Other account, workspace, configuration, and activity records
               remain in the database until the service operator removes them.
-              Invitation and MCP tokens are stored as SHA-256 hashes. OAuth
-              credentials are encrypted with AES-256-GCM.
+              Invitation, MCP personal tokens, and MCP OAuth credentials are
+              stored as SHA-256 hashes. Integration-provider OAuth credentials
+              are encrypted with AES-256-GCM. Revoking a connected MCP client
+              removes its outstanding access and refresh credentials.
             </p>
           </section>
         </div>
