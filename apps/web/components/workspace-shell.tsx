@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CirclesFourIcon,
   HouseIcon,
   KeyIcon,
   PlugsConnectedIcon,
@@ -13,6 +12,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutForm } from "@/components/auth/sign-out-form";
+import { BrandIcon } from "@/components/brand-icon";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -140,16 +140,9 @@ export function WorkspaceShell({
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Context Layer">
                 <Link href="/">
-                  <span className="relative flex size-9 items-center justify-center bg-foreground text-background">
-                    <CirclesFourIcon
-                      aria-hidden="true"
-                      className="size-5"
-                      weight="fill"
-                    />
-                    <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar bg-primary" />
-                  </span>
+                  <BrandIcon className="size-9 shrink-0" />
                   <span className="font-heading text-sm font-semibold tracking-[-0.025em]">
-                    Context layer
+                    Context Layer
                   </span>
                 </Link>
               </SidebarMenuButton>

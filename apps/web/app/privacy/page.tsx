@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { BrandIcon } from "@/components/brand-icon";
+
 export const metadata: Metadata = {
   description: "How Context Layer handles data.",
   title: "Privacy Policy | Context Layer",
@@ -17,9 +19,10 @@ export default function PrivacyPage() {
       <header className="border-b border-[#dedbd2]">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-5 lg:px-8">
           <Link
-            className="text-sm font-semibold tracking-[-0.02em] text-[#15130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
+            className="flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] text-[#15130f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
             href="/"
           >
+            <BrandIcon className="size-6" />
             Context Layer
           </Link>
           <Link
