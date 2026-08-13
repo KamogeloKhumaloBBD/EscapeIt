@@ -613,7 +613,12 @@ export function createIntegrationService({
       );
 
       return {
-        authorizationUrl: adapter.buildAuthorizationUrl(state),
+        authorizationUrl:
+          workspace.membership.role === "owner" &&
+          readResource(context.integration) === null &&
+          adapter.buildInstallationAuthorizationUrl !== undefined
+            ? adapter.buildInstallationAuthorizationUrl(state)
+            : adapter.buildAuthorizationUrl(state),
         context,
         state,
       };
