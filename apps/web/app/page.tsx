@@ -21,10 +21,10 @@ const sources = [
     name: "Jira",
   },
   {
-    className: "context-source--bitbucket",
+    className: "context-source--github",
     detail: "2 related PRs",
     icon: GitPullRequest,
-    name: "Bitbucket",
+    name: "GitHub",
   },
   {
     className: "context-source--confluence",
