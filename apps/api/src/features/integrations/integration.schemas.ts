@@ -32,6 +32,6 @@ export const scopeDiscoveryQuerySchema = z.object({
   query: z.string().trim().max(120).default(""),
 });
 
-export const notificationsToggleSchema = z.object({
-  enabled: z.boolean(),
+export const notificationEventKeysSchema = z.object({
+  eventKeys: z.array(z.string().min(1).max(128)).max(50),
 });

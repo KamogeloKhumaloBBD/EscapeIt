@@ -126,7 +126,7 @@ export interface Integration {
   id: string;
   lastErrorCode: string | null;
   lastValidatedAt: Date | null;
-  notificationsEnabled: boolean;
+  notificationEventKeys: readonly NotificationEventKey[];
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;

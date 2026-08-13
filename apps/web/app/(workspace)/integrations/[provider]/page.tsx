@@ -48,7 +48,7 @@ import { getNotificationChannelsState } from "@/lib/server/notification";
 import {
   DisconnectInstallation,
   McpToolSelector,
-  NotificationsToggle,
+  NotificationEventsChecklist,
   ResourceSelector,
   SimpleIntegrationAction,
 } from "./integration-forms";
@@ -109,6 +109,9 @@ export default async function IntegrationDetailPage({
       : null;
   const hasConfiguredInstallation = configuredResource !== null;
   const enabledMcpTools = integration.mcpTools.filter((tool) => tool.enabled);
+  const enabledNotificationEvents = integration.notificationEvents.filter(
+    (event) => event.enabled,
+  );
   const needsResourceSelection =
     hasApplicationResourceSelection &&
     integration.permissions.canManageInstallation &&
@@ -181,7 +184,12 @@ export default async function IntegrationDetailPage({
       ? [["Enabled MCP tools", String(enabledMcpTools.length)]]
       : []),
     ...(hasNotifications
-      ? [["Notifications", integration.notificationsEnabled ? "On" : "Off"]]
+      ? [
+          [
+            "Notifications",
+            `${String(enabledNotificationEvents.length)} of ${String(integration.notificationEvents.length)}`,
+          ],
+        ]
       : []),
     ...(hasNotificationChannels
       ? [
@@ -638,19 +646,19 @@ export default async function IntegrationDetailPage({
             <CardHeader>
               <CardTitle>Notifications</CardTitle>
               <CardDescription>
-                Send {integration.displayName} updates to any workspace
-                notification channel subscribed to it.
+                Choose which {integration.displayName} activity gets relayed to
+                workspace notification channels subscribed to it.
               </CardDescription>
               <CardAction>
                 <Badge variant="secondary">
-                  {integration.notificationsEnabled ? "On" : "Off"}
+                  {enabledNotificationEvents.length} on
                 </Badge>
               </CardAction>
             </CardHeader>
             <CardContent>
-              <NotificationsToggle
+              <NotificationEventsChecklist
                 disabled={!integration.permissions.canManageNotifications}
-                enabled={integration.notificationsEnabled}
+                events={integration.notificationEvents}
                 provider={provider}
               />
             </CardContent>

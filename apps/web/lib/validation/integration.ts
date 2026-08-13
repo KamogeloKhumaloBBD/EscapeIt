@@ -18,6 +18,11 @@ export const integrationMcpToolSchema = z.object({
   kind: z.enum(["read", "write"]),
   name: z.string(),
 });
+export const integrationNotificationEventSchema = z.object({
+  displayName: z.string(),
+  enabled: z.boolean(),
+  key: z.string(),
+});
 const integrationSummarySchema = z.object({
   attention: z.string().nullable(),
   capabilities: z.array(z.string()),
@@ -69,7 +74,7 @@ const integrationSummarySchema = z.object({
 export const integrationListSchema = z.array(integrationSummarySchema);
 export const integrationDetailSchema = integrationSummarySchema.extend({
   mcpTools: z.array(integrationMcpToolSchema),
-  notificationsEnabled: z.boolean(),
+  notificationEvents: z.array(integrationNotificationEventSchema),
   selectedScopes: z.array(integrationScopeSchema),
 });
 export const integrationResourcesSchema = z.array(resourceSchema);
@@ -80,6 +85,9 @@ export const scopeDiscoverySchema = z.object({
 
 export type IntegrationDetail = z.infer<typeof integrationDetailSchema>;
 export type IntegrationMcpTool = z.infer<typeof integrationMcpToolSchema>;
+export type IntegrationNotificationEvent = z.infer<
+  typeof integrationNotificationEventSchema
+>;
 export type IntegrationResource = z.infer<typeof resourceSchema>;
 export type IntegrationScope = z.infer<typeof integrationScopeSchema>;
 export type IntegrationSummary = z.infer<typeof integrationSummarySchema>;

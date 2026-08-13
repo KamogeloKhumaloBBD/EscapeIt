@@ -67,7 +67,7 @@ export {
   replaceIntegrationMcpTools,
   replaceIntegrationAccountCredentials,
   saveIntegrationAccount,
-  setIntegrationNotificationsEnabled,
+  setIntegrationNotificationEventKeys,
   setIntegrationWebhookRegistration,
   type ConfigureIntegrationInput,
   type ConnectIntegrationAccountWithResourceInput,

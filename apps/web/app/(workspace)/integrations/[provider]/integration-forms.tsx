@@ -33,10 +33,10 @@ import {
 } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
 import type {
   IntegrationDetail,
   IntegrationMcpTool,
+  IntegrationNotificationEvent,
   IntegrationResource,
 } from "@/lib/validation/integration";
 
@@ -401,13 +401,13 @@ export function McpToolSelector({
   );
 }
 
-export function NotificationsToggle({
+export function NotificationEventsChecklist({
   disabled = false,
-  enabled,
+  events,
   provider,
 }: {
   disabled?: boolean;
-  enabled: boolean;
+  events: readonly IntegrationNotificationEvent[];
   provider: string;
 }) {
   const [state, formAction] = useActionState(
@@ -418,28 +418,45 @@ export function NotificationsToggle({
   useActionToast(state);
 
   return (
-    <Field orientation="horizontal">
-      <FieldContent>
-        <FieldTitle>Send notifications</FieldTitle>
-        <FieldDescription>
-          When on, updates from this integration are relayed to every workspace
-          notification channel subscribed to it.
-        </FieldDescription>
-      </FieldContent>
-      <Switch
-        aria-label="Send notifications"
-        checked={enabled}
-        disabled={disabled || isPending}
-        onCheckedChange={(checked) => {
-          const formData = new FormData();
-          formData.set("intent", "set-notifications-enabled");
-          formData.set("provider", provider);
-          formData.set("enabled", String(checked));
-          startTransition(() => {
-            formAction(formData);
-          });
-        }}
-      />
-    </Field>
+    <div className="divide-y divide-border border-y border-border">
+      {events.map((event) => {
+        const id = `notification-event-${event.key}`;
+
+        return (
+          <Field className="py-4" key={event.key} orientation="horizontal">
+            <Checkbox
+              checked={event.enabled}
+              disabled={disabled || isPending}
+              id={id}
+              onCheckedChange={(checked) => {
+                const nextKeys =
+                  checked === true
+                    ? [
+                        ...events.filter((e) => e.enabled).map((e) => e.key),
+                        event.key,
+                      ]
+                    : events
+                        .filter((e) => e.enabled && e.key !== event.key)
+                        .map((e) => e.key);
+                const formData = new FormData();
+                formData.set("intent", "set-notification-event-keys");
+                formData.set("provider", provider);
+                nextKeys.forEach((key) => {
+                  formData.append("eventKeys", key);
+                });
+                startTransition(() => {
+                  formAction(formData);
+                });
+              }}
+            />
+            <FieldContent>
+              <FieldLabel htmlFor={id}>
+                <FieldTitle>{event.displayName}</FieldTitle>
+              </FieldLabel>
+            </FieldContent>
+          </Field>
+        );
+      })}
+    </div>
   );
 }

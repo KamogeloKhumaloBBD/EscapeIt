@@ -8,6 +8,7 @@ import type {
   IntegrationMcpTool,
   IntegrationScope,
   JsonObject,
+  NotificationEventKey,
   ProviderKey,
   ScopeKey,
 } from "./domain";
@@ -775,12 +776,12 @@ export async function setIntegrationWebhookRegistration(
   return requireReturnedRow(rows[0]);
 }
 
-export async function setIntegrationNotificationsEnabled(
+export async function setIntegrationNotificationEventKeys(
   database: DatabaseClient,
   workspaceId: string,
   integrationId: string,
   ownerMembershipId: string,
-  enabled: boolean,
+  eventKeys: readonly NotificationEventKey[],
 ): Promise<Integration> {
   return withTransaction(database, async (transaction) => {
     await requireOwner(transaction, workspaceId, ownerMembershipId);
@@ -788,7 +789,7 @@ export async function setIntegrationNotificationsEnabled(
     const rows = await transaction<Integration[]>`
       update integrations
       set
-        "notificationsEnabled" = ${enabled},
+        "notificationEventKeys" = ${transaction.array([...eventKeys])},
         "updatedAt" = now()
       where id = ${integrationId} and "workspaceId" = ${workspaceId}
       returning *

@@ -726,7 +726,13 @@ export function createJiraAdapter(config: {
         credentials.accessToken,
         {
           url: callbackUrl,
-          webhooks: [{ events: ["jira:issue_updated"], jqlFilter }],
+          webhooks: [
+            {
+              events: ["jira:issue_updated", "jira:issue_created"],
+              jqlFilter,
+            },
+            { events: ["comment_created"], jqlFilter },
+          ],
         },
       );
       const parsed = webhookRegistrationResponseSchema.safeParse(response);
@@ -735,11 +741,13 @@ export function createJiraAdapter(config: {
         return null;
       }
 
-      const created = parsed.data.webhookRegistrationResult.find(
-        (result) => result.createdWebhookId !== undefined,
-      );
+      const createdIds = parsed.data.webhookRegistrationResult
+        .map((result) => result.createdWebhookId)
+        .filter((id) => id !== undefined);
 
-      return created?.createdWebhookId?.toString() ?? null;
+      return createdIds.length === 0
+        ? null
+        : createdIds.map((id) => id.toString()).join(",");
     },
     buildAuthorizationUrl: (state) => oauth.buildAuthorizationUrl(state),
     async createIssue(credentials, resource, allowedProjectIds, input) {

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @context-layer/db typecheck)",
+      "Bash(pnpm --filter @context-layer/api typecheck)",
+      "PowerShell(pnpm format:check)",
+      "PowerShell(pnpm lint)"
+    ]
+  }
+}

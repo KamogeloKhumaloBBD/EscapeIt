@@ -108,8 +108,28 @@ export const jiraDefinition = {
   notificationEvents: [
     {
       defaultEnabled: true,
-      displayName: "Issue updated",
-      key: parseNotificationEventKey("jira.issue-updated"),
+      displayName: "Assignments",
+      key: parseNotificationEventKey("jira.issue-assigned"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Status updates",
+      key: parseNotificationEventKey("jira.issue-status-changed"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Comments",
+      key: parseNotificationEventKey("jira.issue-commented"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Issue created",
+      key: parseNotificationEventKey("jira.issue-created"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Priority changed",
+      key: parseNotificationEventKey("jira.issue-priority-changed"),
     },
   ],
   presentation: {

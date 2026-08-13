@@ -51,9 +51,15 @@ export interface IntegrationSummaryContract {
   resourceSelection?: "application" | "authorization";
 }
 
+export interface IntegrationNotificationEventContract {
+  displayName: string;
+  enabled: boolean;
+  key: string;
+}
+
 export interface IntegrationDetailContract extends IntegrationSummaryContract {
   mcpTools: readonly IntegrationMcpToolContract[];
-  notificationsEnabled: boolean;
+  notificationEvents: readonly IntegrationNotificationEventContract[];
   selectedScopes: readonly IntegrationScopeContract[];
 }
 

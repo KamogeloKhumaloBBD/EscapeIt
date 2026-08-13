@@ -46,7 +46,7 @@ import {
   revokeMcpToken,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
-  setIntegrationNotificationsEnabled,
+  setIntegrationNotificationEventKeys,
   setIntegrationWebhookRegistration,
   setNotificationPreferenceOverride,
   updateNotificationChannel,
@@ -200,7 +200,7 @@ const webhookReceivers = new Map<ProviderKey, WebhookReceiver>([
         return integration === null
           ? null
           : {
-              notificationsEnabled: integration.notificationsEnabled,
+              notificationEventKeys: integration.notificationEventKeys,
               workspaceId: integration.workspaceId,
             };
       },
@@ -419,18 +419,18 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     ),
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
-  setNotificationsEnabled: (
+  setNotificationEventKeys: (
     workspaceId,
     integrationId,
     ownerMembershipId,
-    enabled,
+    eventKeys,
   ) =>
-    setIntegrationNotificationsEnabled(
+    setIntegrationNotificationEventKeys(
       connection.client,
       workspaceId,
       integrationId,
       ownerMembershipId,
-      enabled,
+      eventKeys,
     ),
 };
 const providerAccountRuntime = createProviderAccountRuntime({

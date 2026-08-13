@@ -11,6 +11,7 @@ import {
   type IntegrationMcpTool,
   type IntegrationScope,
   type NotificationChannel,
+  type NotificationEventKey,
   type ProviderKey,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
@@ -34,6 +35,7 @@ import type { ProviderRegistry } from "../../integrations/provider-registry";
 import type {
   IntegrationDetailContract,
   IntegrationMcpToolContract,
+  IntegrationNotificationEventContract,
   IntegrationResourceContract,
   IntegrationScopeContract,
   IntegrationSummaryContract,
@@ -133,11 +135,11 @@ interface IntegrationRepository {
     webhookRegistrationId: string | null,
   ): Promise<void>;
   saveAccount(input: SaveIntegrationAccountInput): Promise<IntegrationAccount>;
-  setNotificationsEnabled(
+  setNotificationEventKeys(
     workspaceId: string,
     integrationId: string,
     ownerMembershipId: string,
-    enabled: boolean,
+    eventKeys: readonly NotificationEventKey[],
   ): Promise<Integration>;
 }
 
@@ -325,6 +327,18 @@ function toMcpToolContracts(
   return definition.mcpTools.map((tool) => ({
     ...tool,
     enabled: enabled.has(tool.name),
+  }));
+}
+
+function toNotificationEventContracts(
+  definition: ReturnType<ProviderRegistry["require"]>,
+  integration: Integration | null,
+): IntegrationNotificationEventContract[] {
+  const enabledKeys = new Set(integration?.notificationEventKeys ?? []);
+  return definition.notificationEvents.map((event) => ({
+    displayName: event.displayName,
+    enabled: enabledKeys.has(event.key),
+    key: event.key,
   }));
 }
 
@@ -547,7 +561,7 @@ export function createIntegrationService({
         connectedChannelCount,
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
-      notificationsEnabled: integration?.notificationsEnabled ?? false,
+      notificationEvents: toNotificationEventContracts(definition, integration),
       selectedScopes: scopes.map(toScopeContract),
     };
   }
@@ -1262,10 +1276,10 @@ export function createIntegrationService({
       }
     },
 
-    async setNotificationsEnabled(
+    async setNotificationEventKeys(
       userId: string,
       providerValue: string,
-      enabled: boolean,
+      eventKeysInput: readonly string[],
       correlationId: string,
     ) {
       const workspace = await current(userId);
@@ -1289,6 +1303,20 @@ export function createIntegrationService({
         );
       }
 
+      const availableKeys = new Set(
+        definition.notificationEvents.map((event) => event.key),
+      );
+      const eventKeys = [...new Set(eventKeysInput)].map((value) => {
+        if (!availableKeys.has(value as NotificationEventKey)) {
+          throw new HttpError(
+            400,
+            "INVALID_REQUEST",
+            `Unknown notification event: ${value}.`,
+          );
+        }
+        return value as NotificationEventKey;
+      });
+
       const integration = await repository.findIntegration(
         workspace.workspace.id,
         workspace.membership.id,
@@ -1303,11 +1331,11 @@ export function createIntegrationService({
         );
       }
 
-      await repository.setNotificationsEnabled(
+      await repository.setNotificationEventKeys(
         workspace.workspace.id,
         integration.id,
         workspace.membership.id,
-        enabled,
+        eventKeys,
       );
 
       await appendActivity(
@@ -1315,7 +1343,7 @@ export function createIntegrationService({
         correlationId,
         provider,
         "integration.notifications.set",
-        `${definition.displayName} notifications ${enabled ? "enabled" : "disabled"}`,
+        `${definition.displayName} notification events updated (${String(eventKeys.length)} enabled)`,
       );
 
       return detailFor(workspace, provider);
