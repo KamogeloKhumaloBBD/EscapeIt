@@ -65,6 +65,7 @@ import {
 import { createRequireAuthentication } from "./http/authentication";
 import { createJiraProviderModule } from "./integrations/jira";
 import { createConfluenceProviderModule } from "./integrations/confluence";
+import { createBitbucketProviderModule } from "./integrations/bitbucket";
 import { createLogger } from "./logging";
 import {
   isProviderModule,
@@ -121,6 +122,10 @@ const providerModules: ProviderModule[] = [
   }),
   createConfluenceProviderModule({
     oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createBitbucketProviderModule({
+    oauth: config.bitbucketOAuth,
     publicAppUrl: config.publicAppUrl,
   }),
 ].filter(isProviderModule);

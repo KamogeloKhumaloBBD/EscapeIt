@@ -10,6 +10,7 @@ import {
   type IntegrationConnectionContext,
   type IntegrationMcpTool,
   type IntegrationScope,
+  type JsonValue,
   type ProviderKey,
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
@@ -44,6 +45,7 @@ const resourceSchema = z.object({
   name: z.string().min(1),
   url: z.url(),
 });
+const grantedScopesSchema = z.object({ scopes: z.array(z.string()) });
 
 interface IntegrationRepository {
   appendActivity(input: AppendActivityEventInput): Promise<unknown>;
@@ -276,6 +278,34 @@ function readResource(integration: Integration): ProviderResource | null {
   return parsed.success ? parsed.data : null;
 }
 
+// Some providers (Bitbucket) fix their OAuth consumer's granted scopes at
+// registration time outside of this application, so the scopes actually
+// granted to a token can differ from whatever the provider's own OAuth
+// client requested. Decrypting the caller's own stored credentials here
+// (never another member's) lets the owner see exactly what was granted,
+// rather than silently trusting the consumer configuration.
+function readGrantedScopes(
+  encryption: CredentialEncryption,
+  account: IntegrationAccount,
+): readonly string[] | null {
+  if (account.credentialEnvelope === null) {
+    return null;
+  }
+
+  try {
+    const parsed = grantedScopesSchema.safeParse(
+      encryption.decrypt(
+        account.credentialEnvelope,
+        "integration-account",
+        account.id,
+      ),
+    );
+    return parsed.success ? parsed.data.scopes : null;
+  } catch {
+    return null;
+  }
+}
+
 function toResourceContract(
   resource: ProviderResource | null,
 ): IntegrationResourceContract | null {
@@ -318,6 +348,7 @@ function buildSummary(
   account: IntegrationAccount | null,
   scopes: readonly IntegrationScope[],
   selectedMcpTools: readonly IntegrationMcpTool[],
+  grantedScopes: readonly string[] | null = null,
 ): IntegrationSummaryContract {
   const resource = integration === null ? null : readResource(integration);
   const isOwner = role === "owner";
@@ -368,6 +399,7 @@ function buildSummary(
       account === null
         ? null
         : {
+            grantedScopes,
             lastValidatedAt: account.lastValidatedAt?.toISOString() ?? null,
             status: account.status,
           },
@@ -420,11 +452,13 @@ export function createIntegrationService({
     provider: ProviderKey,
     operation: string,
     summary: string,
+    metadata?: Record<string, JsonValue>,
   ) {
     await repository.appendActivity({
       actorMembershipId: workspace.membership.id,
       category: "integration",
       correlationId,
+      ...(metadata === undefined ? {} : { metadata }),
       operation,
       provider,
       status: "succeeded",
@@ -486,6 +520,11 @@ export function createIntegrationService({
             ),
           ]);
 
+    const grantedScopes =
+      account === null
+        ? null
+        : readGrantedScopes(credentialEncryption, account);
+
     return {
       ...buildSummary(
         definition,
@@ -494,6 +533,7 @@ export function createIntegrationService({
         account,
         scopes,
         selectedMcpTools,
+        grantedScopes,
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
       selectedScopes: scopes.map(toScopeContract),
@@ -672,6 +712,7 @@ export function createIntegrationService({
           provider,
           "integration.account.connect",
           `${providerRegistry.require(provider).displayName} account connected`,
+          { grantedScopes: credentials.scopes },
         );
 
         return { resources };

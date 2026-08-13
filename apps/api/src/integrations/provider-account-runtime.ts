@@ -102,7 +102,53 @@ export function createProviderAccountRuntime({
       throw new ProviderAccountRuntimeError("account_required");
     }
 
-    const refreshed = await adapter.refreshCredentials(credentials);
+    // If a concurrent request already refreshed and stored this account's
+    // credentials, use them instead of failing. Returns null when there is
+    // no evidence a concurrent refresh actually happened, so the caller can
+    // fall back to its own error.
+    async function concurrentlyRefreshedCredentials(): Promise<OAuthCredentials | null> {
+      const currentAccount = await repository.findAccount(
+        context.workspaceId,
+        context.integration.id,
+        context.membershipId,
+      );
+
+      if (
+        currentAccount?.status !== "connected" ||
+        currentAccount.credentialEnvelope === expectedEnvelope
+      ) {
+        return null;
+      }
+
+      context.account = currentAccount;
+      return readCredentials(credentialEncryption, currentAccount);
+    }
+
+    let refreshed: OAuthCredentials;
+
+    try {
+      refreshed = await adapter.refreshCredentials(credentials);
+    } catch (error) {
+      // Providers that issue single-use, rotating refresh tokens (for
+      // example Bitbucket, and Atlassian's own 3LO refresh tokens) invalidate
+      // the old token as soon as a concurrent request redeems it, so the
+      // refresh call itself can fail with authorization_expired even though
+      // another request already stored fresh credentials for this account.
+      // Check for those before giving up.
+      if (
+        error instanceof ProviderAdapterError &&
+        error.code === "authorization_expired"
+      ) {
+        const concurrent = await concurrentlyRefreshedCredentials();
+
+        if (concurrent !== null) {
+          return concurrent;
+        }
+      }
+
+      throw error;
+    }
+
     const replacementEnvelope = credentialEncryption.encrypt(
       refreshed,
       "integration-account",
@@ -126,18 +172,13 @@ export function createProviderAccountRuntime({
       return refreshed;
     }
 
-    const currentAccount = await repository.findAccount(
-      context.workspaceId,
-      context.integration.id,
-      context.membershipId,
-    );
+    const concurrent = await concurrentlyRefreshedCredentials();
 
-    if (currentAccount?.status !== "connected") {
+    if (concurrent === null) {
       throw new ProviderAccountRuntimeError("account_required");
     }
 
-    context.account = currentAccount;
-    return readCredentials(credentialEncryption, currentAccount);
+    return concurrent;
   }
 
   return {

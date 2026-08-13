@@ -9,6 +9,7 @@ Context Layer is a pnpm monorepo containing an independently deployable Next.js 
 - Docker Desktop or another Compose-compatible runtime
 - A Resend API key and verified sender for passwordless sign-in
 - An Atlassian OAuth 2.0 app when developing the Jira or Confluence integrations
+- A Bitbucket Cloud OAuth consumer when developing the Bitbucket integration
 
 ## Start locally
 
@@ -116,6 +117,22 @@ When Confluence is ready, the gateway can expose twelve individually selected to
 
 Confluence pages are limited to the workspace's selected space IDs and the invoking member's own Confluence permissions. Search accepts structured title and text filters; the adapter builds bounded CQL internally and never accepts arbitrary CQL. Page bodies and comments return normalized plain text and bounded Markdown. Write tools accept a validated, bounded native Atlassian Document Format document and send it directly to Confluence, supporting headings, formatting, links, lists, quotes, code blocks, rules, and tables without using Markdown as an intermediate representation. Drafts, moves, ownership changes, deletion, and uploads are not exposed. Confluence attachment retrieval uses the same type and size policies as Jira, validates page and space ownership first, and follows only a single credential-free redirect to an Atlassian-controlled media host.
 
+When Bitbucket is ready, the gateway can expose eleven individually selected read-only tools:
+
+- `bitbucket_get_myself`
+- `bitbucket_list_repositories`
+- `bitbucket_get_repository`
+- `bitbucket_list_commits`
+- `bitbucket_get_commit`
+- `bitbucket_get_file`
+- `bitbucket_search_code`
+- `bitbucket_list_pull_requests`
+- `bitbucket_get_pull_request`
+- `bitbucket_get_pull_request_diff`
+- `bitbucket_list_pull_request_comments`
+
+Bitbucket repositories, commits, files, and pull requests are limited to the workspace's selected repository allowlist, re-checked on every call, and further constrained by the invoking member's own Bitbucket permissions. Diffs and file content are bounded in bytes before download and in characters after decoding, with a `truncated` flag when a response was cut. Bitbucket has no write tools: unlike the Atlassian OAuth apps used for Jira and Confluence, a Bitbucket OAuth consumer's granted scopes are fixed at registration time in Bitbucket workspace settings and cannot be requested per authorization, so Context Layer cannot guarantee the underlying token is read-only at the OAuth layer — read-only tool exposure is therefore the actual enforcement boundary. See "Bitbucket OAuth" below for the scopes to register and how granted-but-unused scopes are surfaced.
+
 Codex can read the bearer token from an environment variable:
 
 ```toml
@@ -145,6 +162,27 @@ ATLASSIAN_OAUTH_CLIENT_SECRET=...
 ```
 
 If both are absent, the core application still starts and both Atlassian providers are omitted from the catalogue. Supplying only one is rejected. Callbacks are derived from `PUBLIC_APP_URL`, so a deployed environment must register both `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback` and `${PUBLIC_APP_URL}/api/integrations/confluence/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks. Configure the Confluence API scopes and callback before deploying code that registers the provider. Accounts authorized before Confluence write scopes were enabled must reconnect before invoking write tools.
+
+## Bitbucket OAuth
+
+Bitbucket owners select one workspace during resource-level consent (workspace resource selection happens explicitly afterward, since members commonly belong to more than one Bitbucket workspace), then choose a workspace-wide repository allowlist. Every member authorizes their own Bitbucket account; calls use that member's encrypted OAuth credentials and remain constrained by both the workspace allowlist and Bitbucket's permissions.
+
+Create an OAuth consumer under Bitbucket workspace settings (**Workspace settings → OAuth consumers → Add consumer**) and register the callback:
+
+```text
+http://localhost:3000/api/integrations/bitbucket/oauth/callback
+```
+
+Unlike the Atlassian OAuth app above, Bitbucket OAuth consumers do not accept a `scope` parameter per authorization request — whatever scopes are checked on the consumer are granted in full, every time, and Context Layer's code has no way to request a narrower subset. Check only the read-only scopes Context Layer's tools require: **Account** (read) and **Repositories** (read). Do not check any write scope; Context Layer never exposes Bitbucket write tools regardless of what the consumer grants, but keeping the consumer itself read-only avoids issuing tokens with more access than intended. If a consumer's checked scopes ever change, connected members must reconnect to receive a token reflecting the new grant. Whatever scopes a token actually carries are recorded in the `integration.account.connect` activity event and shown on the Bitbucket integration detail page, so an owner can verify the consumer wasn't configured too broadly.
+
+Then configure both values:
+
+```text
+BITBUCKET_OAUTH_CLIENT_ID=...
+BITBUCKET_OAUTH_CLIENT_SECRET=...
+```
+
+If either is absent, the core application still starts and Bitbucket is omitted from the catalogue. Supplying only one is rejected. The callback is derived from `PUBLIC_APP_URL`, so a deployed environment must register `${PUBLIC_APP_URL}/api/integrations/bitbucket/oauth/callback`. Use a distinct consumer when local and production environments require different registered callbacks.
 
 ## Commands
 
@@ -185,6 +223,7 @@ API:
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `PUBLIC_APP_URL`
 - Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
+- Optional pair: `BITBUCKET_OAUTH_CLIENT_ID`, `BITBUCKET_OAUTH_CLIENT_SECRET`
 
 Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT`. See `.env.example` for valid formats.
 
