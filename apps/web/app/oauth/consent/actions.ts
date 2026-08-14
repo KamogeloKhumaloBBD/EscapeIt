@@ -62,6 +62,34 @@ export async function consentAction(
     };
   }
 
+  if (decision === "allow") {
+    // Consent is already granted at this point (better-auth has no API to
+    // undo it), so a failure here must not block the redirect below — it
+    // just leaves the connection unscoped ("all connected providers").
+    const clientId = new URLSearchParams(oauthQuery).get("client_id");
+    const bundleIdValue = formData.get("bundleId");
+    const bundleId =
+      typeof bundleIdValue === "string" &&
+      bundleIdValue !== "" &&
+      bundleIdValue !== "none"
+        ? bundleIdValue
+        : null;
+
+    if (clientId !== null) {
+      const bundleResult = await requestApi(
+        `/api/mcp-connections/${encodeURIComponent(clientId)}/bundle`,
+        { body: { bundleId }, method: "PUT" },
+      );
+
+      if (!bundleResult.ok) {
+        console.error("Failed to set MCP connection bundle after consent", {
+          clientId,
+          status: bundleResult.status,
+        });
+      }
+    }
+  }
+
   const destination = safeOAuthRedirect(parsed.data.url);
 
   if (destination === null) {

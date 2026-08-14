@@ -9,6 +9,7 @@ import type {
 
 import { HttpError } from "../../errors";
 import type { AuthenticatedUser } from "../../http/authentication";
+import { requireWorkspace } from "../shared/require-workspace";
 import type {
   CreatedMcpTokenContract,
   McpTokenContract,
@@ -19,6 +20,10 @@ const tokenMarker = "ctx_mcp_";
 
 interface McpAccessRepository {
   createToken(input: CreateMcpTokenInput): Promise<McpToken>;
+  findBundleSummary(
+    workspaceId: string,
+    bundleId: string,
+  ): Promise<{ id: string; name: string } | null>;
   findCurrentWorkspace(userId: string): Promise<CurrentWorkspace | null>;
   listTokens(
     workspaceId: string,
@@ -36,18 +41,6 @@ export interface McpAccessServiceDependencies {
   repository: McpAccessRepository;
 }
 
-function requireWorkspace(current: CurrentWorkspace | null): CurrentWorkspace {
-  if (current === null) {
-    throw new HttpError(
-      404,
-      "WORKSPACE_NOT_FOUND",
-      "The user does not belong to a workspace.",
-    );
-  }
-
-  return current;
-}
-
 function toContract(
   token: McpTokenSummary,
   currentMembershipId: string,
@@ -56,6 +49,10 @@ function toContract(
   const isCurrentMember = token.createdByMembershipId === currentMembershipId;
 
   return {
+    bundle:
+      token.bundleId === null
+        ? null
+        : { id: token.bundleId, name: token.bundleName ?? token.bundleId },
     createdAt: token.createdAt.toISOString(),
     creator: {
       email: token.creatorEmail,
@@ -84,12 +81,29 @@ export function createMcpAccessService({
     async createToken(
       user: AuthenticatedUser,
       name: string,
+      bundleId: string | null,
       correlationId: string,
     ): Promise<CreatedMcpTokenContract> {
       const current = await currentWorkspace(user.id);
+      let bundleName: string | null = null;
+
+      if (bundleId !== null) {
+        const bundle = await repository.findBundleSummary(
+          current.workspace.id,
+          bundleId,
+        );
+
+        if (bundle === null) {
+          throw new HttpError(404, "BUNDLE_NOT_FOUND", "Bundle not found.");
+        }
+
+        bundleName = bundle.name;
+      }
+
       const secret = randomBytes(32).toString("base64url");
       const rawToken = `${tokenMarker}${secret}`;
       const token = await repository.createToken({
+        bundleId,
         correlationId,
         createdByMembershipId: current.membership.id,
         name,
@@ -103,6 +117,7 @@ export function createMcpAccessService({
           ...toContract(
             {
               ...token,
+              bundleName,
               creatorEmail: user.email,
               creatorName: user.name,
             },

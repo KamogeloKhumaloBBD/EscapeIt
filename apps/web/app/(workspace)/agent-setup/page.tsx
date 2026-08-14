@@ -28,11 +28,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { McpConnectionList } from "@/components/mcp/connection-list";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
+import { getBundleListState } from "@/lib/server/integration-bundle";
 import {
   getMcpAccessState,
   getPublicMcpEndpoint,
 } from "@/lib/server/mcp-access";
+import { getMcpConnections } from "@/lib/server/mcp-connections";
 import type { McpToken } from "@/lib/validation/mcp-access";
 
 function formatDate(value: string): string {
@@ -56,6 +59,7 @@ function TokenTable({
           <TableRow>
             <TableHead>Token</TableHead>
             {showCreator ? <TableHead>Created by</TableHead> : null}
+            <TableHead>Bundle</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Last used</TableHead>
@@ -81,6 +85,9 @@ function TokenTable({
                   </p>
                 </TableCell>
               ) : null}
+              <TableCell className="text-muted-foreground">
+                {token.bundle?.name ?? "All providers"}
+              </TableCell>
               <TableCell>
                 <Badge
                   variant={token.status === "active" ? "default" : "outline"}
@@ -136,10 +143,19 @@ function NoTokens({ workspace = false }: { workspace?: boolean }) {
 }
 
 export default async function AgentSetupPage() {
-  const state = await getMcpAccessState();
+  const [state, bundleState, connectionState] = await Promise.all([
+    getMcpAccessState(),
+    getBundleListState(),
+    getMcpConnections(),
+  ]);
 
   if (state.status === "anonymous") redirect("/sign-in");
   if (state.status === "without-workspace") redirect("/onboarding");
+
+  const bundles =
+    bundleState.status === "available"
+      ? bundleState.data.map((bundle) => ({ id: bundle.id, name: bundle.name }))
+      : [];
 
   if (state.status === "unavailable") {
     return (
@@ -182,6 +198,27 @@ export default async function AgentSetupPage() {
         </Card>
       </div>
 
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Connected clients</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {connectionState === null ? (
+              <p className="text-sm text-muted-foreground">
+                We couldn&apos;t load your connected clients. Refresh to try
+                again.
+              </p>
+            ) : (
+              <McpConnectionList
+                bundles={bundles}
+                connections={connectionState.connections}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <details className="group mt-10 border bg-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
           <div>
@@ -199,7 +236,7 @@ export default async function AgentSetupPage() {
         <div className="space-y-8 border-t p-6 pt-0">
           <section>
             <div className="mt-5">
-              <CreateTokenForm />
+              <CreateTokenForm bundles={bundles} />
             </div>
             <div className="mt-6 border-t pt-2">
               {personalTokens.length === 0 ? (

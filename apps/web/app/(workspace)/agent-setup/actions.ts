@@ -45,8 +45,13 @@ export async function createMcpTokenAction(
     };
   }
 
+  const bundleId = readString(formData, "bundleId");
+
   const result = await requestApi("/api/mcp-tokens", {
-    body: { name: parsed.data },
+    body: {
+      ...(bundleId === "" || bundleId === "none" ? {} : { bundleId }),
+      name: parsed.data,
+    },
     method: "POST",
   });
 

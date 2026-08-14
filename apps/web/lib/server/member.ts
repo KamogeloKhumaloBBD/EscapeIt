@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requestApi } from "@/lib/server/api-client";
+import { extractDataField } from "@/lib/server/api-state";
 import {
   invitationPreviewSchema,
   memberListSchema,
@@ -22,14 +23,6 @@ export type InvitationState =
   | { data: InvitationPreview; status: "available" }
   | { reason: InvitationFailure; status: "blocked" }
   | { status: "anonymous" };
-
-function parseData(data: unknown): unknown {
-  if (typeof data !== "object" || data === null || !("data" in data)) {
-    return null;
-  }
-
-  return Reflect.get(data, "data");
-}
 
 function errorCode(data: unknown): string | null {
   if (typeof data !== "object" || data === null || !("error" in data)) {
@@ -52,7 +45,7 @@ export const getMemberListState = cache(async (): Promise<MemberListState> => {
   if (result.status === 404) return { status: "without-workspace" };
   if (!result.ok) return { status: "unavailable" };
 
-  const parsed = memberListSchema.safeParse(parseData(result.data));
+  const parsed = memberListSchema.safeParse(extractDataField(result.data));
   return parsed.success
     ? { data: parsed.data, status: "available" }
     : { status: "unavailable" };
@@ -79,7 +72,9 @@ export async function getInvitationState(
     return { reason, status: "blocked" };
   }
 
-  const parsed = invitationPreviewSchema.safeParse(parseData(result.data));
+  const parsed = invitationPreviewSchema.safeParse(
+    extractDataField(result.data),
+  );
   return parsed.success
     ? { data: parsed.data, status: "available" }
     : { reason: "unavailable", status: "blocked" };

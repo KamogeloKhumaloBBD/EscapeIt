@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requestApi } from "@/lib/server/api-client";
+import { extractDataField } from "@/lib/server/api-state";
 import {
   mcpTokenListSchema,
   type McpTokenList,
@@ -14,14 +15,6 @@ export type McpAccessState =
   | { status: "unavailable" }
   | { status: "without-workspace" };
 
-function parseData(data: unknown): unknown {
-  if (typeof data !== "object" || data === null || !("data" in data)) {
-    return null;
-  }
-
-  return Reflect.get(data, "data");
-}
-
 export const getMcpAccessState = cache(async (): Promise<McpAccessState> => {
   const result = await requestApi("/api/mcp-tokens");
 
@@ -29,7 +22,7 @@ export const getMcpAccessState = cache(async (): Promise<McpAccessState> => {
   if (result.status === 404) return { status: "without-workspace" };
   if (!result.ok) return { status: "unavailable" };
 
-  const parsed = mcpTokenListSchema.safeParse(parseData(result.data));
+  const parsed = mcpTokenListSchema.safeParse(extractDataField(result.data));
   return parsed.success
     ? { data: parsed.data, status: "available" }
     : { status: "unavailable" };

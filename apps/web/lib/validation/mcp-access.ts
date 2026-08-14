@@ -9,6 +9,7 @@ export const mcpTokenNameSchema = z
 export const mcpTokenIdSchema = z.uuid();
 
 export const mcpTokenSchema = z.object({
+  bundle: z.object({ id: z.string(), name: z.string() }).nullable(),
   createdAt: z.iso.datetime(),
   creator: z.object({
     email: z.string(),

@@ -1,9 +1,9 @@
 import "server-only";
 
 import { cache } from "react";
-import type { ZodType } from "zod";
 
 import { requestApi } from "@/lib/server/api-client";
+import { parseData } from "@/lib/server/api-state";
 import {
   workspaceOverviewSchema,
   workspaceAnalyticsSchema,
@@ -18,15 +18,6 @@ export type CurrentWorkspaceState =
   | { status: "available"; workspace: WorkspaceSummary }
   | { status: "unavailable" }
   | { status: "without-workspace" };
-
-function parseData<T>(data: unknown, schema: ZodType<T>): T | null {
-  if (typeof data !== "object" || data === null || !("data" in data)) {
-    return null;
-  }
-
-  const parsed = schema.safeParse(Reflect.get(data, "data"));
-  return parsed.success && parsed.data !== undefined ? parsed.data : null;
-}
 
 export const getCurrentWorkspaceState = cache(
   async (): Promise<CurrentWorkspaceState> => {

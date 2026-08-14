@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const mcpOAuthConnectionSchema = z.object({
   authorizedAt: z.coerce.date(),
+  bundleId: z.string().nullable(),
+  bundleName: z.string().nullable(),
   clientId: z.string().min(1),
   clientName: z.string().min(1),
   consentId: z.string().min(1),

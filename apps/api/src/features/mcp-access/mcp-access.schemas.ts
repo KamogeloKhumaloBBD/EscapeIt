@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createMcpTokenSchema = z.object({
+  bundleId: z.uuid("The bundle identifier is invalid.").optional(),
   name: z
     .string()
     .trim()

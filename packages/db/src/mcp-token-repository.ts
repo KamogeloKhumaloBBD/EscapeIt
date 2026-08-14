@@ -10,6 +10,7 @@ import {
 } from "./repository-helpers";
 
 export interface CreateMcpTokenInput {
+  bundleId: string | null;
   correlationId: string;
   createdByMembershipId: string;
   name: string;
@@ -19,11 +20,13 @@ export interface CreateMcpTokenInput {
 }
 
 export interface McpTokenSummary extends McpToken {
+  bundleName: string | null;
   creatorEmail: string;
   creatorName: string;
 }
 
 export interface ResolvedMcpPrincipal {
+  bundleId: string | null;
   membershipId: string;
   role: WorkspaceRole;
   tokenId: string;
@@ -61,6 +64,20 @@ export async function createMcpToken(
       input.workspaceId,
       input.createdByMembershipId,
     );
+
+    if (input.bundleId !== null) {
+      const bundles = await transaction<{ id: string }[]>`
+        select id
+        from integration_bundles
+        where id = ${input.bundleId} and "workspaceId" = ${input.workspaceId}
+        for update
+      `;
+
+      if (bundles[0] === undefined) {
+        throw new RepositoryError("not_found", "Bundle not found.");
+      }
+    }
+
     const tokenId = createProductId();
     const rows = await transaction<McpToken[]>`
       insert into mcp_tokens (
@@ -69,14 +86,16 @@ export async function createMcpToken(
         "createdByMembershipId",
         name,
         prefix,
-        "tokenHash"
+        "tokenHash",
+        "bundleId"
       ) values (
         ${tokenId},
         ${input.workspaceId},
         ${input.createdByMembershipId},
         ${name},
         ${input.prefix},
-        ${tokenHash}
+        ${tokenHash},
+        ${input.bundleId}
       )
       returning
         id,
@@ -88,7 +107,8 @@ export async function createMcpToken(
         "lastUsedAt",
         "revokedAt",
         "revokedByMembershipId",
-        "createdAt"
+        "createdAt",
+        "bundleId"
     `;
 
     await transaction`
@@ -144,6 +164,7 @@ export async function resolveMcpToken(
     returning
       token.id as "tokenId",
       token."workspaceId" as "workspaceId",
+      token."bundleId" as "bundleId",
       workspace.name as "workspaceName",
       membership.id as "membershipId",
       membership.role,
@@ -178,6 +199,8 @@ export async function listMcpTokens(
       token."revokedAt",
       token."revokedByMembershipId",
       token."createdAt",
+      token."bundleId",
+      bundle.name as "bundleName",
       app_user.name as "creatorName",
       app_user.email as "creatorEmail"
     from mcp_tokens token
@@ -185,6 +208,9 @@ export async function listMcpTokens(
       on membership.id = token."createdByMembershipId"
       and membership."workspaceId" = token."workspaceId"
     join users app_user on app_user.id = membership."userId"
+    left join integration_bundles bundle
+      on bundle.id = token."bundleId"
+      and bundle."workspaceId" = token."workspaceId"
     where
       token."workspaceId" = ${workspaceId}
       and (
