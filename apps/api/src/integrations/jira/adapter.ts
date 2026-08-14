@@ -749,6 +749,24 @@ export function createJiraAdapter(config: {
         ? null
         : createdIds.map((id) => id.toString()).join(",");
     },
+    async unregisterWebhooks(credentials, resource, registrationId) {
+      // registerWebhooks stores the created ids comma-joined.
+      const webhookIds = registrationId.split(",").flatMap((value) => {
+        const id = Number.parseInt(value.trim(), 10);
+
+        return Number.isNaN(id) ? [] : [id];
+      });
+
+      if (webhookIds.length === 0) {
+        return;
+      }
+
+      await oauth.deleteWithoutResponse(
+        apiUrl(resource, "webhook"),
+        credentials.accessToken,
+        { webhookIds },
+      );
+    },
     buildAuthorizationUrl: (state) => oauth.buildAuthorizationUrl(state),
     async createIssue(credentials, resource, allowedProjectIds, input) {
       const types = await issueTypes(

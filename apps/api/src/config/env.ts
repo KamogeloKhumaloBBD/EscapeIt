@@ -30,6 +30,9 @@ const apiEnvironmentSchema = z.object({
   BITBUCKET_OAUTH_CLIENT_SECRET: optionalCredential,
   GITHUB_APP_CLIENT_ID: optionalCredential,
   GITHUB_APP_CLIENT_SECRET: optionalCredential,
+  // Optional alongside the other three: without it the App still connects and
+  // serves MCP tools, only its webhook deliveries cannot be authenticated.
+  GITHUB_APP_WEBHOOK_SECRET: optionalCredential,
   GITHUB_APP_SLUG: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z
@@ -69,6 +72,7 @@ export interface GitHubAppConfig {
   clientId: string;
   clientSecret: string;
   slug: string;
+  webhookSecret: string | null;
 }
 
 function isThirtyTwoByteBase64(value: string): boolean {
@@ -159,6 +163,7 @@ export function parseApiConfig(
             clientId: parsed.GITHUB_APP_CLIENT_ID,
             clientSecret: parsed.GITHUB_APP_CLIENT_SECRET,
             slug: parsed.GITHUB_APP_SLUG,
+            webhookSecret: parsed.GITHUB_APP_WEBHOOK_SECRET ?? null,
           },
     nodeEnvironment: parsed.NODE_ENV,
     port: parsed.PORT ?? parsed.API_PORT,

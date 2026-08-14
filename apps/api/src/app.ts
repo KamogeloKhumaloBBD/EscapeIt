@@ -81,8 +81,10 @@ export function createApp({
 
   app.all("/api/auth/*splat", authHandler);
   app.all("/api/mcp", mcpHandler);
+  // A GitHub App has one webhook for every installation, so its deliveries
+  // arrive without a per-integration token in the path.
   app.post(
-    "/api/webhooks/:provider/:token",
+    ["/api/webhooks/:provider", "/api/webhooks/:provider/:token"],
     express.raw({ limit: "1mb", type: "application/json" }),
     webhookHandler,
   );
