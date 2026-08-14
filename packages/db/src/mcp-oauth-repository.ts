@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import type { DatabaseClient } from "./client";
 import { withTransaction } from "./client";
 import type { WorkspaceRole } from "./domain";
+import { RepositoryError } from "./repository-errors";
+import { createProductId } from "./repository-helpers";
 
 export interface ResolvedMcpIdentity {
   membershipId: string;
@@ -15,6 +17,7 @@ export interface ResolvedMcpIdentity {
 }
 
 export interface ResolvedOAuthAccess {
+  bundleId: string | null;
   clientId: string;
   identity: ResolvedMcpIdentity;
   scopes: string[];
@@ -22,11 +25,20 @@ export interface ResolvedOAuthAccess {
 
 export interface McpOAuthConnection {
   authorizedAt: Date;
+  bundleId: string | null;
+  bundleName: string | null;
   clientId: string;
   clientName: string;
   consentId: string;
   workspaceId: string;
   workspaceName: string;
+}
+
+export interface SetOAuthConnectionBundleInput {
+  bundleId: string | null;
+  clientId: string;
+  referenceId: string;
+  userId: string;
 }
 
 function hashOpaqueToken(token: string): string {
@@ -64,6 +76,7 @@ export async function resolveOAuthAccessToken(
 ): Promise<ResolvedOAuthAccess | null> {
   const rows = await database<
     (ResolvedMcpIdentity & {
+      bundleId: string | null;
       clientDisabled: boolean;
       clientId: string;
       expiresAt: Date;
@@ -81,7 +94,8 @@ export async function resolveOAuthAccessToken(
       users.id as "userId",
       users.name as "userName",
       workspace.id as "workspaceId",
-      workspace.name as "workspaceName"
+      workspace.name as "workspaceName",
+      bundle."bundleId"
     from "oauthAccessToken" access
     join "oauthClient" client on client."clientId" = access."clientId"
     join users on users.id = access."userId"
@@ -89,6 +103,10 @@ export async function resolveOAuthAccessToken(
       on membership."userId" = access."userId"
       and membership."workspaceId" = access."referenceId"
     join workspaces workspace on workspace.id = membership."workspaceId"
+    left join oauth_connection_bundles bundle
+      on bundle."clientId" = access."clientId"
+      and bundle."userId" = access."userId"
+      and bundle."referenceId" = access."referenceId"
     where access.token = ${hashOpaqueToken(token)}
     limit 1
   `;
@@ -103,6 +121,7 @@ export async function resolveOAuthAccessToken(
   }
 
   return {
+    bundleId: row.bundleId,
     clientId: row.clientId,
     identity: {
       membershipId: row.membershipId,
@@ -128,16 +147,64 @@ export async function listMcpOAuthConnections(
       left(coalesce(nullif(client.name, ''), 'MCP client'), 120) as "clientName",
       consent."updatedAt" as "authorizedAt",
       workspace.id as "workspaceId",
-      workspace.name as "workspaceName"
+      workspace.name as "workspaceName",
+      bundle."bundleId",
+      integrationBundle.name as "bundleName"
     from "oauthConsent" consent
     join "oauthClient" client on client."clientId" = consent."clientId"
     join workspace_memberships membership
       on membership."userId" = consent."userId"
       and membership."workspaceId" = consent."referenceId"
     join workspaces workspace on workspace.id = membership."workspaceId"
+    left join oauth_connection_bundles bundle
+      on bundle."clientId" = consent."clientId"
+      and bundle."userId" = consent."userId"
+      and bundle."referenceId" = consent."referenceId"
+    left join integration_bundles integrationBundle
+      on integrationBundle.id = bundle."bundleId"
+      and integrationBundle."workspaceId" = bundle."referenceId"
     where consent."userId" = ${userId}
     order by consent."createdAt" desc, consent.id desc
   `;
+}
+
+export async function setOAuthConnectionBundle(
+  database: DatabaseClient,
+  input: SetOAuthConnectionBundleInput,
+): Promise<void> {
+  return withTransaction(database, async (transaction) => {
+    if (input.bundleId !== null) {
+      const bundles = await transaction<{ id: string }[]>`
+        select id
+        from integration_bundles
+        where id = ${input.bundleId} and "workspaceId" = ${input.referenceId}
+        for update
+      `;
+
+      if (bundles[0] === undefined) {
+        throw new RepositoryError("not_found", "Bundle not found.");
+      }
+    }
+
+    await transaction`
+      insert into oauth_connection_bundles (
+        id,
+        "clientId",
+        "userId",
+        "referenceId",
+        "bundleId"
+      ) values (
+        ${createProductId()},
+        ${input.clientId},
+        ${input.userId},
+        ${input.referenceId},
+        ${input.bundleId}
+      )
+      on conflict ("clientId", "userId", "referenceId") do update set
+        "bundleId" = excluded."bundleId",
+        "updatedAt" = now()
+    `;
+  });
 }
 
 export async function findMcpOAuthClient(
@@ -155,6 +222,24 @@ export async function findMcpOAuthClient(
   `;
 
   return rows[0] ?? null;
+}
+
+export async function hasLiveMcpOAuthConsent(
+  database: DatabaseClient,
+  userId: string,
+  clientId: string,
+  referenceId: string,
+): Promise<boolean> {
+  const rows = await database<{ id: string }[]>`
+    select id
+    from "oauthConsent"
+    where "clientId" = ${clientId}
+      and "userId" = ${userId}
+      and "referenceId" is not distinct from ${referenceId}
+    limit 1
+  `;
+
+  return rows[0] !== undefined;
 }
 
 export async function revokeMcpOAuthConnection(
@@ -194,6 +279,12 @@ export async function revokeMcpOAuthConnection(
       delete from "oauthConsent"
       where id = ${consentId}
         and "userId" = ${userId}
+    `;
+    await transaction`
+      delete from oauth_connection_bundles
+      where "userId" = ${userId}
+        and "clientId" = ${consent.clientId}
+        and "referenceId" is not distinct from ${consent.referenceId}
     `;
 
     return true;

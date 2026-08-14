@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type {
+  ProviderKey,
   ResolvedMcpPrincipal,
   ResolvedOAuthAccess,
 } from "@context-layer/db";
@@ -18,12 +19,21 @@ import type { McpPrincipal, McpToolProvider } from "./mcp-tool-provider";
 const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
 const oauthAccessTokenPattern = /^ctx_oauth_at_[A-Za-z0-9_-]{32,256}$/;
 
+export interface McpGatewayToolProvider {
+  provider: ProviderKey;
+  toolProvider: McpToolProvider;
+}
+
 export interface McpGatewayDependencies {
   logger: Logger;
   publicAppUrl: string;
+  resolveBundleProviderKeys: (
+    workspaceId: string,
+    bundleId: string,
+  ) => Promise<ReadonlySet<ProviderKey>>;
   resolveOAuthToken: (token: string) => Promise<ResolvedOAuthAccess | null>;
   resolveToken: (tokenHash: Uint8Array) => Promise<ResolvedMcpPrincipal | null>;
-  toolProviders?: readonly McpToolProvider[];
+  toolProviders?: readonly McpGatewayToolProvider[];
 }
 
 type AuthenticatedMcpRequest = Request & { auth?: AuthInfo };
@@ -56,6 +66,12 @@ function isMcpPrincipal(value: unknown): value is McpPrincipal {
     return false;
   }
 
+  const bundleId: unknown = Reflect.get(value, "bundleId");
+
+  if (typeof bundleId !== "string" && bundleId !== null) {
+    return false;
+  }
+
   return [
     "correlationId",
     "membershipId",
@@ -71,6 +87,7 @@ function isMcpPrincipal(value: unknown): value is McpPrincipal {
 export function createMcpGateway({
   logger,
   publicAppUrl,
+  resolveBundleProviderKeys,
   resolveOAuthToken,
   resolveToken,
   toolProviders = [],
@@ -95,8 +112,20 @@ export function createMcpGateway({
         },
       );
 
-      for (const provider of toolProviders) {
-        await provider.registerTools(server, principal);
+      const allowedProviders =
+        principal.bundleId === null
+          ? null
+          : await resolveBundleProviderKeys(
+              principal.workspaceId,
+              principal.bundleId,
+            );
+
+      for (const { provider, toolProvider } of toolProviders) {
+        if (allowedProviders !== null && !allowedProviders.has(provider)) {
+          continue;
+        }
+
+        await toolProvider.registerTools(server, principal);
       }
 
       return server;
@@ -145,10 +174,11 @@ export function createMcpGateway({
         );
 
         if (resolved !== null) {
-          const { tokenId, ...identity } = resolved;
+          const { bundleId, tokenId, ...identity } = resolved;
           credentialClientId = tokenId;
           principal = {
             ...identity,
+            bundleId,
             correlationId:
               typeof request.id === "string" ? request.id : tokenId,
           };
@@ -163,6 +193,7 @@ export function createMcpGateway({
           scopes = resolved.scopes;
           principal = {
             ...resolved.identity,
+            bundleId: resolved.bundleId,
             correlationId:
               typeof request.id === "string" ? request.id : resolved.clientId,
           };

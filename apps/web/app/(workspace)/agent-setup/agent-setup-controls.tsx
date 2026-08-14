@@ -46,6 +46,13 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -108,7 +115,11 @@ function CreateTokenSubmitButton() {
   );
 }
 
-export function CreateTokenForm() {
+export function CreateTokenForm({
+  bundles = [],
+}: {
+  bundles?: readonly { id: string; name: string }[];
+}) {
   const [state, formAction, pending] = useActionState(
     createMcpTokenAction,
     initialCreateMcpTokenState,
@@ -155,6 +166,24 @@ export function CreateTokenForm() {
             </FieldError>
           ) : null}
         </Field>
+        {bundles.length === 0 ? null : (
+          <Field className="flex-1">
+            <FieldLabel htmlFor="mcp-token-bundle">Bundle</FieldLabel>
+            <Select defaultValue="none" disabled={pending} name="bundleId">
+              <SelectTrigger id="mcp-token-bundle">
+                <SelectValue placeholder="All connected providers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">All connected providers</SelectItem>
+                {bundles.map((bundle) => (
+                  <SelectItem key={bundle.id} value={bundle.id}>
+                    {bundle.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
         <CreateTokenSubmitButton />
       </form>
 
@@ -347,7 +376,7 @@ export function ClientSetupTabs({ endpoint }: { endpoint: string }) {
 
 export function OAuthClientSetupTabs({ endpoint }: { endpoint: string }) {
   const commands = {
-    claude: `claude mcp add --transport http --scope user context-layer "${endpoint}"`,
+    claude: `claude mcp add --transport http --scope local context-layer "${endpoint}"`,
     codex: `codex mcp add context-layer --url "${endpoint}"`,
     generic: endpoint,
   };

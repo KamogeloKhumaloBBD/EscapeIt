@@ -13,6 +13,7 @@ import {
 } from "@context-layer/db";
 
 import { HttpError } from "../../errors";
+import { requireWorkspace } from "../shared/require-workspace";
 import type {
   InvitationPreviewContract,
   MembersContract,
@@ -54,18 +55,6 @@ export interface MemberServiceDependencies {
   emailSender: InvitationEmailSender;
   publicAppUrl: string;
   repository: MemberRepository;
-}
-
-function requireWorkspace(current: CurrentWorkspace | null): CurrentWorkspace {
-  if (current === null) {
-    throw new HttpError(
-      404,
-      "WORKSPACE_NOT_FOUND",
-      "The user does not belong to a workspace.",
-    );
-  }
-
-  return current;
 }
 
 function requireActiveInvitation(

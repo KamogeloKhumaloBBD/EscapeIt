@@ -13,6 +13,7 @@ import type {
 import { RepositoryError } from "@context-layer/db";
 
 import { HttpError } from "../../errors";
+import { requireWorkspace } from "../shared/require-workspace";
 import type {
   AnalyticsRankingResponse,
   MemberUsageContract,
@@ -35,18 +36,6 @@ function toWorkspaceSummary(current: CurrentWorkspace): WorkspaceSummary {
     name: current.workspace.name,
     role: current.membership.role,
   };
-}
-
-function requireWorkspace(current: CurrentWorkspace | null): CurrentWorkspace {
-  if (current === null) {
-    throw new HttpError(
-      404,
-      "WORKSPACE_NOT_FOUND",
-      "The user does not belong to a workspace.",
-    );
-  }
-
-  return current;
 }
 
 export function createWorkspaceService(repository: {

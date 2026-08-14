@@ -1,11 +1,19 @@
 import Link from "next/link";
 
-import { McpConnectionList } from "@/app/(workspace)/account/mcp-connection-list";
+import { McpConnectionList } from "@/components/mcp/connection-list";
 import { Button } from "@/components/ui/button";
+import { getBundleListState } from "@/lib/server/integration-bundle";
 import { getMcpConnections } from "@/lib/server/mcp-connections";
 
 export default async function AccountPage() {
-  const state = await getMcpConnections();
+  const [state, bundleState] = await Promise.all([
+    getMcpConnections(),
+    getBundleListState(),
+  ]);
+  const bundles =
+    bundleState.status === "available"
+      ? bundleState.data.map((bundle) => ({ id: bundle.id, name: bundle.name }))
+      : [];
 
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-10 md:px-8 md:py-14">
@@ -39,7 +47,10 @@ export default async function AccountPage() {
             </p>
           </div>
         ) : (
-          <McpConnectionList connections={state.connections} />
+          <McpConnectionList
+            bundles={bundles}
+            connections={state.connections}
+          />
         )}
       </section>
     </main>

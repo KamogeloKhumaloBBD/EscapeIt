@@ -34,6 +34,7 @@ import {
   type ProviderAccountRuntime,
 } from "../../integrations/provider-account-runtime";
 import type { ProviderRegistry } from "../../integrations/provider-registry";
+import { requireWorkspace } from "../shared/require-workspace";
 import type {
   IntegrationDetailContract,
   IntegrationMcpToolContract,
@@ -265,18 +266,6 @@ function mapProviderError(error: unknown): never {
   }
 
   throw error;
-}
-
-function requireWorkspace(current: CurrentWorkspace | null): CurrentWorkspace {
-  if (current === null) {
-    throw new HttpError(
-      404,
-      "WORKSPACE_NOT_FOUND",
-      "The user does not belong to a workspace.",
-    );
-  }
-
-  return current;
 }
 
 function adapterFor(

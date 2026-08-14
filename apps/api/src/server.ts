@@ -7,15 +7,20 @@ import {
   connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
+  createIntegrationBundle,
   createMcpToken,
   createNotificationChannel,
   createWorkspaceForUser,
   createWorkspaceInvitation,
+  deleteIntegrationBundle,
   deleteNotificationChannel,
   disconnectIntegrationAccount,
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findIntegrationBundle,
+  findIntegrationBundleProviderKeys,
+  findIntegrationBundleSummary,
   findIntegrationByWebhookToken,
   findNotificationChannel,
   findMemberIntegrationAccess,
@@ -25,6 +30,8 @@ import {
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
   getWorkspaceUsageAnalytics,
+  hasLiveMcpOAuthConsent,
+  listIntegrationBundles,
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
@@ -45,6 +52,7 @@ import {
   parseNotificationEventKey,
   parseProviderKey,
   replaceIntegrationAccountCredentials,
+  replaceIntegrationBundleProviders,
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   replaceNotificationChannelSources,
@@ -54,6 +62,8 @@ import {
   revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  setOAuthConnectionBundle,
+  updateIntegrationBundle,
   setIntegrationNotificationEventKeys,
   setIntegrationWebhookRegistration,
   setNotificationPreferenceOverride,
@@ -67,6 +77,11 @@ import { Router } from "express";
 import { createApp } from "./app";
 import { createAuth } from "./auth";
 import { parseApiConfig } from "./config/env";
+import { createIntegrationBundleRouter } from "./features/integration-bundles/bundle.routes";
+import {
+  createIntegrationBundleService,
+  type IntegrationBundleServiceDependencies,
+} from "./features/integration-bundles/bundle.service";
 import { createIntegrationRouter } from "./features/integrations/integration.routes";
 import {
   createIntegrationService,
@@ -265,6 +280,8 @@ const workspaceRepository = {
 const workspaceService = createWorkspaceService(workspaceRepository);
 const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
   createToken: (input) => createMcpToken(connection.client, input),
+  findBundleSummary: (workspaceId, bundleId) =>
+    findIntegrationBundleSummary(connection.client, workspaceId, bundleId),
   findCurrentWorkspace: (userId) =>
     findCurrentWorkspaceForUser(connection.client, userId),
   listTokens: (workspaceId, requestingMembershipId) =>
@@ -283,10 +300,21 @@ const mcpAccessService = createMcpAccessService({
 });
 const mcpConnectionService = createMcpConnectionService({
   findClient: (clientId) => findMcpOAuthClient(connection.client, clientId),
+  findCurrentWorkspace: (userId) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  hasLiveConsent: (userId, clientId, referenceId) =>
+    hasLiveMcpOAuthConsent(connection.client, userId, clientId, referenceId),
   listConnections: (userId) =>
     listMcpOAuthConnections(connection.client, userId),
   revokeConnection: (userId, consentId) =>
     revokeMcpOAuthConnection(connection.client, userId, consentId),
+  setConnectionBundle: (clientId, userId, referenceId, bundleId) =>
+    setOAuthConnectionBundle(connection.client, {
+      bundleId,
+      clientId,
+      referenceId,
+      userId,
+    }),
 });
 const memberRepository: MemberServiceDependencies["repository"] = {
   acceptInvitation: (input) =>
@@ -563,26 +591,71 @@ const notificationService = createNotificationService({
   providerRegistry,
   repository: notificationRepository,
 });
+const integrationBundleRepository: IntegrationBundleServiceDependencies["repository"] =
+  {
+    create: (input) => createIntegrationBundle(connection.client, input),
+    delete: (workspaceId, bundleId, ownerMembershipId) =>
+      deleteIntegrationBundle(
+        connection.client,
+        workspaceId,
+        bundleId,
+        ownerMembershipId,
+      ),
+    findCurrentWorkspace: (userId) =>
+      findCurrentWorkspaceForUser(connection.client, userId),
+    get: (workspaceId, bundleId, membershipId) =>
+      findIntegrationBundle(
+        connection.client,
+        workspaceId,
+        bundleId,
+        membershipId,
+      ),
+    list: (workspaceId, membershipId) =>
+      listIntegrationBundles(connection.client, workspaceId, membershipId),
+    replaceProviders: (workspaceId, bundleId, ownerMembershipId, providers) =>
+      replaceIntegrationBundleProviders(
+        connection.client,
+        workspaceId,
+        bundleId,
+        ownerMembershipId,
+        providers,
+      ),
+    update: (workspaceId, bundleId, ownerMembershipId, input) =>
+      updateIntegrationBundle(
+        connection.client,
+        workspaceId,
+        bundleId,
+        ownerMembershipId,
+        input,
+      ),
+  };
+const integrationBundleService = createIntegrationBundleService({
+  providerRegistry,
+  repository: integrationBundleRepository,
+});
 const mcpToolProviders = providerModules.flatMap((providerModule) => {
   if (providerModule.createMcpToolProvider === undefined) {
     return [];
   }
 
   return [
-    providerModule.createMcpToolProvider({
-      accountRuntime: providerAccountRuntime,
-      repository: {
-        appendActivity: (input) =>
-          appendActivityEvent(connection.client, input),
-        findAccess: (workspaceId, membershipId, provider) =>
-          findMemberIntegrationAccess(
-            connection.client,
-            workspaceId,
-            membershipId,
-            provider,
-          ),
-      },
-    }),
+    {
+      provider: providerModule.definition.key,
+      toolProvider: providerModule.createMcpToolProvider({
+        accountRuntime: providerAccountRuntime,
+        repository: {
+          appendActivity: (input) =>
+            appendActivityEvent(connection.client, input),
+          findAccess: (workspaceId, membershipId, provider) =>
+            findMemberIntegrationAccess(
+              connection.client,
+              workspaceId,
+              membershipId,
+              provider,
+            ),
+        },
+      }),
+    },
   ];
 });
 const apiRouter = Router();
@@ -618,6 +691,13 @@ apiRouter.use(
   }),
 );
 apiRouter.use(
+  "/integration-bundles",
+  createIntegrationBundleRouter({
+    requireAuthentication,
+    service: integrationBundleService,
+  }),
+);
+apiRouter.use(
   "/notifications",
   createNotificationRouter({
     requireAuthentication,
@@ -637,6 +717,14 @@ const app = createApp({
   mcpHandler: createMcpGateway({
     logger,
     publicAppUrl: config.publicAppUrl,
+    resolveBundleProviderKeys: async (workspaceId, bundleId) =>
+      new Set(
+        await findIntegrationBundleProviderKeys(
+          connection.client,
+          workspaceId,
+          bundleId,
+        ),
+      ),
     resolveOAuthToken: (token) =>
       resolveOAuthAccessToken(connection.client, token),
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),

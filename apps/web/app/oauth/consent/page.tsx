@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ConsentForm } from "@/app/oauth/consent/consent-form";
 import { McpClientMark } from "@/components/mcp/client-mark";
+import { getBundleListState } from "@/lib/server/integration-bundle";
 import { getMcpConnections } from "@/lib/server/mcp-connections";
 import { getCurrentWorkspaceState } from "@/lib/server/workspace";
 import { oauthAuthorizationReturnPath } from "@/lib/validation/return-path";
@@ -53,7 +54,14 @@ export default async function OAuthConsentPage({
     );
   }
 
-  const connectionState = await getMcpConnections(clientId);
+  const [connectionState, bundleState] = await Promise.all([
+    getMcpConnections(clientId),
+    getBundleListState(),
+  ]);
+  const bundles =
+    bundleState.status === "available"
+      ? bundleState.data.map((bundle) => ({ id: bundle.id, name: bundle.name }))
+      : [];
 
   if (
     workspaceState.status !== "available" ||
@@ -95,9 +103,13 @@ export default async function OAuthConsentPage({
       </dl>
       <p className="mt-5 text-sm leading-6 text-muted-foreground">
         This client can use the integrations and MCP tools currently available
-        to your membership. Access updates with your workspace configuration.
+        to your membership, optionally narrowed to one bundle below. You can
+        change this later from Agent Setup or Account.
       </p>
-      <ConsentForm oauthQuery={returnPath.split("?")[1] ?? ""} />
+      <ConsentForm
+        bundles={bundles}
+        oauthQuery={returnPath.split("?")[1] ?? ""}
+      />
     </ConsentShell>
   );
 }

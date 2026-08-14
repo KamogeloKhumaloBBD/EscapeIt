@@ -50,6 +50,8 @@ export {
   type EncryptedCredentialEnvelope,
   type Integration,
   type IntegrationAccount,
+  type IntegrationBundle,
+  type IntegrationBundleProvider,
   type IntegrationMcpTool,
   type IntegrationScope,
   type JsonObject,
@@ -97,6 +99,20 @@ export {
   type SelectedIntegrationScopeInput,
 } from "./integration-repository";
 export {
+  createIntegrationBundle,
+  deleteIntegrationBundle,
+  findIntegrationBundle,
+  findIntegrationBundleProviderKeys,
+  findIntegrationBundleSummary,
+  listIntegrationBundles,
+  replaceIntegrationBundleProviders,
+  updateIntegrationBundle,
+  type BundleProviderSummary,
+  type CreateIntegrationBundleInput,
+  type IntegrationBundleDetail,
+  type UpdateIntegrationBundleInput,
+} from "./integration-bundle-repository";
+export {
   createMcpToken,
   listMcpTokens,
   resolveMcpToken,
@@ -107,13 +123,16 @@ export {
 } from "./mcp-token-repository";
 export {
   findMcpOAuthClient,
+  hasLiveMcpOAuthConsent,
   listMcpOAuthConnections,
   resolveMcpIdentityForWorkspace,
   resolveOAuthAccessToken,
   revokeMcpOAuthConnection,
+  setOAuthConnectionBundle,
   type McpOAuthConnection,
   type ResolvedMcpIdentity,
   type ResolvedOAuthAccess,
+  type SetOAuthConnectionBundleInput,
 } from "./mcp-oauth-repository";
 export {
   createNotificationChannel,

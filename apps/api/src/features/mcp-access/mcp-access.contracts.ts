@@ -1,4 +1,5 @@
 export interface McpTokenContract {
+  bundle: { id: string; name: string } | null;
   createdAt: string;
   creator: {
     email: string;

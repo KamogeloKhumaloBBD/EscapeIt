@@ -55,6 +55,7 @@ export function createMcpAccessRouter({
       data: await service.createToken(
         user,
         parsed.data.name,
+        parsed.data.bundleId ?? null,
         correlationId(request.id),
       ),
     });

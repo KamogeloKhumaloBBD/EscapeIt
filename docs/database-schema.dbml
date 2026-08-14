@@ -1,7 +1,7 @@
 Project context_layer {
   database_type: "PostgreSQL"
   Note: '''
-    Context Layer schema through Flyway V6.
+    Context Layer schema through Flyway V7.
 
     Flyway SQL under packages/db/migrations is authoritative. Migrations run
     explicitly and never during API or web startup. Product IDs are UUIDv7
@@ -259,8 +259,6 @@ Table integration_accounts {
   integrationId text [not null]
   membershipId text [not null]
   status connection_status [not null, default: 'disconnected']
-  externalAccountId text
-  externalDisplayName text
   credentialEnvelope text
   lastValidatedAt timestamptz
   lastErrorCode text
@@ -277,8 +275,8 @@ Table integration_accounts {
     One provider account per member and installation. OAuth credentials exist
     only in a versioned AES-256-GCM envelope bound to this record ID and the
     integration-account purpose. Connected/error records require credentials;
-    disconnected records must have no envelope. A connected record requires an
-    external account ID. Provider calls use the acting member's account.
+    disconnected records must have no envelope. Provider calls use the acting
+    member's account. No external identity is persisted on this record.
   '''
 }
 
@@ -325,6 +323,49 @@ Table integration_mcp_tools {
   '''
 }
 
+Table integration_bundles {
+  id text [pk]
+  workspaceId text [not null]
+  name text [not null]
+  description text
+  createdByMembershipId text [not null]
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (workspaceId, id) [unique, name: "integration_bundles_workspace_id_id_unique"]
+    workspaceId [name: "integration_bundles_workspace_idx"]
+  }
+
+  Note: '''
+    Workspace-defined named group of the workspace's provider installations,
+    used only to scope which providers' MCP tools a personal access token can
+    see. name is 1-120 characters; description, when present, is 1-500.
+  '''
+}
+
+Table integration_bundle_providers {
+  id text [pk]
+  workspaceId text [not null]
+  bundleId text [not null]
+  integrationId text [not null]
+  addedByMembershipId text [not null]
+  createdAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (bundleId, integrationId) [unique, name: "integration_bundle_providers_unique"]
+    (workspaceId, id) [unique, name: "integration_bundle_providers_workspace_id_id_unique"]
+    (workspaceId, bundleId) [name: "integration_bundle_providers_workspace_bundle_idx"]
+  }
+
+  Note: '''
+    Membership of one workspace integration in one bundle. References the
+    workspace installation (integrationId), not a raw provider key, so bundle
+    membership survives disconnect/reconnect cycles. An empty bundle is valid
+    and yields no tools for tokens scoped to it.
+  '''
+}
+
 Table mcp_tokens {
   id text [pk]
   workspaceId text [not null]
@@ -332,6 +373,7 @@ Table mcp_tokens {
   name text [not null]
   prefix text [not null]
   tokenHash bytea [not null, unique]
+  bundleId text
   expiresAt timestamptz
   lastUsedAt timestamptz
   revokedAt timestamptz
@@ -346,7 +388,10 @@ Table mcp_tokens {
     Personal MCP credentials. tokenHash is the unique 32-byte SHA-256 digest;
     the raw ctx_mcp token is shown once and never persisted. prefix is safe UI
     metadata. createdByMembershipId determines the principal and provider
-    accounts used by every MCP request. Tokens currently do not expire.
+    accounts used by every MCP request. bundleId, when set, restricts the
+    token's MCP tools to that bundle's providers; null means every connected
+    provider, matching prior behavior. Tokens currently do not expire.
+    Deleting a bundle referenced by a non-revoked token is rejected.
   '''
 }
 
@@ -460,9 +505,17 @@ Ref: integration_scopes.(workspaceId, createdByMembershipId) > workspace_members
 Ref: integration_mcp_tools.(workspaceId, integrationId) > integrations.(workspaceId, id) [delete: cascade]
 Ref: integration_mcp_tools.(workspaceId, enabledByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
 
+Ref: integration_bundles.workspaceId > workspaces.id [delete: cascade]
+Ref: integration_bundles.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+
+Ref: integration_bundle_providers.(workspaceId, bundleId) > integration_bundles.(workspaceId, id) [delete: cascade]
+Ref: integration_bundle_providers.(workspaceId, integrationId) > integrations.(workspaceId, id) [delete: cascade]
+Ref: integration_bundle_providers.(workspaceId, addedByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+
 Ref: mcp_tokens.workspaceId > workspaces.id [delete: cascade]
 Ref: mcp_tokens.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
 Ref: mcp_tokens.(workspaceId, revokedByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+Ref: mcp_tokens.(workspaceId, bundleId) > integration_bundles.(workspaceId, id) [delete: no action]
 
 Ref: notification_channels.workspaceId > workspaces.id [delete: cascade]
 Ref: notification_channels.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]

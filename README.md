@@ -53,7 +53,7 @@ The Express workspace API exposes authenticated workspace, member, and invitatio
 
 The authenticated application uses a shared workspace shell. Its analytics-first dashboard reads completed MCP activity from `GET /api/workspaces/current/analytics`, supports URL-backed browser-local date, integration, and owner-only member filters, compares with the preceding period, and shows role-scoped tool, provider, reliability, and activity insights. The dashboard passes the viewer's IANA time zone so date validation and daily buckets use local calendar boundaries; API callers that omit `timeZone` use UTC. Searchable, sortable ranking explorers use the paginated `/api/workspaces/current/analytics/rankings` endpoint. Owners receive workspace and per-member usage; members receive only their own usage. Setup and connection health remain visible when action is required.
 
-The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, enabled integration MCP tools, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
+The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, enabled integration MCP tools, integration bundles and their provider membership, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 
 - Providers are registered in API code using stable keys and capability metadata. Jira, Bitbucket, Confluence, and Teams are intended initial adapters, not database-level special cases.
 - Provider installation configuration is workspace-wide; member account credentials remain member-specific.
@@ -77,6 +77,10 @@ Authorization: Bearer <token>
 ```
 
 MCP requests always run as the membership that created the token. Better Auth cookies, query-string tokens, and client-supplied workspace identities are not accepted. Tools are discovered per request from the integrations available to that member. Workspace owners explicitly choose the MCP tools enabled for each integration, and those choices apply to every member token while remaining constrained by each member's provider identity. A disconnected provider, disconnected personal account, empty resource allowlist, or empty tool allowlist contributes no tools. Tool choices are retained when an integration is disconnected but remain unavailable until it is ready again.
+
+Workspace owners can group the workspace's provider installations into named bundles from `/bundles`. A member can optionally scope a personal access token to one bundle when creating it from `/agent-setup`; that token's tools are then limited to the bundle's providers, intersected with the member's own connection and the workspace's existing tool allowlists. A token created without a bundle keeps today's behavior: every tool enabled across every provider the member has connected. A bundle cannot be deleted while a non-revoked token or MCP connection still references it.
+
+OAuth-connected MCP clients (approved from `/oauth/consent`, e.g. `claude mcp add --transport http`) can be scoped to a bundle too, chosen on the consent screen alongside Allow/Deny. Unlike personal tokens, an OAuth connection's bundle can be changed afterward from `/agent-setup` or `/account` — both list every connected client with a bundle switcher and a Revoke button — and takes effect on the client's next request, since the gateway re-resolves the connection's bundle live on every call. No client reconfiguration or reconnect is required to switch.
 
 When Jira is ready, the gateway can expose fifteen individually selected tools:
 

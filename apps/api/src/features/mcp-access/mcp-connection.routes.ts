@@ -11,6 +11,10 @@ const identifierSchema = z
   .max(256)
   .regex(/^[A-Za-z0-9_-]+$/, "The identifier is invalid.");
 
+const setBundleSchema = z.object({
+  bundleId: z.uuid("The bundle identifier is invalid.").nullable(),
+});
+
 export interface McpConnectionRouterDependencies {
   requireAuthentication: RequestHandler;
   service: ReturnType<typeof createMcpConnectionService>;
@@ -41,6 +45,36 @@ export function createMcpConnectionRouter({
     response.status(200).json({
       data: await service.getConnections(user.id, parsedClientId.data.clientId),
     });
+  });
+
+  router.put("/:clientId/bundle", async (request, response) => {
+    const parsedClientId = identifierSchema.safeParse(request.params.clientId);
+
+    if (!parsedClientId.success) {
+      throw new HttpError(
+        400,
+        "INVALID_REQUEST",
+        parsedClientId.error.issues[0]?.message ?? "The request is invalid.",
+      );
+    }
+
+    const parsedBody = setBundleSchema.safeParse(request.body);
+
+    if (!parsedBody.success) {
+      throw new HttpError(
+        400,
+        "INVALID_REQUEST",
+        parsedBody.error.issues[0]?.message ?? "The request is invalid.",
+      );
+    }
+
+    const user = (response.locals as AuthenticatedLocals).authenticatedUser;
+    await service.setBundle(
+      user.id,
+      parsedClientId.data,
+      parsedBody.data.bundleId,
+    );
+    response.status(204).send();
   });
 
   router.delete("/:consentId", async (request, response) => {

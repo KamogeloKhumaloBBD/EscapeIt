@@ -170,6 +170,7 @@ export interface IntegrationScope {
 }
 
 export interface McpToken {
+  bundleId: string | null;
   createdAt: Date;
   createdByMembershipId: string;
   expiresAt: Date | null;
@@ -179,6 +180,25 @@ export interface McpToken {
   prefix: string;
   revokedAt: Date | null;
   revokedByMembershipId: string | null;
+  workspaceId: string;
+}
+
+export interface IntegrationBundle {
+  createdAt: Date;
+  createdByMembershipId: string;
+  description: string | null;
+  id: string;
+  name: string;
+  updatedAt: Date;
+  workspaceId: string;
+}
+
+export interface IntegrationBundleProvider {
+  addedByMembershipId: string;
+  bundleId: string;
+  createdAt: Date;
+  id: string;
+  integrationId: string;
   workspaceId: string;
 }
 
