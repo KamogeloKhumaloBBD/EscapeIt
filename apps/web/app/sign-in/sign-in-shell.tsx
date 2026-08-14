@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { BrandIcon } from "@/components/brand-icon";
+
 export function SignInShell({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-screen bg-[#fbfaf7] px-6 py-6 text-[#15130f]">
@@ -8,8 +10,9 @@ export function SignInShell({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between">
           <Link
             href="/"
-            className="text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
+            className="flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
           >
+            <BrandIcon className="size-6" />
             Context Layer
           </Link>
           <Link

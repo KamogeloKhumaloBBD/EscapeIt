@@ -12,9 +12,43 @@ const instrumentSans = Instrument_Sans({
   variable: "--font-sans",
 });
 
+const metadataBase = new URL(
+  process.env.PUBLIC_APP_URL ?? "http://localhost:3000",
+);
+
 export const metadata: Metadata = {
   description: "A universal context layer for coding agents.",
+  metadataBase,
+  openGraph: {
+    description: "A universal context layer for coding agents.",
+    images: [
+      {
+        alt: "Context Layer connecting coding agents to work context",
+        height: 630,
+        url: "/opengraph-image",
+        width: 1200,
+      },
+    ],
+    locale: "en_US",
+    siteName: "Context Layer",
+    title: "Context Layer | Bring Context to Where The Work Happens",
+    type: "website",
+    url: "/",
+  },
   title: "Context Layer | Bring Context to Where The Work Happens",
+  twitter: {
+    card: "summary_large_image",
+    description: "A universal context layer for coding agents.",
+    images: [
+      {
+        alt: "Context Layer connecting coding agents to work context",
+        height: 630,
+        url: "/opengraph-image",
+        width: 1200,
+      },
+    ],
+    title: "Context Layer | Bring Context to Where The Work Happens",
+  },
 };
 
 export default function RootLayout({

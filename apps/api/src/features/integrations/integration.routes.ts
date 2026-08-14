@@ -10,6 +10,7 @@ import {
 import {
   installationSelectionSchema,
   mcpToolSelectionSchema,
+  notificationEventKeysSchema,
   oauthCallbackSchema,
   providerParameterSchema,
   scopeDiscoveryQuerySchema,
@@ -163,13 +164,26 @@ export function createIntegrationRouter({
     }
 
     try {
-      await service.completeOAuth(
+      const result = await service.completeOAuth(
         (response.locals as AuthenticatedLocals).authenticatedUser.id,
         provider,
         parsed.data.code,
         verified.membershipId,
         correlationId(request.id),
       );
+
+      if (result.followUpAuthorization !== null) {
+        response.cookie(cookieName, result.followUpAuthorization.state, {
+          httpOnly: true,
+          maxAge: 10 * 60 * 1_000,
+          path: `/api/integrations/${provider}/oauth/callback`,
+          sameSite: "lax",
+          secure: nodeEnvironment === "production",
+        });
+        response.redirect(302, result.followUpAuthorization.authorizationUrl);
+        return;
+      }
+
       response.redirect(302, detailUrl(publicAppUrl, provider, "connected"));
     } catch (error) {
       request.log.warn(
@@ -258,6 +272,23 @@ export function createIntegrationRouter({
       correlationId(request.id),
     );
     response.status(200).json({ data: tools });
+  });
+
+  router.put("/:provider/notifications", async (request, response) => {
+    const provider = requireProvider(request.params.provider);
+    const parsed = notificationEventKeysSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      throw validationError(parsed.error);
+    }
+
+    const integration = await service.setNotificationEventKeys(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      provider,
+      parsed.data.eventKeys,
+      correlationId(request.id),
+    );
+    response.status(200).json({ data: integration });
   });
 
   router.post("/:provider/validate", async (request, response) => {

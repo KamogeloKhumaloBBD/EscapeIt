@@ -5,6 +5,7 @@ import type {
   EncryptedCredentialEnvelope,
   JsonObject,
   NotificationChannel,
+  NotificationChannelSource,
   NotificationEventKey,
   NotificationPreference,
   ProviderKey,
@@ -146,6 +147,50 @@ export async function listNotificationChannels(
   `;
 }
 
+export async function listNotificationChannelsForWorkspace(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<NotificationChannel[]> {
+  return database<NotificationChannel[]>`
+    select *
+    from notification_channels
+    where "workspaceId" = ${workspaceId}
+    order by "createdAt", id
+  `;
+}
+
+export async function findNotificationChannel(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+): Promise<NotificationChannel | null> {
+  const rows = await database<NotificationChannel[]>`
+    select *
+    from notification_channels
+    where "workspaceId" = ${workspaceId} and id = ${channelId}
+  `;
+
+  return rows[0] ?? null;
+}
+
+export async function deleteNotificationChannel(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+  ownerMembershipId: string,
+): Promise<boolean> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    const rows = await transaction<{ id: string }[]>`
+      delete from notification_channels
+      where id = ${channelId} and "workspaceId" = ${workspaceId}
+      returning id
+    `;
+
+    return rows[0] !== undefined;
+  });
+}
+
 export async function setNotificationPreferenceOverride(
   database: DatabaseClient,
   workspaceId: string,
@@ -216,4 +261,85 @@ export function resolveNotificationPreference(
   override: Pick<NotificationPreference, "enabled"> | null | undefined,
 ): boolean {
   return override?.enabled ?? defaultEnabled;
+}
+
+export async function replaceNotificationChannelSources(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+  ownerMembershipId: string,
+  providers: readonly ProviderKey[],
+): Promise<NotificationChannelSource[]> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+
+    const channels = await transaction<{ id: string }[]>`
+      select id
+      from notification_channels
+      where "workspaceId" = ${workspaceId} and id = ${channelId}
+      for update
+    `;
+
+    if (channels[0] === undefined) {
+      throw new RepositoryError("not_found", "Notification channel not found.");
+    }
+
+    if (new Set(providers).size !== providers.length) {
+      throw new RepositoryError("invalid", "Duplicate source provider.");
+    }
+
+    await transaction`
+      delete from notification_channel_sources
+      where "workspaceId" = ${workspaceId} and "channelId" = ${channelId}
+    `;
+
+    const selected: NotificationChannelSource[] = [];
+
+    for (const provider of providers) {
+      const rows = await transaction<NotificationChannelSource[]>`
+        insert into notification_channel_sources (
+          id,
+          "workspaceId",
+          "channelId",
+          provider,
+          "createdByMembershipId"
+        ) values (
+          ${createProductId()},
+          ${workspaceId},
+          ${channelId},
+          ${provider},
+          ${ownerMembershipId}
+        )
+        returning *
+      `;
+      selected.push(requireReturnedRow(rows[0]));
+    }
+
+    return selected;
+  });
+}
+
+export async function listNotificationChannelSources(
+  database: DatabaseClient,
+  workspaceId: string,
+  channelId: string,
+): Promise<NotificationChannelSource[]> {
+  return database<NotificationChannelSource[]>`
+    select *
+    from notification_channel_sources
+    where "workspaceId" = ${workspaceId} and "channelId" = ${channelId}
+    order by provider
+  `;
+}
+
+export async function listNotificationChannelSourcesForWorkspace(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<NotificationChannelSource[]> {
+  return database<NotificationChannelSource[]>`
+    select *
+    from notification_channel_sources
+    where "workspaceId" = ${workspaceId}
+    order by "channelId", provider
+  `;
 }

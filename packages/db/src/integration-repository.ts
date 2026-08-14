@@ -8,6 +8,7 @@ import type {
   IntegrationMcpTool,
   IntegrationScope,
   JsonObject,
+  NotificationEventKey,
   ProviderKey,
   ScopeKey,
 } from "./domain";
@@ -45,6 +46,7 @@ export interface SaveIntegrationAccountInput {
 export interface SelectedIntegrationScopeInput {
   displayName: string;
   externalId: string;
+  externalKey: string | null;
   scopeKey: ScopeKey;
 }
 
@@ -56,6 +58,11 @@ export interface IntegrationConnectionContext {
 export interface ConnectIntegrationAccountWithResourceInput {
   account: SaveIntegrationAccountInput;
   installation: ConfigureIntegrationInput;
+}
+
+export interface ConnectIntegrationAccountWithoutResourceInput {
+  account: SaveIntegrationAccountInput;
+  provider: ProviderKey;
 }
 
 export interface MemberIntegrationAccess {
@@ -461,7 +468,6 @@ export async function disconnectWorkspaceIntegration(
       update integrations
       set
         status = 'disconnected',
-        configuration = '{}'::jsonb,
         "lastValidatedAt" = null,
         "lastErrorCode" = null,
         "updatedAt" = now()
@@ -617,6 +623,80 @@ export async function connectIntegrationAccountWithResource(
   });
 }
 
+export async function connectIntegrationAccountWithoutResource(
+  database: DatabaseClient,
+  input: ConnectIntegrationAccountWithoutResourceInput,
+): Promise<IntegrationConnectionContext> {
+  validateCredentialState(input.account);
+
+  if (input.account.status !== "connected") {
+    throw new RepositoryError(
+      "invalid",
+      "The account must be connected when clearing its unavailable resource.",
+    );
+  }
+
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(
+      transaction,
+      input.account.workspaceId,
+      input.account.membershipId,
+    );
+    const integrations = await transaction<Integration[]>`
+      update integrations
+      set
+        status = 'disconnected',
+        configuration = '{}'::jsonb,
+        "configuredByMembershipId" = ${input.account.membershipId},
+        "lastValidatedAt" = null,
+        "lastErrorCode" = null,
+        "updatedAt" = now()
+      where
+        id = ${input.account.integrationId}
+        and "workspaceId" = ${input.account.workspaceId}
+        and provider = ${input.provider}
+      returning *
+    `;
+    const integration = requireReturnedRow(integrations[0]);
+    const accounts = await transaction<IntegrationAccount[]>`
+      insert into integration_accounts (
+        id,
+        "workspaceId",
+        "integrationId",
+        "membershipId",
+        status,
+        "credentialEnvelope",
+        "lastValidatedAt",
+        "lastErrorCode"
+      ) values (
+        ${input.account.accountId},
+        ${input.account.workspaceId},
+        ${input.account.integrationId},
+        ${input.account.membershipId},
+        ${input.account.status},
+        ${input.account.credentialEnvelope},
+        ${input.account.lastValidatedAt ?? null},
+        ${input.account.lastErrorCode ?? null}
+      )
+      on conflict ("integrationId", "membershipId") do update set
+        status = excluded.status,
+        "credentialEnvelope" = excluded."credentialEnvelope",
+        "lastValidatedAt" = excluded."lastValidatedAt",
+        "lastErrorCode" = excluded."lastErrorCode",
+        "updatedAt" = now()
+      returning *
+    `;
+    await transaction`
+      delete from integration_scopes
+      where
+        "workspaceId" = ${input.account.workspaceId}
+        and "integrationId" = ${input.account.integrationId}
+    `;
+
+    return { account: requireReturnedRow(accounts[0]), integration };
+  });
+}
+
 export async function replaceIntegrationScopes(
   database: DatabaseClient,
   workspaceId: string,
@@ -674,6 +754,7 @@ export async function replaceIntegrationScopes(
           "integrationId",
           "scopeKey",
           "externalId",
+          "externalKey",
           "displayName",
           "createdByMembershipId"
         ) values (
@@ -682,6 +763,7 @@ export async function replaceIntegrationScopes(
           ${integrationId},
           ${scope.scopeKey},
           ${scope.externalId},
+          ${scope.externalKey},
           ${scope.displayName.trim()},
           ${ownerMembershipId}
         )
@@ -723,6 +805,63 @@ export async function listWorkspaceIntegrations(
     where "workspaceId" = ${workspaceId}
     order by provider
   `;
+}
+
+export async function setIntegrationWebhookRegistration(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  webhookToken: string,
+  webhookRegistrationId: string | null,
+): Promise<Integration> {
+  const rows = await database<Integration[]>`
+    update integrations
+    set
+      "webhookToken" = ${webhookToken},
+      "webhookRegistrationId" = ${webhookRegistrationId},
+      "updatedAt" = now()
+    where id = ${integrationId} and "workspaceId" = ${workspaceId}
+    returning *
+  `;
+
+  return requireReturnedRow(rows[0]);
+}
+
+export async function setIntegrationNotificationEventKeys(
+  database: DatabaseClient,
+  workspaceId: string,
+  integrationId: string,
+  ownerMembershipId: string,
+  eventKeys: readonly NotificationEventKey[],
+): Promise<Integration> {
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(transaction, workspaceId, ownerMembershipId);
+
+    const rows = await transaction<Integration[]>`
+      update integrations
+      set
+        "notificationEventKeys" = ${transaction.array([...eventKeys])},
+        "updatedAt" = now()
+      where id = ${integrationId} and "workspaceId" = ${workspaceId}
+      returning *
+    `;
+
+    return requireReturnedRow(rows[0]);
+  });
+}
+
+export async function findIntegrationByWebhookToken(
+  database: DatabaseClient,
+  provider: ProviderKey,
+  webhookToken: string,
+): Promise<Integration | null> {
+  const rows = await database<Integration[]>`
+    select *
+    from integrations
+    where provider = ${provider} and "webhookToken" = ${webhookToken}
+  `;
+
+  return rows[0] ?? null;
 }
 
 export async function findIntegrationAccountForMember(

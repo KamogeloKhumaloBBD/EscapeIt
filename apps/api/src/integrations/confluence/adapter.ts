@@ -609,6 +609,7 @@ export function createConfluenceAdapter(config: {
           items.push({
             displayName: `${space.name} (${space.key})`,
             externalId: space.id,
+            externalKey: space.key,
             scopeKey: confluenceSpaceScopeKey,
           });
           if (items.length === 50) break;
@@ -809,6 +810,7 @@ export function createConfluenceAdapter(config: {
       return spaces.map((space) => ({
         displayName: `${space.name} (${space.key})`,
         externalId: space.id,
+        externalKey: space.key,
         scopeKey: confluenceSpaceScopeKey,
       }));
     },

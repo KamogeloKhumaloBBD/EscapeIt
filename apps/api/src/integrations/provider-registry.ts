@@ -16,6 +16,7 @@ export const providerCapabilities = [
   "user-accounts",
   "scopes",
   "notifications",
+  "notification-channels",
   "webhooks",
 ] as const;
 
@@ -51,6 +52,7 @@ export interface ProviderPresentationDefinition {
 
 export interface ProviderDefinition {
   accountCredentialSchema?: ProviderConfigurationSchema;
+  autoSelectSingleResourceAfterAuthorization?: boolean;
   capabilities: readonly ProviderCapability[];
   description: string;
   displayName: string;
@@ -140,6 +142,15 @@ function validateDefinition(
     );
   }
 
+  if (
+    definition.autoSelectSingleResourceAfterAuthorization === true &&
+    definition.resourceSelection !== "application"
+  ) {
+    throw new ProviderRegistryError(
+      `Provider ${definition.key} can auto-select a resource only when resource selection happens in the application.`,
+    );
+  }
+
   if (capabilities.has("scopes") && resourceLabel === undefined) {
     throw new ProviderRegistryError(
       `Provider ${definition.key} must declare a resource label when it has the scopes capability.`,
@@ -212,10 +223,10 @@ function validateDefinition(
 
   if (
     definition.notificationChannelConfigurationSchema !== undefined &&
-    !capabilities.has("notifications")
+    !capabilities.has("notification-channels")
   ) {
     throw new ProviderRegistryError(
-      `Provider ${definition.key} has a channel schema without the notifications capability.`,
+      `Provider ${definition.key} has a channel schema without the notification-channels capability.`,
     );
   }
 

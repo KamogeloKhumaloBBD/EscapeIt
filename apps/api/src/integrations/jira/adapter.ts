@@ -191,6 +191,16 @@ const worklogPageSchema = z.object({
 
 const createdIssueSchema = z.object({ id: z.string(), key: z.string() });
 
+const webhookRegistrationResponseSchema = z.object({
+  webhookRegistrationResult: z.array(
+    z.object({ createdWebhookId: z.number().optional() }),
+  ),
+});
+
+const webhookListResponseSchema = z.object({
+  values: z.array(z.object({ id: z.number() })),
+});
+
 export type { JiraAttachmentContent, JiraTextValue } from "./content";
 
 export interface JiraIssueSummary {
@@ -546,6 +556,7 @@ export function createJiraAdapter(config: {
       items: parsed.data.values.map((project) => ({
         displayName: `${project.name} (${project.key})`,
         externalId: project.id,
+        externalKey: project.key,
         scopeKey: jiraProjectScopeKey,
       })),
       nextCursor: parsed.data.isLast
@@ -684,6 +695,59 @@ export function createJiraAdapter(config: {
         updatedAt: toIsoDate(parsed.data.updated),
         visibility: parsed.data.visibility?.value ?? null,
       };
+    },
+    async registerWebhooks(credentials, resource, callbackUrl, selectedScopes) {
+      const projectKeys = selectedScopes
+        .filter((scope) => scope.scopeKey === jiraProjectScopeKey)
+        .map((scope) => scope.externalKey)
+        .filter((key) => key !== null);
+
+      if (projectKeys.length === 0) {
+        return null;
+      }
+
+      const webhookUrl = apiUrl(resource, "webhook");
+      const existing = webhookListResponseSchema.safeParse(
+        await oauth.getJson(webhookUrl, credentials.accessToken),
+      );
+
+      if (existing.success && existing.data.values.length > 0) {
+        await oauth.deleteWithoutResponse(webhookUrl, credentials.accessToken, {
+          webhookIds: existing.data.values.map((webhook) => webhook.id),
+        });
+      }
+
+      const jqlFilter =
+        projectKeys.length === 1
+          ? `project = ${projectKeys.join("")}`
+          : `project IN (${projectKeys.join(", ")})`;
+      const response = await oauth.postJson(
+        webhookUrl,
+        credentials.accessToken,
+        {
+          url: callbackUrl,
+          webhooks: [
+            {
+              events: ["jira:issue_updated", "jira:issue_created"],
+              jqlFilter,
+            },
+            { events: ["comment_created"], jqlFilter },
+          ],
+        },
+      );
+      const parsed = webhookRegistrationResponseSchema.safeParse(response);
+
+      if (!parsed.success) {
+        return null;
+      }
+
+      const createdIds = parsed.data.webhookRegistrationResult
+        .map((result) => result.createdWebhookId)
+        .filter((id) => id !== undefined);
+
+      return createdIds.length === 0
+        ? null
+        : createdIds.map((id) => id.toString()).join(",");
     },
     buildAuthorizationUrl: (state) => oauth.buildAuthorizationUrl(state),
     async createIssue(credentials, resource, allowedProjectIds, input) {

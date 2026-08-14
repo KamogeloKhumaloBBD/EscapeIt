@@ -364,6 +364,30 @@ export function createAtlassianOAuthClient(config: AtlassianOAuthClientConfig) {
 
       if (!response.ok) throw responseError(response.status);
     },
+    async deleteWithoutResponse(
+      url: string,
+      accessToken: string,
+      body: unknown,
+    ): Promise<void> {
+      let response: Response;
+
+      try {
+        response = await fetch(url, {
+          body: JSON.stringify(body),
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          method: "DELETE",
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch {
+        throw new ProviderAdapterError("temporarily_unavailable");
+      }
+
+      if (!response.ok) throw responseError(response.status);
+    },
     async refreshCredentials(credentials: OAuthCredentials) {
       return requestToken({
         grant_type: "refresh_token",

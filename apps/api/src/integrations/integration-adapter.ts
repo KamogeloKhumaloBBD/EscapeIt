@@ -21,6 +21,7 @@ export interface ProviderResource {
 export interface DiscoveredScope {
   displayName: string;
   externalId: string;
+  externalKey: string | null;
   scopeKey: ScopeKey;
 }
 
@@ -45,6 +46,12 @@ export interface IntegrationAdapter {
   getIdentity(credentials: OAuthCredentials): Promise<ProviderIdentity>;
   provider: ProviderKey;
   refreshCredentials(credentials: OAuthCredentials): Promise<OAuthCredentials>;
+  registerWebhooks?(
+    credentials: OAuthCredentials,
+    resource: ProviderResource,
+    callbackUrl: string,
+    selectedScopes: readonly DiscoveredScope[],
+  ): Promise<string | null>;
   resolveScopes(
     credentials: OAuthCredentials,
     resource: ProviderResource,

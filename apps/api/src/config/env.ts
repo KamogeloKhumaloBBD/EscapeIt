@@ -21,6 +21,7 @@ const apiEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "production"]).default("development"),
   PUBLIC_APP_URL: z.url(),
   PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+  WEBHOOK_PUBLIC_URL: z.url().optional(),
   AUTH_EMAIL_FROM: emailSender,
   RESEND_API_KEY: z.string().min(1),
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
@@ -61,6 +62,7 @@ export interface ApiConfig {
   port: number;
   publicAppUrl: string;
   resendApiKey: string;
+  webhookPublicUrl: string;
 }
 
 export interface GitHubAppConfig {
@@ -162,5 +164,6 @@ export function parseApiConfig(
     port: parsed.PORT ?? parsed.API_PORT,
     publicAppUrl: parsed.PUBLIC_APP_URL,
     resendApiKey: parsed.RESEND_API_KEY,
+    webhookPublicUrl: parsed.WEBHOOK_PUBLIC_URL ?? parsed.PUBLIC_APP_URL,
   };
 }
