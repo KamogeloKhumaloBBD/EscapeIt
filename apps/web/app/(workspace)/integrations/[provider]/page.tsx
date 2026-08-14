@@ -40,15 +40,22 @@ import {
 } from "@/components/ui/item";
 import {
   getIntegrationResourcesState,
+  getIntegrationsState,
   getIntegrationState,
   getScopeDiscoveryState,
 } from "@/lib/server/integration";
+import { getNotificationChannelsState } from "@/lib/server/notification";
 import {
   DisconnectInstallation,
   McpToolSelector,
+  NotificationEventsChecklist,
   ResourceSelector,
   SimpleIntegrationAction,
 } from "./integration-forms";
+import {
+  NotificationChannelsSection,
+  NotificationRoutingSection,
+} from "./notification-sections";
 import { OAuthNotice } from "./oauth-notice";
 import { ScopeSelector } from "./scope-selector";
 
@@ -88,6 +95,10 @@ export default async function IntegrationDetailPage({
   const hasScopes =
     integration.capabilities.includes("scopes") && scopeLabels !== undefined;
   const hasMcpTools = integration.capabilities.includes("context");
+  const hasNotifications = integration.capabilities.includes("notifications");
+  const hasNotificationChannels = integration.capabilities.includes(
+    "notification-channels",
+  );
   const isInstallationConnected =
     integration.installation?.status === "connected";
   const isAccountConnected = integration.currentAccount?.status === "connected";
@@ -99,6 +110,9 @@ export default async function IntegrationDetailPage({
       : null;
   const hasConfiguredInstallation = configuredResource !== null;
   const enabledMcpTools = integration.mcpTools.filter((tool) => tool.enabled);
+  const enabledNotificationEvents = integration.notificationEvents.filter(
+    (event) => event.enabled,
+  );
   const needsResourceSelection =
     hasApplicationResourceSelection &&
     integration.permissions.canManageInstallation &&
@@ -109,14 +123,37 @@ export default async function IntegrationDetailPage({
     integration.permissions.canManageScopes &&
     integration.currentAccount?.status === "connected" &&
     integration.installation?.resource !== null;
-  const [resourcesState, scopesState] = await Promise.all([
-    needsResourceSelection
-      ? getIntegrationResourcesState(provider)
-      : Promise.resolve({ status: "not-found" } as const),
-    canDiscoverScopes
-      ? getScopeDiscoveryState(provider)
-      : Promise.resolve({ status: "not-found" } as const),
-  ]);
+  const [resourcesState, scopesState, channelsState, integrationsState] =
+    await Promise.all([
+      needsResourceSelection
+        ? getIntegrationResourcesState(provider)
+        : Promise.resolve({ status: "not-found" } as const),
+      canDiscoverScopes
+        ? getScopeDiscoveryState(provider)
+        : Promise.resolve({ status: "not-found" } as const),
+      hasNotificationChannels
+        ? getNotificationChannelsState()
+        : Promise.resolve({ status: "not-found" } as const),
+      hasNotificationChannels
+        ? getIntegrationsState()
+        : Promise.resolve({ status: "not-found" } as const),
+    ]);
+  const notificationChannels =
+    channelsState.status === "available"
+      ? channelsState.data.filter((channel) => channel.provider === provider)
+      : [];
+  const connectedIntegrationCount = new Set(
+    notificationChannels.flatMap((channel) => channel.sourceProviders),
+  ).size;
+  const notificationSourceOptions =
+    integrationsState.status === "available"
+      ? integrationsState.data
+          .filter((item) => item.capabilities.includes("notifications"))
+          .map((item) => ({
+            displayName: item.displayName,
+            provider: item.provider,
+          }))
+      : [];
   const hasAvailableResources =
     resourcesState.status === "available" && resourcesState.data.length > 0;
   const hasNoAvailableResources =
@@ -151,6 +188,20 @@ export default async function IntegrationDetailPage({
     ...(hasMcpTools
       ? [["Enabled MCP tools", String(enabledMcpTools.length)]]
       : []),
+    ...(hasNotifications
+      ? [
+          [
+            "Notifications",
+            `${String(enabledNotificationEvents.length)} of ${String(integration.notificationEvents.length)}`,
+          ],
+        ]
+      : []),
+    ...(hasNotificationChannels
+      ? [
+          ["Connected channels", String(notificationChannels.length)],
+          ["Connected integrations", String(connectedIntegrationCount)],
+        ]
+      : []),
   ];
   let nextSectionNumber = 0;
   const accountSectionNumber = hasAccount ? (nextSectionNumber += 1) : null;
@@ -159,8 +210,14 @@ export default async function IntegrationDetailPage({
     : null;
   const scopeSectionNumber = hasScopes ? (nextSectionNumber += 1) : null;
   const toolSectionNumber = hasMcpTools ? (nextSectionNumber += 1) : null;
+  const notificationSectionNumber = hasNotifications
+    ? (nextSectionNumber += 1)
+    : null;
+  const notificationChannelSectionNumber = hasNotificationChannels
+    ? (nextSectionNumber += 1)
+    : null;
   const summaryGridColumns =
-    summaryMetrics.length === 4
+    summaryMetrics.length >= 4
       ? "sm:grid-cols-4"
       : summaryMetrics.length === 3
         ? "sm:grid-cols-3"
@@ -601,6 +658,46 @@ export default async function IntegrationDetailPage({
               )}
             </CardContent>
           </Card>
+        ) : null}
+
+        {hasNotifications ? (
+          <Card className="relative overflow-visible">
+            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+              {String(notificationSectionNumber).padStart(2, "0")}
+            </span>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>
+                Choose which {integration.displayName} activity gets relayed to
+                workspace notification channels subscribed to it.
+              </CardDescription>
+              <CardAction>
+                <Badge variant="secondary">
+                  {enabledNotificationEvents.length} on
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <NotificationEventsChecklist
+                disabled={!integration.permissions.canManageNotifications}
+                events={integration.notificationEvents}
+                provider={provider}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {hasNotificationChannels ? (
+          <div className="relative space-y-6">
+            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
+              {String(notificationChannelSectionNumber).padStart(2, "0")}
+            </span>
+            <NotificationChannelsSection channels={notificationChannels} />
+            <NotificationRoutingSection
+              channels={notificationChannels}
+              sourceOptions={notificationSourceOptions}
+            />
+          </div>
         ) : null}
       </div>
     </main>

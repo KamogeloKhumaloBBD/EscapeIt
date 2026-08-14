@@ -6,6 +6,8 @@ export const jiraOAuthScopes = [
   "read:jira-user",
   "read:jira-work",
   "write:jira-work",
+  "manage:jira-webhook",
+  "read:issue-details:jira",
 ] as const;
 
 export function createJiraOAuthClient(config: {

@@ -22,6 +22,7 @@ export interface AppDependencies {
   logger?: Logger;
   mcpHandler: RequestHandler;
   protectedResourceMetadataHandler: RequestHandler;
+  webhookHandler: RequestHandler;
 }
 
 export function createApp({
@@ -33,6 +34,7 @@ export function createApp({
   logger = createLogger(),
   mcpHandler,
   protectedResourceMetadataHandler,
+  webhookHandler,
 }: AppDependencies) {
   const app = express();
 
@@ -79,6 +81,11 @@ export function createApp({
 
   app.all("/api/auth/*splat", authHandler);
   app.all("/api/mcp", mcpHandler);
+  app.post(
+    "/api/webhooks/:provider/:token",
+    express.raw({ limit: "1mb", type: "application/json" }),
+    webhookHandler,
+  );
 
   app.use(express.json({ limit: "1mb" }));
 

@@ -414,6 +414,7 @@ export function createBitbucketAdapter(config: {
         items: page.items.map((repository) => ({
           displayName: repository.fullName,
           externalId: repository.uuid,
+          externalKey: repository.fullName,
           scopeKey: bitbucketRepositoryScopeKey,
         })),
         nextCursor: page.nextCursor,
@@ -718,6 +719,7 @@ export function createBitbucketAdapter(config: {
             resolved.push({
               displayName: repository.fullName,
               externalId: repository.uuid,
+              externalKey: repository.fullName,
               scopeKey: bitbucketRepositoryScopeKey,
             });
           }

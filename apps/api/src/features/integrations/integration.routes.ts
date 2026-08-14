@@ -10,6 +10,7 @@ import {
 import {
   installationSelectionSchema,
   mcpToolSelectionSchema,
+  notificationEventKeysSchema,
   oauthCallbackSchema,
   providerParameterSchema,
   scopeDiscoveryQuerySchema,
@@ -271,6 +272,23 @@ export function createIntegrationRouter({
       correlationId(request.id),
     );
     response.status(200).json({ data: tools });
+  });
+
+  router.put("/:provider/notifications", async (request, response) => {
+    const provider = requireProvider(request.params.provider);
+    const parsed = notificationEventKeysSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      throw validationError(parsed.error);
+    }
+
+    const integration = await service.setNotificationEventKeys(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      provider,
+      parsed.data.eventKeys,
+      correlationId(request.id),
+    );
+    response.status(200).json({ data: integration });
   });
 
   router.post("/:provider/validate", async (request, response) => {

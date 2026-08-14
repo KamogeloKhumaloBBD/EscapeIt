@@ -126,9 +126,12 @@ export interface Integration {
   id: string;
   lastErrorCode: string | null;
   lastValidatedAt: Date | null;
+  notificationEventKeys: readonly NotificationEventKey[];
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;
+  webhookRegistrationId: string | null;
+  webhookToken: string | null;
   workspaceId: string;
 }
 
@@ -159,6 +162,7 @@ export interface IntegrationScope {
   createdByMembershipId: string;
   displayName: string;
   externalId: string;
+  externalKey: string | null;
   id: string;
   integrationId: string;
   scopeKey: ScopeKey;
@@ -190,6 +194,15 @@ export interface NotificationChannel {
   provider: ProviderKey;
   status: ConnectionStatus;
   updatedAt: Date;
+  workspaceId: string;
+}
+
+export interface NotificationChannelSource {
+  channelId: string;
+  createdAt: Date;
+  createdByMembershipId: string;
+  id: string;
+  provider: ProviderKey;
   workspaceId: string;
 }
 

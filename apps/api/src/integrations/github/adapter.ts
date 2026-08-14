@@ -923,6 +923,7 @@ export function createGitHubAdapter(config: {
           .map((repo) => ({
             displayName: repo.full_name,
             externalId: String(repo.id),
+            externalKey: repo.full_name,
             scopeKey: githubRepositoryScope,
           })),
         nextCursor:
@@ -1208,6 +1209,7 @@ export function createGitHubAdapter(config: {
       return found.map((repo) => ({
         displayName: repo.full_name,
         externalId: String(repo.id),
+        externalKey: repo.full_name,
         scopeKey: githubRepositoryScope,
       }));
     },

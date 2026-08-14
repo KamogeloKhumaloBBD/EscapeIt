@@ -29,6 +29,11 @@ const actionSchema = z.discriminatedUnion("intent", [
     provider: z.string(),
     toolNames: z.array(z.string().min(3).max(128)).max(100),
   }),
+  z.object({
+    eventKeys: z.array(z.string().min(1).max(128)).max(50),
+    intent: z.literal("set-notification-event-keys"),
+    provider: z.string(),
+  }),
 ]);
 
 function safeProvider(value: FormDataEntryValue | null): string {
@@ -50,7 +55,9 @@ export async function integrationAction(
         ? { intent, provider, toolNames: formData.getAll("toolNames") }
         : intent === "select-resource"
           ? { externalId: formData.get("externalId"), intent, provider }
-          : { intent, provider };
+          : intent === "set-notification-event-keys"
+            ? { eventKeys: formData.getAll("eventKeys"), intent, provider }
+            : { intent, provider };
   const parsed = actionSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -99,6 +106,15 @@ export async function integrationAction(
         },
       );
       break;
+    case "set-notification-event-keys":
+      result = await requestApi(
+        `/api/integrations/${encodedProvider}/notifications`,
+        {
+          body: { eventKeys: parsed.data.eventKeys },
+          method: "PUT",
+        },
+      );
+      break;
     case "validate":
       result = await requestApi(
         `/api/integrations/${encodedProvider}/validate`,
@@ -131,6 +147,7 @@ export async function integrationAction(
     "save-scopes": "Workspace access was updated.",
     "save-mcp-tools": "MCP tool access was updated.",
     "select-resource": "The workspace resource was selected.",
+    "set-notification-event-keys": "Notification settings were updated.",
     validate: "The connection is healthy.",
   };
 

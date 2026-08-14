@@ -2,7 +2,7 @@
 
 import { PlugsConnectedIcon, WarningIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -36,6 +36,7 @@ import { Spinner } from "@/components/ui/spinner";
 import type {
   IntegrationDetail,
   IntegrationMcpTool,
+  IntegrationNotificationEvent,
   IntegrationResource,
 } from "@/lib/validation/integration";
 
@@ -397,5 +398,65 @@ export function McpToolSelector({
         Save MCP tools
       </SubmitButton>
     </form>
+  );
+}
+
+export function NotificationEventsChecklist({
+  disabled = false,
+  events,
+  provider,
+}: {
+  disabled?: boolean;
+  events: readonly IntegrationNotificationEvent[];
+  provider: string;
+}) {
+  const [state, formAction] = useActionState(
+    integrationAction,
+    initialIntegrationActionState,
+  );
+  const [isPending, startTransition] = useTransition();
+  useActionToast(state);
+
+  return (
+    <div className="divide-y divide-border border-y border-border">
+      {events.map((event) => {
+        const id = `notification-event-${event.key}`;
+
+        return (
+          <Field className="py-4" key={event.key} orientation="horizontal">
+            <Checkbox
+              checked={event.enabled}
+              disabled={disabled || isPending}
+              id={id}
+              onCheckedChange={(checked) => {
+                const nextKeys =
+                  checked === true
+                    ? [
+                        ...events.filter((e) => e.enabled).map((e) => e.key),
+                        event.key,
+                      ]
+                    : events
+                        .filter((e) => e.enabled && e.key !== event.key)
+                        .map((e) => e.key);
+                const formData = new FormData();
+                formData.set("intent", "set-notification-event-keys");
+                formData.set("provider", provider);
+                nextKeys.forEach((key) => {
+                  formData.append("eventKeys", key);
+                });
+                startTransition(() => {
+                  formAction(formData);
+                });
+              }}
+            />
+            <FieldContent>
+              <FieldLabel htmlFor={id}>
+                <FieldTitle>{event.displayName}</FieldTitle>
+              </FieldLabel>
+            </FieldContent>
+          </Field>
+        );
+      })}
+    </div>
   );
 }

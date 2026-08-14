@@ -31,3 +31,7 @@ export const scopeDiscoveryQuerySchema = z.object({
   cursor: z.string().max(64).optional(),
   query: z.string().trim().max(120).default(""),
 });
+
+export const notificationEventKeysSchema = z.object({
+  eventKeys: z.array(z.string().min(1).max(128)).max(50),
+});

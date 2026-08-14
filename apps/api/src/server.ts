@@ -2,17 +2,22 @@ import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
+  clearNotificationPreferenceOverride,
   connectIntegrationAccountWithoutResource,
   connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
   createMcpToken,
+  createNotificationChannel,
   createWorkspaceForUser,
   createWorkspaceInvitation,
+  deleteNotificationChannel,
   disconnectIntegrationAccount,
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
+  findIntegrationByWebhookToken,
+  findNotificationChannel,
   findMemberIntegrationAccess,
   findMcpOAuthClient,
   findWorkspaceInvitationByToken,
@@ -24,6 +29,11 @@ import {
   listIntegrationMcpTools,
   listMcpTokens,
   listMcpOAuthConnections,
+  listNotificationChannels,
+  listNotificationChannelsForWorkspace,
+  listNotificationChannelSources,
+  listNotificationChannelSourcesForWorkspace,
+  listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaceMemberUsage,
@@ -32,15 +42,23 @@ import {
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
+  parseNotificationEventKey,
+  parseProviderKey,
   replaceIntegrationAccountCredentials,
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
+  replaceNotificationChannelSources,
   resolveMcpToken,
   resolveOAuthAccessToken,
   revokeMcpToken,
   revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  setIntegrationNotificationEventKeys,
+  setIntegrationWebhookRegistration,
+  setNotificationPreferenceOverride,
+  updateNotificationChannel,
+  type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
@@ -71,9 +89,19 @@ import {
   createMemberService,
   type MemberServiceDependencies,
 } from "./features/members/member.service";
+import { createNotificationRouter } from "./features/notifications/notification.routes";
+import {
+  createNotificationService,
+  type NotificationServiceDependencies,
+} from "./features/notifications/notification.service";
+import { createWebhookHandler } from "./features/webhooks/webhook.routes";
+import type { WebhookReceiver } from "./features/webhooks/webhook-receiver";
 import { createRequireAuthentication } from "./http/authentication";
 import { createWebRequestHandler } from "./http/web-request-handler";
+import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
+import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createJiraProviderModule } from "./integrations/jira";
+import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
 import { createConfluenceProviderModule } from "./integrations/confluence";
 import { createBitbucketProviderModule } from "./integrations/bitbucket";
 import { createGitHubProviderModule } from "./integrations/github";
@@ -148,15 +176,78 @@ const providerModules: ProviderModule[] = [
     publicAppUrl: config.publicAppUrl,
   }),
 ].filter(isProviderModule);
-const providerRegistry = createProviderRegistry(
-  providerModules.map((providerModule) => providerModule.definition),
-);
 const integrationAdapters = new Map(
   providerModules.map(
     (providerModule) =>
       [providerModule.definition.key, providerModule.adapter] as const,
   ),
 );
+
+// Teams is a notification-only provider (a webhook secret, no OAuth account
+// or MCP context) so it doesn't fit the OAuth-shaped ProviderModule/
+// IntegrationAdapter contract that Jira/Confluence use. It's registered
+// alongside providerModules rather than inside it, with its own adapter map
+// consumed only by the notification service.
+//
+// Teams is a notification destination (it hosts channels other providers'
+// events get routed to), not a source — it has the "notification-channels"
+// capability, not "notifications" (which means "declares events", the
+// source side). See notification_channel_sources for the per-channel
+// routing that decides which source providers a given Teams channel hears
+// from.
+const teamsProvider = parseProviderKey("teams");
+const teamsDefinition = {
+  capabilities: ["notification-channels", "webhooks"],
+  description: "Send workspace notifications to a Microsoft Teams channel.",
+  displayName: "Microsoft Teams",
+  key: teamsProvider,
+  mcpTools: [],
+  notificationEvents: [],
+  presentation: {},
+  scopeKinds: [],
+} satisfies ProviderModule["definition"];
+const notificationChannelAdapters = new Map<
+  ProviderKey,
+  NotificationChannelAdapter
+>([[teamsProvider, createTeamsAdapter()]]);
+
+const jiraProvider = parseProviderKey("jira");
+const webhookReceivers = new Map<ProviderKey, WebhookReceiver>([
+  [
+    jiraProvider,
+    createJiraWebhookReceiver({
+      credentialEncryption,
+      database: connection.client,
+      findIntegrationByToken: async (token) => {
+        const integration = await findIntegrationByWebhookToken(
+          connection.client,
+          jiraProvider,
+          token,
+        );
+        return integration === null
+          ? null
+          : {
+              notificationEventKeys: integration.notificationEventKeys,
+              workspaceId: integration.workspaceId,
+            };
+      },
+      listNotificationChannels: (workspaceId) =>
+        listNotificationChannelsForWorkspace(connection.client, workspaceId),
+      listNotificationChannelSources: (workspaceId) =>
+        listNotificationChannelSourcesForWorkspace(
+          connection.client,
+          workspaceId,
+        ),
+      notificationChannelAdapters,
+    }),
+  ],
+]);
+const webhookHandler = createWebhookHandler({ receivers: webhookReceivers });
+
+const providerRegistry = createProviderRegistry([
+  ...providerModules.map((providerModule) => providerModule.definition),
+  teamsDefinition,
+]);
 const workspaceRepository = {
   createForUser: (input: Parameters<typeof createWorkspaceForUser>[1]) =>
     createWorkspaceForUser(connection.client, input),
@@ -328,6 +419,20 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
       integrationId,
       membershipId,
     ),
+  registerWebhook: async (
+    workspaceId,
+    integrationId,
+    webhookToken,
+    webhookRegistrationId,
+  ) => {
+    await setIntegrationWebhookRegistration(
+      connection.client,
+      workspaceId,
+      integrationId,
+      webhookToken,
+      webhookRegistrationId,
+    );
+  },
   replaceAccountCredentials: (
     input: Parameters<typeof replaceIntegrationAccountCredentials>[1],
     expectedEnvelope: Parameters<
@@ -357,6 +462,19 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     ),
   saveAccount: (input: Parameters<typeof saveIntegrationAccount>[1]) =>
     saveIntegrationAccount(connection.client, input),
+  setNotificationEventKeys: (
+    workspaceId,
+    integrationId,
+    ownerMembershipId,
+    eventKeys,
+  ) =>
+    setIntegrationNotificationEventKeys(
+      connection.client,
+      workspaceId,
+      integrationId,
+      ownerMembershipId,
+      eventKeys,
+    ),
 };
 const providerAccountRuntime = createProviderAccountRuntime({
   credentialEncryption,
@@ -375,9 +493,75 @@ const integrationService = createIntegrationService({
   accountRuntime: providerAccountRuntime,
   adapters: integrationAdapters,
   credentialEncryption,
+  listNotificationChannels: (workspaceId) =>
+    listNotificationChannelsForWorkspace(connection.client, workspaceId),
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,
+  webhookPublicUrl: config.webhookPublicUrl,
+});
+const notificationRepository: NotificationServiceDependencies["repository"] = {
+  appendActivity: (input: Parameters<typeof appendActivityEvent>[1]) =>
+    appendActivityEvent(connection.client, input),
+  clearPreferenceOverride: (workspaceId, membershipId, eventKey) =>
+    clearNotificationPreferenceOverride(
+      connection.client,
+      workspaceId,
+      membershipId,
+      parseNotificationEventKey(eventKey),
+    ),
+  createChannel: (input: Parameters<typeof createNotificationChannel>[1]) =>
+    createNotificationChannel(connection.client, input),
+  deleteChannel: (workspaceId, channelId, membershipId) =>
+    deleteNotificationChannel(
+      connection.client,
+      workspaceId,
+      channelId,
+      membershipId,
+    ),
+  findChannel: (workspaceId, channelId) =>
+    findNotificationChannel(connection.client, workspaceId, channelId),
+  findCurrentWorkspace: (userId: string) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  listChannels: (workspaceId, membershipId) =>
+    listNotificationChannels(connection.client, workspaceId, membershipId),
+  listChannelSources: (workspaceId, channelId) =>
+    listNotificationChannelSources(connection.client, workspaceId, channelId),
+  listPreferenceOverrides: (workspaceId, membershipId) =>
+    listNotificationPreferenceOverrides(
+      connection.client,
+      workspaceId,
+      membershipId,
+    ),
+  replaceChannelSources: (
+    workspaceId,
+    channelId,
+    ownerMembershipId,
+    providers,
+  ) =>
+    replaceNotificationChannelSources(
+      connection.client,
+      workspaceId,
+      channelId,
+      ownerMembershipId,
+      providers,
+    ),
+  setPreferenceOverride: (workspaceId, membershipId, eventKey, enabled) =>
+    setNotificationPreferenceOverride(
+      connection.client,
+      workspaceId,
+      membershipId,
+      parseNotificationEventKey(eventKey),
+      enabled,
+    ),
+  updateChannel: (input: Parameters<typeof updateNotificationChannel>[1]) =>
+    updateNotificationChannel(connection.client, input),
+};
+const notificationService = createNotificationService({
+  adapters: notificationChannelAdapters,
+  credentialEncryption,
+  providerRegistry,
+  repository: notificationRepository,
 });
 const mcpToolProviders = providerModules.flatMap((providerModule) => {
   if (providerModule.createMcpToolProvider === undefined) {
@@ -433,6 +617,13 @@ apiRouter.use(
     service: integrationService,
   }),
 );
+apiRouter.use(
+  "/notifications",
+  createNotificationRouter({
+    requireAuthentication,
+    service: notificationService,
+  }),
+);
 const app = createApp({
   allowedOrigin: config.publicAppUrl,
   apiRouter,
@@ -454,6 +645,7 @@ const app = createApp({
   protectedResourceMetadataHandler: createProtectedResourceMetadataHandler({
     publicAppUrl: config.publicAppUrl,
   }),
+  webhookHandler,
 });
 
 const server = app.listen(config.port, () => {
