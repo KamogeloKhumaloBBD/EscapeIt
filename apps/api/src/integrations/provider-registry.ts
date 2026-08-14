@@ -52,6 +52,7 @@ export interface ProviderPresentationDefinition {
 
 export interface ProviderDefinition {
   accountCredentialSchema?: ProviderConfigurationSchema;
+  autoSelectSingleResourceAfterAuthorization?: boolean;
   capabilities: readonly ProviderCapability[];
   description: string;
   displayName: string;
@@ -138,6 +139,15 @@ function validateDefinition(
   if (hasResource !== (definition.resourceSelection !== undefined)) {
     throw new ProviderRegistryError(
       `Provider ${definition.key} must declare resource selection exactly when it declares a resource label.`,
+    );
+  }
+
+  if (
+    definition.autoSelectSingleResourceAfterAuthorization === true &&
+    definition.resourceSelection !== "application"
+  ) {
+    throw new ProviderRegistryError(
+      `Provider ${definition.key} can auto-select a resource only when resource selection happens in the application.`,
     );
   }
 

@@ -11,7 +11,7 @@ export async function AuthControl() {
   if (sessionStatus === "authenticated") {
     return (
       <div className="flex items-center gap-3">
-        <Button asChild size="sm" variant="ghost">
+        <Button asChild size="sm" variant="default">
           <Link href="/dashboard">Dashboard</Link>
         </Button>
         <SignOutForm />

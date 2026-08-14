@@ -5,7 +5,7 @@ export interface IntegrationResourceContract {
 }
 
 export interface IntegrationAccountContract {
-  displayName: string | null;
+  grantedScopes: readonly string[] | null;
   lastValidatedAt: string | null;
   status: "connected" | "disconnected" | "error";
 }

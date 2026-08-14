@@ -2,6 +2,7 @@ import {
   InvalidIntegrationKeyError,
   parseProviderKey,
   type AppendActivityEventInput,
+  type ConnectIntegrationAccountWithoutResourceInput,
   type ConnectIntegrationAccountWithResourceInput,
   type CurrentWorkspace,
   type EncryptedCredentialEnvelope,
@@ -10,6 +11,7 @@ import {
   type IntegrationConnectionContext,
   type IntegrationMcpTool,
   type IntegrationScope,
+  type JsonValue,
   type NotificationChannel,
   type NotificationEventKey,
   type ProviderKey,
@@ -47,6 +49,7 @@ const resourceSchema = z.object({
   name: z.string().min(1),
   url: z.url(),
 });
+const grantedScopesSchema = z.object({ scopes: z.array(z.string()) });
 
 interface IntegrationRepository {
   appendActivity(input: AppendActivityEventInput): Promise<unknown>;
@@ -61,6 +64,9 @@ interface IntegrationRepository {
   }): Promise<Integration>;
   connectAccountWithResource(
     input: ConnectIntegrationAccountWithResourceInput,
+  ): Promise<IntegrationConnectionContext>;
+  connectAccountWithoutResource(
+    input: ConnectIntegrationAccountWithoutResourceInput,
   ): Promise<IntegrationConnectionContext>;
   disconnectAccount(
     workspaceId: string,
@@ -295,6 +301,34 @@ function readResource(integration: Integration): ProviderResource | null {
   return parsed.success ? parsed.data : null;
 }
 
+// Some providers (Bitbucket) fix their OAuth consumer's granted scopes at
+// registration time outside of this application, so the scopes actually
+// granted to a token can differ from whatever the provider's own OAuth
+// client requested. Decrypting the caller's own stored credentials here
+// (never another member's) lets the owner see exactly what was granted,
+// rather than silently trusting the consumer configuration.
+function readGrantedScopes(
+  encryption: CredentialEncryption,
+  account: IntegrationAccount,
+): readonly string[] | null {
+  if (account.credentialEnvelope === null) {
+    return null;
+  }
+
+  try {
+    const parsed = grantedScopesSchema.safeParse(
+      encryption.decrypt(
+        account.credentialEnvelope,
+        "integration-account",
+        account.id,
+      ),
+    );
+    return parsed.success ? parsed.data.scopes : null;
+  } catch {
+    return null;
+  }
+}
+
 function toResourceContract(
   resource: ProviderResource | null,
 ): IntegrationResourceContract | null {
@@ -350,6 +384,7 @@ function buildSummary(
   scopes: readonly IntegrationScope[],
   selectedMcpTools: readonly IntegrationMcpTool[],
   connectedChannelCount: number,
+  grantedScopes: readonly string[] | null = null,
 ): IntegrationSummaryContract {
   const resource = integration === null ? null : readResource(integration);
   const isOwner = role === "owner";
@@ -410,7 +445,7 @@ function buildSummary(
       account === null
         ? null
         : {
-            displayName: account.externalDisplayName,
+            grantedScopes,
             lastValidatedAt: account.lastValidatedAt?.toISOString() ?? null,
             status: account.status,
           },
@@ -467,11 +502,13 @@ export function createIntegrationService({
     provider: ProviderKey,
     operation: string,
     summary: string,
+    metadata?: Record<string, JsonValue>,
   ) {
     await repository.appendActivity({
       actorMembershipId: workspace.membership.id,
       category: "integration",
       correlationId,
+      ...(metadata === undefined ? {} : { metadata }),
       operation,
       provider,
       status: "succeeded",
@@ -550,6 +587,11 @@ export function createIntegrationService({
               : 0,
           ]);
 
+    const grantedScopes =
+      account === null
+        ? null
+        : readGrantedScopes(credentialEncryption, account);
+
     return {
       ...buildSummary(
         definition,
@@ -559,6 +601,7 @@ export function createIntegrationService({
         scopes,
         selectedMcpTools,
         connectedChannelCount,
+        grantedScopes,
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
       notificationEvents: toNotificationEventContracts(definition, integration),
@@ -639,7 +682,12 @@ export function createIntegrationService({
       );
 
       return {
-        authorizationUrl: adapter.buildAuthorizationUrl(state),
+        authorizationUrl:
+          workspace.membership.role === "owner" &&
+          readResource(context.integration) === null &&
+          adapter.buildInstallationAuthorizationUrl !== undefined
+            ? adapter.buildInstallationAuthorizationUrl(state)
+            : adapter.buildAuthorizationUrl(state),
         context,
         state,
       };
@@ -676,16 +724,40 @@ export function createIntegrationService({
 
       try {
         const credentials = await adapter.exchangeAuthorizationCode(code);
-        const [identity, resources] = await Promise.all([
-          adapter.getIdentity(credentials),
-          adapter.discoverResources(credentials),
-        ]);
+        const resources = await adapter.discoverResources(credentials);
         const configuredResource = readResource(context.integration);
+        const configuredResourceIsAccessible =
+          configuredResource !== null &&
+          resources.some(
+            (resource) => resource.externalId === configuredResource.externalId,
+          );
+        const replaceUnavailableApplicationResource =
+          configuredResource !== null &&
+          !configuredResourceIsAccessible &&
+          definition.resourceSelection === "application" &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner";
         const authorizationResource =
           configuredResource === null &&
           definition.resourceSelection === "authorization"
             ? resources[0]
             : null;
+        const applicationResource =
+          (configuredResource === null ||
+            replaceUnavailableApplicationResource) &&
+          definition.resourceSelection === "application" &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner" &&
+          resources.length === 1
+            ? resources[0]
+            : null;
+        const reconnectResource =
+          configuredResourceIsAccessible &&
+          context.integration.status !== "connected"
+            ? configuredResource
+            : null;
+        const connectionResource =
+          authorizationResource ?? applicationResource ?? reconnectResource;
 
         if (
           configuredResource === null &&
@@ -697,9 +769,8 @@ export function createIntegrationService({
 
         if (
           configuredResource !== null &&
-          !resources.some(
-            (resource) => resource.externalId === configuredResource.externalId,
-          )
+          !configuredResourceIsAccessible &&
+          !replaceUnavailableApplicationResource
         ) {
           throw new ProviderAdapterError("inaccessible_resource");
         }
@@ -712,8 +783,6 @@ export function createIntegrationService({
         const accountInput: SaveIntegrationAccountInput = {
           accountId: context.account.id,
           credentialEnvelope: envelope,
-          externalAccountId: identity.externalAccountId,
-          externalDisplayName: identity.displayName,
           integrationId: context.integration.id,
           lastValidatedAt: new Date(),
           membershipId: workspace.membership.id,
@@ -721,13 +790,20 @@ export function createIntegrationService({
           workspaceId: workspace.workspace.id,
         };
 
-        if (authorizationResource === null) {
-          await repository.saveAccount(accountInput);
+        if (connectionResource === null) {
+          if (replaceUnavailableApplicationResource) {
+            await repository.connectAccountWithoutResource({
+              account: accountInput,
+              provider,
+            });
+          } else {
+            await repository.saveAccount(accountInput);
+          }
         } else {
           await repository.connectAccountWithResource({
             account: accountInput,
             installation: {
-              configuration: { ...authorizationResource },
+              configuration: { ...connectionResource },
               configuredByMembershipId: workspace.membership.id,
               lastValidatedAt: new Date(),
               provider,
@@ -743,9 +819,31 @@ export function createIntegrationService({
           provider,
           "integration.account.connect",
           `${providerRegistry.require(provider).displayName} account connected`,
+          { grantedScopes: credentials.scopes },
         );
 
-        return { resources };
+        const followUpAuthorization =
+          connectionResource === null &&
+          resources.length === 0 &&
+          definition.autoSelectSingleResourceAfterAuthorization === true &&
+          workspace.membership.role === "owner" &&
+          adapter.buildInstallationAuthorizationUrl !== undefined
+            ? (() => {
+                const state = createOAuthState(
+                  oauthStateSecret,
+                  workspace.membership.id,
+                  provider,
+                );
+
+                return {
+                  authorizationUrl:
+                    adapter.buildInstallationAuthorizationUrl(state),
+                  state,
+                };
+              })()
+            : null;
+
+        return { followUpAuthorization, resources };
       } catch (error) {
         mapProviderError(error);
       }

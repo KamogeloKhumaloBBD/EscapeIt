@@ -3,6 +3,7 @@ import {
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
   clearNotificationPreferenceOverride,
+  connectIntegrationAccountWithoutResource,
   connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
@@ -18,13 +19,16 @@ import {
   findIntegrationByWebhookToken,
   findNotificationChannel,
   findMemberIntegrationAccess,
+  findMcpOAuthClient,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
   getWorkspaceOverviewForUser,
+  getWorkspaceUsageAnalytics,
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
+  listMcpOAuthConnections,
   listNotificationChannels,
   listNotificationChannelsForWorkspace,
   listNotificationChannelSources,
@@ -32,6 +36,8 @@ import {
   listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
   listWorkspaceMembers,
+  listWorkspaceMemberUsage,
+  listWorkspaceToolUsage,
   listWorkspaceIntegrations,
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
@@ -43,7 +49,9 @@ import {
   replaceIntegrationScopes,
   replaceNotificationChannelSources,
   resolveMcpToken,
+  resolveOAuthAccessToken,
   revokeMcpToken,
+  revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
   setIntegrationNotificationEventKeys,
@@ -53,6 +61,7 @@ import {
   type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
+import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
 import { Router } from "express";
 
 import { createApp } from "./app";
@@ -71,6 +80,9 @@ import {
   type McpAccessServiceDependencies,
 } from "./features/mcp-access/mcp-access.service";
 import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
+import { createMcpConnectionRouter } from "./features/mcp-access/mcp-connection.routes";
+import { createMcpConnectionService } from "./features/mcp-access/mcp-connection.service";
+import { createProtectedResourceMetadataHandler } from "./features/mcp-access/mcp-oauth-metadata";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -85,11 +97,14 @@ import {
 import { createWebhookHandler } from "./features/webhooks/webhook.routes";
 import type { WebhookReceiver } from "./features/webhooks/webhook-receiver";
 import { createRequireAuthentication } from "./http/authentication";
+import { createWebRequestHandler } from "./http/web-request-handler";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createJiraProviderModule } from "./integrations/jira";
 import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
 import { createConfluenceProviderModule } from "./integrations/confluence";
+import { createBitbucketProviderModule } from "./integrations/bitbucket";
+import { createGitHubProviderModule } from "./integrations/github";
 import { createLogger } from "./logging";
 import {
   isProviderModule,
@@ -113,9 +128,13 @@ const authService = createAuth({
   baseUrl: config.betterAuthUrl,
   databaseUrl: config.database.url,
   logger,
+  mcpResourceUrl: `${config.publicAppUrl.replace(/\/$/, "")}/api/mcp`,
   resendApiKey: config.resendApiKey,
   secret: config.betterAuthSecret,
   trustedOrigins: [config.publicAppUrl],
+  findWorkspaceIdForUser: async (userId) =>
+    (await findCurrentWorkspaceForUser(connection.client, userId))?.workspace
+      .id ?? null,
 });
 const requireAuthentication = createRequireAuthentication({
   async getSession(headers) {
@@ -146,6 +165,14 @@ const providerModules: ProviderModule[] = [
   }),
   createConfluenceProviderModule({
     oauth: config.atlassianOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createBitbucketProviderModule({
+    oauth: config.bitbucketOAuth,
+    publicAppUrl: config.publicAppUrl,
+  }),
+  createGitHubProviderModule({
+    app: config.githubApp,
     publicAppUrl: config.publicAppUrl,
   }),
 ].filter(isProviderModule);
@@ -228,6 +255,12 @@ const workspaceRepository = {
     findCurrentWorkspaceForUser(connection.client, userId),
   getOverviewForUser: (userId: string) =>
     getWorkspaceOverviewForUser(connection.client, userId, 5),
+  getAnalytics: (input: Parameters<typeof getWorkspaceUsageAnalytics>[1]) =>
+    getWorkspaceUsageAnalytics(connection.client, input),
+  listMemberUsage: (input: Parameters<typeof listWorkspaceMemberUsage>[1]) =>
+    listWorkspaceMemberUsage(connection.client, input),
+  listToolUsage: (input: Parameters<typeof listWorkspaceToolUsage>[1]) =>
+    listWorkspaceToolUsage(connection.client, input),
 };
 const workspaceService = createWorkspaceService(workspaceRepository);
 const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
@@ -247,6 +280,13 @@ const mcpAccessRepository: McpAccessServiceDependencies["repository"] = {
 };
 const mcpAccessService = createMcpAccessService({
   repository: mcpAccessRepository,
+});
+const mcpConnectionService = createMcpConnectionService({
+  findClient: (clientId) => findMcpOAuthClient(connection.client, clientId),
+  listConnections: (userId) =>
+    listMcpOAuthConnections(connection.client, userId),
+  revokeConnection: (userId, consentId) =>
+    revokeMcpOAuthConnection(connection.client, userId, consentId),
 });
 const memberRepository: MemberServiceDependencies["repository"] = {
   acceptInvitation: (input) =>
@@ -306,6 +346,9 @@ const integrationRepository: IntegrationServiceDependencies["repository"] = {
     appendActivityEvent(connection.client, input),
   configure: (input: Parameters<typeof configureIntegration>[1]) =>
     configureIntegration(connection.client, input),
+  connectAccountWithoutResource: (
+    input: Parameters<typeof connectIntegrationAccountWithoutResource>[1],
+  ) => connectIntegrationAccountWithoutResource(connection.client, input),
   connectAccountWithResource: (
     input: Parameters<typeof connectIntegrationAccountWithResource>[1],
   ) => connectIntegrationAccountWithResource(connection.client, input),
@@ -555,6 +598,13 @@ apiRouter.use(
   }),
 );
 apiRouter.use(
+  "/mcp-connections",
+  createMcpConnectionRouter({
+    requireAuthentication,
+    service: mcpConnectionService,
+  }),
+);
+apiRouter.use(
   createMemberRouter({ requireAuthentication, service: memberService }),
 );
 apiRouter.use(
@@ -577,14 +627,23 @@ apiRouter.use(
 const app = createApp({
   allowedOrigin: config.publicAppUrl,
   apiRouter,
+  authorizationServerMetadataHandler: createWebRequestHandler(
+    oauthProviderAuthServerMetadata(authService.auth),
+    config.publicAppUrl,
+  ),
   authHandler: toNodeHandler(authService.auth),
   checkDatabase: () => checkDatabaseReadiness(connection),
   logger,
   mcpHandler: createMcpGateway({
     logger,
     publicAppUrl: config.publicAppUrl,
+    resolveOAuthToken: (token) =>
+      resolveOAuthAccessToken(connection.client, token),
     resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
     toolProviders: mcpToolProviders,
+  }),
+  protectedResourceMetadataHandler: createProtectedResourceMetadataHandler({
+    publicAppUrl: config.publicAppUrl,
   }),
   webhookHandler,
 });

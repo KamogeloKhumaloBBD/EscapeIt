@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  CirclesFourIcon,
   HouseIcon,
   KeyIcon,
   PlugsConnectedIcon,
+  UserCircleGearIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutForm } from "@/components/auth/sign-out-form";
+import { BrandIcon } from "@/components/brand-icon";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -46,6 +47,7 @@ const navigation = [
   },
   { href: "/members", icon: UsersThreeIcon, label: "Members" },
   { href: "/agent-setup", icon: KeyIcon, label: "Agent Setup" },
+  { href: "/account", icon: UserCircleGearIcon, label: "Settings" },
 ] as const;
 
 function WorkspaceBreadcrumbs() {
@@ -79,9 +81,11 @@ function WorkspaceBreadcrumbs() {
               ? "Integrations"
               : pathname.startsWith("/agent-setup")
                 ? "Agent Setup"
-                : pathname.startsWith("/members")
-                  ? "Members"
-                  : "Overview"}
+                : pathname.startsWith("/account")
+                  ? "Account settings"
+                  : pathname.startsWith("/members")
+                    ? "Members"
+                    : "Overview"}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -136,16 +140,9 @@ export function WorkspaceShell({
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Context Layer">
                 <Link href="/">
-                  <span className="relative flex size-9 items-center justify-center bg-foreground text-background">
-                    <CirclesFourIcon
-                      aria-hidden="true"
-                      className="size-5"
-                      weight="fill"
-                    />
-                    <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar bg-primary" />
-                  </span>
+                  <BrandIcon className="size-9 shrink-0" />
                   <span className="font-heading text-sm font-semibold tracking-[-0.025em]">
-                    Context layer
+                    Context Layer
                   </span>
                 </Link>
               </SidebarMenuButton>
@@ -163,9 +160,7 @@ export function WorkspaceShell({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="p-1">
-            <SignOutForm />
-          </div>
+          <SignOutForm />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

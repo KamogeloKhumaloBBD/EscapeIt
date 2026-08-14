@@ -9,6 +9,7 @@ Context Layer is a pnpm monorepo containing an independently deployable Next.js 
 - Docker Desktop or another Compose-compatible runtime
 - A Resend API key and verified sender for passwordless sign-in
 - An Atlassian OAuth 2.0 app when developing the Jira or Confluence integrations
+- A Bitbucket Cloud OAuth consumer when developing the Bitbucket integration
 
 ## Start locally
 
@@ -50,7 +51,7 @@ Better Auth users may be signed in without a workspace. The onboarding flow crea
 
 The Express workspace API exposes authenticated workspace, member, and invitation endpoints. Next.js calls these endpoints from Server Components and Server Actions; it never accesses PostgreSQL directly. Invitation links expire after seven days, only their SHA-256 hashes are stored, and the signed-in email must match before acceptance.
 
-The authenticated application uses a shared workspace shell. The dashboard derives setup progress, connection health, counts, and recent activity from real API data rather than frontend placeholders.
+The authenticated application uses a shared workspace shell. Its analytics-first dashboard reads completed MCP activity from `GET /api/workspaces/current/analytics`, supports URL-backed browser-local date, integration, and owner-only member filters, compares with the preceding period, and shows role-scoped tool, provider, reliability, and activity insights. The dashboard passes the viewer's IANA time zone so date validation and daily buckets use local calendar boundaries; API callers that omit `timeZone` use UTC. Searchable, sortable ranking explorers use the paginated `/api/workspaces/current/analytics/rankings` endpoint. Owners receive workspace and per-member usage; members receive only their own usage. Setup and connection health remain visible when action is required.
 
 The product schema includes workspaces, memberships, invitations, workspace provider installations, member-specific provider accounts, selected provider scopes, enabled integration MCP tools, MCP token hashes, notification channels, per-member notification preference overrides, and correlated activity events.
 
@@ -116,6 +117,22 @@ When Confluence is ready, the gateway can expose twelve individually selected to
 
 Confluence pages are limited to the workspace's selected space IDs and the invoking member's own Confluence permissions. Search accepts structured title and text filters; the adapter builds bounded CQL internally and never accepts arbitrary CQL. Page bodies and comments return normalized plain text and bounded Markdown. Write tools accept a validated, bounded native Atlassian Document Format document and send it directly to Confluence, supporting headings, formatting, links, lists, quotes, code blocks, rules, and tables without using Markdown as an intermediate representation. Drafts, moves, ownership changes, deletion, and uploads are not exposed. Confluence attachment retrieval uses the same type and size policies as Jira, validates page and space ownership first, and follows only a single credential-free redirect to an Atlassian-controlled media host.
 
+When Bitbucket is ready, the gateway can expose eleven individually selected read-only tools:
+
+- `bitbucket_get_myself`
+- `bitbucket_list_repositories`
+- `bitbucket_get_repository`
+- `bitbucket_list_commits`
+- `bitbucket_get_commit`
+- `bitbucket_get_file`
+- `bitbucket_search_code`
+- `bitbucket_list_pull_requests`
+- `bitbucket_get_pull_request`
+- `bitbucket_get_pull_request_diff`
+- `bitbucket_list_pull_request_comments`
+
+Bitbucket repositories, commits, files, and pull requests are limited to the workspace's selected repository allowlist, re-checked on every call, and further constrained by the invoking member's own Bitbucket permissions. Diffs and file content are bounded in bytes before download and in characters after decoding, with a `truncated` flag when a response was cut. Bitbucket has no write tools: unlike the Atlassian OAuth apps used for Jira and Confluence, a Bitbucket OAuth consumer's granted scopes are fixed at registration time in Bitbucket workspace settings and cannot be requested per authorization, so Context Layer cannot guarantee the underlying token is read-only at the OAuth layer — read-only tool exposure is therefore the actual enforcement boundary. See "Bitbucket OAuth" below for the scopes to register and how granted-but-unused scopes are surfaced.
+
 Codex can read the bearer token from an environment variable:
 
 ```toml
@@ -146,6 +163,27 @@ ATLASSIAN_OAUTH_CLIENT_SECRET=...
 
 If both are absent, the core application still starts and both Atlassian providers are omitted from the catalogue. Supplying only one is rejected. Callbacks are derived from `PUBLIC_APP_URL`, so a deployed environment must register both `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback` and `${PUBLIC_APP_URL}/api/integrations/confluence/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks. Configure the Confluence API scopes and callback before deploying code that registers the provider. Accounts authorized before Confluence write scopes were enabled must reconnect before invoking write tools.
 
+## Bitbucket OAuth
+
+Bitbucket owners select one workspace during resource-level consent (workspace resource selection happens explicitly afterward, since members commonly belong to more than one Bitbucket workspace), then choose a workspace-wide repository allowlist. Every member authorizes their own Bitbucket account; calls use that member's encrypted OAuth credentials and remain constrained by both the workspace allowlist and Bitbucket's permissions.
+
+Create an OAuth consumer under Bitbucket workspace settings (**Workspace settings → OAuth consumers → Add consumer**) and register the callback:
+
+```text
+http://localhost:3000/api/integrations/bitbucket/oauth/callback
+```
+
+Unlike the Atlassian OAuth app above, Bitbucket OAuth consumers do not accept a `scope` parameter per authorization request — whatever scopes are checked on the consumer are granted in full, every time, and Context Layer's code has no way to request a narrower subset. Check only the read-only scopes Context Layer's tools require: **Account** (read) and **Repositories** (read). Do not check any write scope; Context Layer never exposes Bitbucket write tools regardless of what the consumer grants, but keeping the consumer itself read-only avoids issuing tokens with more access than intended. If a consumer's checked scopes ever change, connected members must reconnect to receive a token reflecting the new grant. Whatever scopes a token actually carries are recorded in the `integration.account.connect` activity event and shown on the Bitbucket integration detail page, so an owner can verify the consumer wasn't configured too broadly.
+
+Then configure both values:
+
+```text
+BITBUCKET_OAUTH_CLIENT_ID=...
+BITBUCKET_OAUTH_CLIENT_SECRET=...
+```
+
+If either is absent, the core application still starts and Bitbucket is omitted from the catalogue. Supplying only one is rejected. The callback is derived from `PUBLIC_APP_URL`, so a deployed environment must register `${PUBLIC_APP_URL}/api/integrations/bitbucket/oauth/callback`. Use a distinct consumer when local and production environments require different registered callbacks.
+
 ## Commands
 
 | Command                   | Purpose                                       |
@@ -160,7 +198,7 @@ If both are absent, the core application still starts and both Atlassian provide
 | `pnpm db:validate`        | Validate local Flyway migrations              |
 | `pnpm db:info`            | Inspect local Flyway state                    |
 | `pnpm verify`             | Check formatting, linting, types, and builds  |
-| `pnpm docker:build`       | Build both production application images      |
+| `pnpm docker:build`       | Build all production deployment images        |
 | `pnpm email:dev`          | Preview shared email templates on port 3001   |
 
 Migrations never run during web or API startup. Product data is never seeded.
@@ -185,12 +223,13 @@ API:
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `PUBLIC_APP_URL`
 - Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
+- Optional pair: `BITBUCKET_OAUTH_CLIENT_ID`, `BITBUCKET_OAUTH_CLIENT_SECRET`
 
 Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT`. See `.env.example` for valid formats.
 
 ## Railway
 
-Railway runs `web`, `api`, and `Postgres` in one project. The application service manifests are `railway.web.json` and `railway.api.json`.
+Railway runs `web`, `api`, `flyway`, and `Postgres` in one project. The service manifests are `railway.web.json`, `railway.api.json`, and `railway.flyway.json`.
 
 Use these service configuration paths in Railway and keep the repository root as each build context. Configure:
 
@@ -209,15 +248,36 @@ api
   ATLASSIAN_OAUTH_CLIENT_SECRET=<secret>
   PORT=4000
 
+flyway
+  FLYWAY_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
+  FLYWAY_USER=${{Postgres.PGUSER}}
+  FLYWAY_PASSWORD=${{Postgres.PGPASSWORD}}
+  FLYWAY_CONNECT_RETRIES=60
+  RAILWAY_DOCKERFILE_PATH=packages/db/Dockerfile.flyway
+
 ```
 
-Run migrations explicitly before an application release containing new SQL:
+The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. Keep GitHub autodeploy disabled for `flyway`, `api`, and `web`; the production GitHub Actions workflow deploys them in order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Flyway is deployed only when its SQL, image, or Railway manifest changed since the last successful production API revision.
+
+Configure the private GitHub repository with:
+
+- Required `main` branch check: `Verify`.
+- Repository secret `RAILWAY_TOKEN`: a Railway project token scoped to the production environment.
+- Repository variable `RAILWAY_PROJECT_ID`: the Railway project ID.
+- Repository variable `PRODUCTION_WEB_URL`: the public HTTPS web origin.
+- GitHub environment `production` for deployment tracking.
+
+Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build Docker images or test Flyway against a temporary database; Railway performs deployment builds, and developers must run `pnpm db:migrate` and `pnpm db:validate` locally whenever migrations change.
+
+For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, API, and web in that order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+
+For an exceptional manual migration fallback, run:
 
 ```sh
 railway run --service Postgres pnpm db:railway:migrate
 ```
 
-The Postgres service must have an active TCP proxy and a `DATABASE_PUBLIC_URL` composed from that proxy plus Railway's `PGUSER`, `POSTGRES_PASSWORD`, and `PGDATABASE` references. The command passes that URL to the pinned Flyway Docker image without making migration part of application startup. Deploy API next, then web. Apply `V2__context_layer_foundation.sql` before deploying any API code that calls the product repositories.
+The fallback requires an active Postgres TCP proxy and a `DATABASE_PUBLIC_URL`. Normal production migrations use Railway private networking and do not require a public database endpoint. Never edit an applied versioned migration, run `flyway repair` automatically, or attempt an automatic database rollback; ship forward-compatible corrective migrations instead.
 
 Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 

@@ -1,0 +1,65 @@
+import { Router, type RequestHandler } from "express";
+import { z } from "zod";
+
+import { HttpError } from "../../errors";
+import type { AuthenticatedLocals } from "../../http/authentication";
+import type { createMcpConnectionService } from "./mcp-connection.service";
+
+const identifierSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(/^[A-Za-z0-9_-]+$/, "The identifier is invalid.");
+
+export interface McpConnectionRouterDependencies {
+  requireAuthentication: RequestHandler;
+  service: ReturnType<typeof createMcpConnectionService>;
+}
+
+export function createMcpConnectionRouter({
+  requireAuthentication,
+  service,
+}: McpConnectionRouterDependencies): Router {
+  const router = Router();
+  router.use(requireAuthentication);
+
+  router.get("/", async (request, response) => {
+    const parsedClientId = z
+      .object({ clientId: identifierSchema.optional() })
+      .safeParse(request.query);
+
+    if (!parsedClientId.success) {
+      throw new HttpError(
+        400,
+        "INVALID_REQUEST",
+        parsedClientId.error.issues[0]?.message ?? "The request is invalid.",
+      );
+    }
+
+    const user = (response.locals as AuthenticatedLocals).authenticatedUser;
+    response.setHeader("Cache-Control", "no-store");
+    response.status(200).json({
+      data: await service.getConnections(user.id, parsedClientId.data.clientId),
+    });
+  });
+
+  router.delete("/:consentId", async (request, response) => {
+    const parsedConsentId = identifierSchema.safeParse(
+      request.params.consentId,
+    );
+
+    if (!parsedConsentId.success) {
+      throw new HttpError(
+        400,
+        "INVALID_REQUEST",
+        parsedConsentId.error.issues[0]?.message ?? "The request is invalid.",
+      );
+    }
+
+    const user = (response.locals as AuthenticatedLocals).authenticatedUser;
+    await service.revokeConnection(user.id, parsedConsentId.data);
+    response.status(204).send();
+  });
+
+  return router;
+}

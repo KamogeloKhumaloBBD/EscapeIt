@@ -32,6 +32,7 @@ export interface ScopeDiscoveryPage {
 
 export interface IntegrationAdapter {
   buildAuthorizationUrl(state: string): string;
+  buildInstallationAuthorizationUrl?(state: string): string;
   discoverResources(
     credentials: OAuthCredentials,
   ): Promise<readonly ProviderResource[]>;

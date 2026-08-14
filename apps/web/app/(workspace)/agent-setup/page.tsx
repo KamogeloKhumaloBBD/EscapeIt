@@ -1,21 +1,18 @@
-import { KeyIcon, WarningCircleIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  CaretDownIcon,
+  KeyIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { redirect } from "next/navigation";
 
 import {
-  ClientSetupTabs,
   CreateTokenForm,
-  EndpointField,
+  OAuthClientSetupTabs,
   RevokeTokenButton,
 } from "@/app/(workspace)/agent-setup/agent-setup-controls";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -126,12 +123,12 @@ function NoTokens({ workspace = false }: { workspace?: boolean }) {
           <KeyIcon aria-hidden="true" />
         </EmptyMedia>
         <EmptyTitle>
-          {workspace ? "No other member tokens" : "No access tokens"}
+          {workspace ? "No other member tokens" : "No personal tokens"}
         </EmptyTitle>
         <EmptyDescription>
           {workspace
             ? "Tokens created by other workspace members will appear here."
-            : "Create a personal token to connect your first MCP client."}
+            : "You do not need a token when your MCP client supports OAuth."}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -167,82 +164,70 @@ export default async function AgentSetupPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <main className="mx-auto w-full max-w-7xl px-5 pt-9 pb-24 sm:px-7 lg:px-10 lg:pt-12">
       <WorkspacePageHeader
-        description="Create a personal credential and connect coding agents to your workspace through one authenticated Streamable HTTP endpoint."
+        description="Register one Streamable HTTP endpoint, approve access in your browser, and let your MCP client keep the connection signed in."
         eyebrow="MCP access"
         title="Agent Setup"
       />
 
-      <div className="mt-10 grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-        <div className="space-y-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal access tokens</CardTitle>
-              <CardDescription>
-                Tokens act as you and use your membership and provider accounts.
-                They do not expire automatically.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Connect a client</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OAuthClientSetupTabs endpoint={endpoint} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <details className="group mt-10 border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30">
+          <div>
+            Personal access tokens
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              For headless scripts and clients without OAuth
+            </span>
+          </div>
+          <CaretDownIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+            weight="bold"
+          />
+        </summary>
+        <div className="space-y-8 border-t p-6 pt-0">
+          <section>
+            <div className="mt-5">
               <CreateTokenForm />
-            </CardContent>
-            <CardContent className="border-t pt-6">
+            </div>
+            <div className="mt-6 border-t pt-2">
               {personalTokens.length === 0 ? (
                 <NoTokens />
               ) : (
                 <TokenTable tokens={personalTokens} />
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {state.data.role === "owner" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Workspace token access</CardTitle>
-                <CardDescription>
-                  Owners can audit and revoke tokens, but can never recover
-                  their values.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+            <section className="border-t pt-7">
+              <h2 className="text-base font-semibold">Workspace token audit</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Owners can audit and revoke other members&apos; tokens, but can
+                never recover their values.
+              </p>
+              <div className="mt-5">
                 {workspaceTokens.length === 0 ? (
                   <NoTokens workspace />
                 ) : (
                   <TokenTable showCreator tokens={workspaceTokens} />
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           ) : null}
         </div>
-
-        <div className="space-y-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gateway endpoint</CardTitle>
-              <CardDescription>
-                Send the token as a bearer credential on every request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EndpointField endpoint={endpoint} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Connect a client</CardTitle>
-              <CardDescription>
-                Set <code>CONTEXT_LAYER_TOKEN</code> locally, then use the
-                matching client configuration.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ClientSetupTabs endpoint={endpoint} />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      </details>
     </main>
   );
 }

@@ -101,6 +101,7 @@ export default async function IntegrationDetailPage({
   );
   const isInstallationConnected =
     integration.installation?.status === "connected";
+  const isAccountConnected = integration.currentAccount?.status === "connected";
   const configuredResource =
     isInstallationConnected &&
     integration.installation !== null &&
@@ -153,6 +154,10 @@ export default async function IntegrationDetailPage({
             provider: item.provider,
           }))
       : [];
+  const hasAvailableResources =
+    resourcesState.status === "available" && resourcesState.data.length > 0;
+  const hasNoAvailableResources =
+    resourcesState.status === "available" && resourcesState.data.length === 0;
   const summaryMetrics = [
     ...(hasAccount
       ? [
@@ -262,7 +267,7 @@ export default async function IntegrationDetailPage({
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
-            {integration.currentAccount?.status === "connected" ? (
+            {isAccountConnected && isInstallationConnected ? (
               <SimpleIntegrationAction
                 intent="validate"
                 label="Validate connection"
@@ -277,11 +282,27 @@ export default async function IntegrationDetailPage({
                   provider={provider}
                   providerDisplayName={integration.displayName}
                 />
-              ) : hasAccount ? (
+              ) : hasAccount && !isAccountConnected ? (
                 <Button asChild>
                   <a href={`/api/integrations/${provider}/oauth/start`}>
                     <LinkIcon aria-hidden="true" data-icon="inline-start" />
                     Connect {integration.displayName}
+                  </a>
+                </Button>
+              ) : hasApplicationResourceSelection &&
+                resourceLabel &&
+                hasAvailableResources ? (
+                <Button asChild>
+                  <a href="#workspace-resource">
+                    <LinkIcon aria-hidden="true" data-icon="inline-start" />
+                    Select {resourceLabel}
+                  </a>
+                </Button>
+              ) : hasApplicationResourceSelection && hasNoAvailableResources ? (
+                <Button asChild>
+                  <a href={`/api/integrations/${provider}/oauth/start`}>
+                    <LinkIcon aria-hidden="true" data-icon="inline-start" />
+                    Install {integration.displayName} App
                   </a>
                 </Button>
               ) : null
@@ -347,9 +368,7 @@ export default async function IntegrationDetailPage({
                     />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>
-                      {integration.currentAccount.displayName ?? accountLabel}
-                    </ItemTitle>
+                    <ItemTitle>Connected {accountLabel}</ItemTitle>
                     <ItemDescription>
                       Connected to your workspace identity.
                     </ItemDescription>
@@ -401,7 +420,10 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasApplicationResourceSelection ? (
-          <Card className="relative overflow-visible">
+          <Card
+            className="relative scroll-mt-8 overflow-visible"
+            id="workspace-resource"
+          >
             <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
               {String(resourceSectionNumber).padStart(2, "0")}
             </span>

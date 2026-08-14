@@ -26,6 +26,17 @@ const apiEnvironmentSchema = z.object({
   RESEND_API_KEY: z.string().min(1),
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
+  BITBUCKET_OAUTH_CLIENT_ID: optionalCredential,
+  BITBUCKET_OAUTH_CLIENT_SECRET: optionalCredential,
+  GITHUB_APP_CLIENT_ID: optionalCredential,
+  GITHUB_APP_CLIENT_SECRET: optionalCredential,
+  GITHUB_APP_SLUG: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+  ),
 });
 
 export interface AtlassianOAuthConfig {
@@ -33,18 +44,31 @@ export interface AtlassianOAuthConfig {
   clientSecret: string;
 }
 
+export interface BitbucketOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface ApiConfig {
   atlassianOAuth: AtlassianOAuthConfig | null;
+  bitbucketOAuth: BitbucketOAuthConfig | null;
   authEmailFrom: string;
   betterAuthSecret: string;
   betterAuthUrl: string;
   credentialEncryptionKey: string;
   database: DatabaseConfig;
+  githubApp: GitHubAppConfig | null;
   nodeEnvironment: "development" | "production";
   port: number;
   publicAppUrl: string;
   resendApiKey: string;
   webhookPublicUrl: string;
+}
+
+export interface GitHubAppConfig {
+  clientId: string;
+  clientSecret: string;
+  slug: string;
 }
 
 function isThirtyTwoByteBase64(value: string): boolean {
@@ -80,6 +104,30 @@ export function parseApiConfig(
     );
   }
 
+  if (
+    (parsed.BITBUCKET_OAUTH_CLIENT_ID === undefined) !==
+    (parsed.BITBUCKET_OAUTH_CLIENT_SECRET === undefined)
+  ) {
+    throw new Error(
+      "BITBUCKET_OAUTH_CLIENT_ID and BITBUCKET_OAUTH_CLIENT_SECRET must be configured together.",
+    );
+  }
+
+  const githubValues = [
+    parsed.GITHUB_APP_CLIENT_ID,
+    parsed.GITHUB_APP_CLIENT_SECRET,
+    parsed.GITHUB_APP_SLUG,
+  ];
+  const configuredGitHubValues = githubValues.filter(
+    (value) => value !== undefined,
+  ).length;
+
+  if (configuredGitHubValues !== 0 && configuredGitHubValues !== 3) {
+    throw new Error(
+      "GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET, and GITHUB_APP_SLUG must be configured together.",
+    );
+  }
+
   return {
     atlassianOAuth:
       parsed.ATLASSIAN_OAUTH_CLIENT_ID === undefined ||
@@ -89,11 +137,29 @@ export function parseApiConfig(
             clientId: parsed.ATLASSIAN_OAUTH_CLIENT_ID,
             clientSecret: parsed.ATLASSIAN_OAUTH_CLIENT_SECRET,
           },
+    bitbucketOAuth:
+      parsed.BITBUCKET_OAUTH_CLIENT_ID === undefined ||
+      parsed.BITBUCKET_OAUTH_CLIENT_SECRET === undefined
+        ? null
+        : {
+            clientId: parsed.BITBUCKET_OAUTH_CLIENT_ID,
+            clientSecret: parsed.BITBUCKET_OAUTH_CLIENT_SECRET,
+          },
     authEmailFrom: parsed.AUTH_EMAIL_FROM,
     betterAuthSecret: parsed.BETTER_AUTH_SECRET,
     betterAuthUrl: parsed.BETTER_AUTH_URL,
     credentialEncryptionKey: parsed.CREDENTIAL_ENCRYPTION_KEY,
     database: parseDatabaseConfig(environment),
+    githubApp:
+      parsed.GITHUB_APP_CLIENT_ID === undefined ||
+      parsed.GITHUB_APP_CLIENT_SECRET === undefined ||
+      parsed.GITHUB_APP_SLUG === undefined
+        ? null
+        : {
+            clientId: parsed.GITHUB_APP_CLIENT_ID,
+            clientSecret: parsed.GITHUB_APP_CLIENT_SECRET,
+            slug: parsed.GITHUB_APP_SLUG,
+          },
     nodeEnvironment: parsed.NODE_ENV,
     port: parsed.PORT ?? parsed.API_PORT,
     publicAppUrl: parsed.PUBLIC_APP_URL,

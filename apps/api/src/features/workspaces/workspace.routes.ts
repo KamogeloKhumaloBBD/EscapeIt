@@ -3,7 +3,11 @@ import type { ZodError } from "zod";
 
 import { HttpError } from "../../errors";
 import type { AuthenticatedLocals } from "../../http/authentication";
-import { createWorkspaceSchema } from "./workspace.schemas";
+import {
+  createWorkspaceSchema,
+  workspaceAnalyticsQuerySchema,
+  workspaceAnalyticsRankingQuerySchema,
+} from "./workspace.schemas";
 import type { createWorkspaceService } from "./workspace.service";
 
 export interface WorkspaceRouterDependencies {
@@ -62,6 +66,40 @@ export function createWorkspaceRouter({
       (response.locals as AuthenticatedLocals).authenticatedUser.id,
     );
     response.status(200).json({ data: overview });
+  });
+
+  router.get("/current/analytics", async (request, response) => {
+    const parsed = workspaceAnalyticsQuerySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      throw validationError(parsed.error);
+    }
+
+    const analytics = await service.getWorkspaceAnalytics(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      parsed.data.start,
+      parsed.data.end,
+      parsed.data.provider,
+      parsed.data.membershipId,
+      parsed.data.timeZone,
+    );
+    response.status(200).json({ data: analytics });
+  });
+
+  router.get("/current/analytics/rankings", async (request, response) => {
+    const parsed = workspaceAnalyticsRankingQuerySchema.safeParse(
+      request.query,
+    );
+
+    if (!parsed.success) {
+      throw validationError(parsed.error);
+    }
+
+    const ranking = await service.getWorkspaceAnalyticsRanking(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      parsed.data,
+    );
+    response.status(200).json({ data: ranking });
   });
 
   return router;

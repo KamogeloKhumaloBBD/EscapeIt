@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
+import { oauthProvider } from "@better-auth/oauth-provider";
 import { Pool } from "pg";
 import type { Logger } from "pino";
 import { Resend } from "resend";
@@ -10,9 +12,11 @@ export interface AuthConfig {
   baseUrl: string;
   databaseUrl: string;
   logger: Pick<Logger, "warn">;
+  mcpResourceUrl: string;
   resendApiKey: string;
   secret: string;
   trustedOrigins: string[];
+  findWorkspaceIdForUser: (userId: string) => Promise<string | null>;
 }
 
 export function createAuth({
@@ -20,9 +24,11 @@ export function createAuth({
   baseUrl,
   databaseUrl,
   logger,
+  mcpResourceUrl,
   resendApiKey,
   secret,
   trustedOrigins,
+  findWorkspaceIdForUser,
 }: AuthConfig) {
   const database = new Pool({
     connectionString: databaseUrl,
@@ -36,6 +42,25 @@ export function createAuth({
       secret,
       emailAndPassword: {
         enabled: false,
+      },
+      hooks: {
+        before: createAuthMiddleware(async (context) => {
+          if (context.path !== "/oauth2/token") {
+            return;
+          }
+
+          const body: unknown = await Promise.resolve(context.body);
+          const resource =
+            typeof body === "object" && body !== null && "resource" in body
+              ? body.resource
+              : undefined;
+          if (resource !== mcpResourceUrl) {
+            throw new APIError("BAD_REQUEST", {
+              error: "invalid_target",
+              error_description: "The MCP resource indicator is required.",
+            });
+          }
+        }),
       },
       plugins: [
         emailOTP({
@@ -66,6 +91,46 @@ export function createAuth({
             }
           },
           storeOTP: "hashed",
+        }),
+        oauthProvider({
+          accessTokenExpiresIn: 3_600,
+          allowDynamicClientRegistration: true,
+          allowUnauthenticatedClientRegistration: true,
+          clientRegistrationAllowedScopes: ["mcp:access", "offline_access"],
+          clientRegistrationDefaultScopes: ["mcp:access", "offline_access"],
+          consentPage: "/oauth/consent",
+          customAccessTokenClaims: ({ referenceId }) => ({
+            aud: mcpResourceUrl,
+            workspace_id: referenceId,
+          }),
+          disableJwtPlugin: true,
+          grantTypes: ["authorization_code", "refresh_token"],
+          loginPage: "/sign-in",
+          postLogin: {
+            consentReferenceId: async ({ user }) => {
+              const workspaceId = await findWorkspaceIdForUser(user.id);
+
+              if (workspaceId === null) {
+                throw new APIError("FORBIDDEN", {
+                  error: "access_denied",
+                  error_description:
+                    "Finish workspace onboarding before connecting an MCP client.",
+                });
+              }
+
+              return workspaceId;
+            },
+            page: "/oauth/consent",
+            shouldRedirect: () => false,
+          },
+          prefix: {
+            opaqueAccessToken: "ctx_oauth_at_",
+            refreshToken: "ctx_oauth_rt_",
+          },
+          refreshTokenExpiresIn: 31_536_000,
+          scopes: ["mcp:access", "offline_access"],
+          storeTokens: "hashed",
+          validAudiences: [mcpResourceUrl],
         }),
       ],
       user: {

@@ -147,8 +147,6 @@ export interface IntegrationMcpTool {
 export interface IntegrationAccount {
   createdAt: Date;
   credentialEnvelope: EncryptedCredentialEnvelope | null;
-  externalAccountId: string | null;
-  externalDisplayName: string | null;
   id: string;
   integrationId: string;
   lastErrorCode: string | null;

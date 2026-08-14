@@ -12,6 +12,7 @@ import {
   AuthControl,
   AuthControlSkeleton,
 } from "@/components/auth/auth-control";
+import { BrandIcon } from "@/components/brand-icon";
 
 const sources = [
   {
@@ -21,10 +22,10 @@ const sources = [
     name: "Jira",
   },
   {
-    className: "context-source--bitbucket",
+    className: "context-source--github",
     detail: "2 related PRs",
     icon: GitPullRequest,
-    name: "Bitbucket",
+    name: "GitHub",
   },
   {
     className: "context-source--confluence",
@@ -163,8 +164,9 @@ export default function Home() {
         <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
           <Link
             href="/"
-            className="text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
+            className="flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
           >
+            <BrandIcon className="size-6" />
             Context Layer
           </Link>
           <Suspense fallback={<AuthControlSkeleton />}>

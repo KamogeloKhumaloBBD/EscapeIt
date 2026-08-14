@@ -35,8 +35,6 @@ export interface ConfigureIntegrationInput {
 export interface SaveIntegrationAccountInput {
   accountId: string;
   credentialEnvelope: EncryptedCredentialEnvelope | null;
-  externalAccountId: string | null;
-  externalDisplayName?: string | null;
   integrationId: string;
   lastErrorCode?: string | null;
   lastValidatedAt?: Date | null;
@@ -62,6 +60,11 @@ export interface ConnectIntegrationAccountWithResourceInput {
   installation: ConfigureIntegrationInput;
 }
 
+export interface ConnectIntegrationAccountWithoutResourceInput {
+  account: SaveIntegrationAccountInput;
+  provider: ProviderKey;
+}
+
 export interface MemberIntegrationAccess {
   account: IntegrationAccount | null;
   enabledMcpToolNames: string[];
@@ -77,13 +80,6 @@ function validateCredentialState(input: SaveIntegrationAccountInput): void {
     throw new RepositoryError(
       "invalid",
       "Credential state does not match the connection status.",
-    );
-  }
-
-  if (input.status === "connected" && input.externalAccountId === null) {
-    throw new RepositoryError(
-      "invalid",
-      "A connected provider account requires an external account ID.",
     );
   }
 }
@@ -379,8 +375,6 @@ export async function replaceIntegrationAccountCredentials(
     update integration_accounts
     set
       status = ${input.status},
-      "externalAccountId" = ${input.externalAccountId},
-      "externalDisplayName" = ${input.externalDisplayName ?? null},
       "credentialEnvelope" = ${input.credentialEnvelope},
       "lastValidatedAt" = ${input.lastValidatedAt ?? null},
       "lastErrorCode" = ${input.lastErrorCode ?? null},
@@ -408,8 +402,6 @@ export async function disconnectIntegrationAccount(
     update integration_accounts
     set
       status = 'disconnected',
-      "externalAccountId" = null,
-      "externalDisplayName" = null,
       "credentialEnvelope" = null,
       "lastValidatedAt" = null,
       "lastErrorCode" = null,
@@ -476,7 +468,6 @@ export async function disconnectWorkspaceIntegration(
       update integrations
       set
         status = 'disconnected',
-        configuration = '{}'::jsonb,
         "lastValidatedAt" = null,
         "lastErrorCode" = null,
         "updatedAt" = now()
@@ -492,8 +483,6 @@ export async function disconnectWorkspaceIntegration(
       update integration_accounts
       set
         status = 'disconnected',
-        "externalAccountId" = null,
-        "externalDisplayName" = null,
         "credentialEnvelope" = null,
         "lastValidatedAt" = null,
         "lastErrorCode" = null,
@@ -535,8 +524,6 @@ export async function saveIntegrationAccount(
         "integrationId",
         "membershipId",
         status,
-        "externalAccountId",
-        "externalDisplayName",
         "credentialEnvelope",
         "lastValidatedAt",
         "lastErrorCode"
@@ -546,16 +533,12 @@ export async function saveIntegrationAccount(
         ${input.integrationId},
         ${input.membershipId},
         ${input.status},
-        ${input.externalAccountId},
-        ${input.externalDisplayName ?? null},
         ${input.credentialEnvelope},
         ${input.lastValidatedAt ?? null},
         ${input.lastErrorCode ?? null}
       )
       on conflict ("integrationId", "membershipId") do update set
         status = excluded.status,
-        "externalAccountId" = excluded."externalAccountId",
-        "externalDisplayName" = excluded."externalDisplayName",
         "credentialEnvelope" = excluded."credentialEnvelope",
         "lastValidatedAt" = excluded."lastValidatedAt",
         "lastErrorCode" = excluded."lastErrorCode",
@@ -614,8 +597,6 @@ export async function connectIntegrationAccountWithResource(
         "integrationId",
         "membershipId",
         status,
-        "externalAccountId",
-        "externalDisplayName",
         "credentialEnvelope",
         "lastValidatedAt",
         "lastErrorCode"
@@ -625,21 +606,91 @@ export async function connectIntegrationAccountWithResource(
         ${input.account.integrationId},
         ${input.account.membershipId},
         ${input.account.status},
-        ${input.account.externalAccountId},
-        ${input.account.externalDisplayName ?? null},
         ${input.account.credentialEnvelope},
         ${input.account.lastValidatedAt ?? null},
         ${input.account.lastErrorCode ?? null}
       )
       on conflict ("integrationId", "membershipId") do update set
         status = excluded.status,
-        "externalAccountId" = excluded."externalAccountId",
-        "externalDisplayName" = excluded."externalDisplayName",
         "credentialEnvelope" = excluded."credentialEnvelope",
         "lastValidatedAt" = excluded."lastValidatedAt",
         "lastErrorCode" = excluded."lastErrorCode",
         "updatedAt" = now()
       returning *
+    `;
+
+    return { account: requireReturnedRow(accounts[0]), integration };
+  });
+}
+
+export async function connectIntegrationAccountWithoutResource(
+  database: DatabaseClient,
+  input: ConnectIntegrationAccountWithoutResourceInput,
+): Promise<IntegrationConnectionContext> {
+  validateCredentialState(input.account);
+
+  if (input.account.status !== "connected") {
+    throw new RepositoryError(
+      "invalid",
+      "The account must be connected when clearing its unavailable resource.",
+    );
+  }
+
+  return withTransaction(database, async (transaction) => {
+    await requireOwner(
+      transaction,
+      input.account.workspaceId,
+      input.account.membershipId,
+    );
+    const integrations = await transaction<Integration[]>`
+      update integrations
+      set
+        status = 'disconnected',
+        configuration = '{}'::jsonb,
+        "configuredByMembershipId" = ${input.account.membershipId},
+        "lastValidatedAt" = null,
+        "lastErrorCode" = null,
+        "updatedAt" = now()
+      where
+        id = ${input.account.integrationId}
+        and "workspaceId" = ${input.account.workspaceId}
+        and provider = ${input.provider}
+      returning *
+    `;
+    const integration = requireReturnedRow(integrations[0]);
+    const accounts = await transaction<IntegrationAccount[]>`
+      insert into integration_accounts (
+        id,
+        "workspaceId",
+        "integrationId",
+        "membershipId",
+        status,
+        "credentialEnvelope",
+        "lastValidatedAt",
+        "lastErrorCode"
+      ) values (
+        ${input.account.accountId},
+        ${input.account.workspaceId},
+        ${input.account.integrationId},
+        ${input.account.membershipId},
+        ${input.account.status},
+        ${input.account.credentialEnvelope},
+        ${input.account.lastValidatedAt ?? null},
+        ${input.account.lastErrorCode ?? null}
+      )
+      on conflict ("integrationId", "membershipId") do update set
+        status = excluded.status,
+        "credentialEnvelope" = excluded."credentialEnvelope",
+        "lastValidatedAt" = excluded."lastValidatedAt",
+        "lastErrorCode" = excluded."lastErrorCode",
+        "updatedAt" = now()
+      returning *
+    `;
+    await transaction`
+      delete from integration_scopes
+      where
+        "workspaceId" = ${input.account.workspaceId}
+        and "integrationId" = ${input.account.integrationId}
     `;
 
     return { account: requireReturnedRow(accounts[0]), integration };
