@@ -1,12 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 
 import { initialReplaceBundleProvidersState } from "@/app/(workspace)/bundles/action-state";
 import { replaceBundleProvidersAction } from "@/app/(workspace)/bundles/actions";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
@@ -14,23 +18,11 @@ import {
   FieldLabel,
   FieldTitle,
 } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/spinner";
 
 export interface SelectableProvider {
   displayName: string;
   installed: boolean;
   provider: string;
-}
-
-function SaveSubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button disabled={pending} type="submit">
-      {pending ? <Spinner aria-hidden="true" /> : null}
-      {pending ? "Saving..." : "Save providers"}
-    </Button>
-  );
 }
 
 export function ProviderSelector({
@@ -42,11 +34,19 @@ export function ProviderSelector({
   bundleId: string;
   selectedProviders: readonly string[];
 }) {
-  const [selected, setSelected] = useState(() => new Set(selectedProviders));
-  const [state, formAction, pending] = useActionState(
+  const serverSelected = useMemo(
+    () => new Set(selectedProviders),
+    [selectedProviders],
+  );
+  const [selected, setOptimisticSelected] = useOptimistic(
+    serverSelected,
+    (_current, next: ReadonlySet<string>) => new Set(next),
+  );
+  const [state, formAction] = useActionState(
     replaceBundleProvidersAction,
     initialReplaceBundleProvidersState,
   );
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.status === "success" && state.message !== null) {
@@ -56,12 +56,27 @@ export function ProviderSelector({
     }
   }, [state]);
 
+  function saveProviders(next: ReadonlySet<string>) {
+    const formData = new FormData();
+    formData.set("bundleId", bundleId);
+    next.forEach((provider) => {
+      formData.append("providers", provider);
+    });
+
+    startTransition(() => {
+      setOptimisticSelected(next);
+      formAction(formData);
+    });
+  }
+
   return (
-    <form action={formAction} aria-busy={pending} className="space-y-4">
-      <input name="bundleId" type="hidden" value={bundleId} />
-      {[...selected].map((provider) => (
-        <input key={provider} name="providers" type="hidden" value={provider} />
-      ))}
+    <div aria-busy={pending} className="space-y-4">
+      <div className="text-xs text-muted-foreground">
+        <span>
+          {selected.size} {selected.size === 1 ? "provider" : "providers"}{" "}
+          selected
+        </span>
+      </div>
 
       <div className="divide-y divide-border border-y border-border">
         {availableProviders.map((provider) => {
@@ -80,17 +95,15 @@ export function ProviderSelector({
                 disabled={pending || !provider.installed}
                 id={id}
                 onCheckedChange={(nextChecked) => {
-                  setSelected((current) => {
-                    const next = new Set(current);
+                  const next = new Set(selected);
 
-                    if (nextChecked === true) {
-                      next.add(provider.provider);
-                    } else {
-                      next.delete(provider.provider);
-                    }
+                  if (nextChecked === true) {
+                    next.add(provider.provider);
+                  } else {
+                    next.delete(provider.provider);
+                  }
 
-                    return next;
-                  });
+                  saveProviders(next);
                 }}
               />
               <FieldContent>
@@ -107,8 +120,6 @@ export function ProviderSelector({
           );
         })}
       </div>
-
-      <SaveSubmitButton />
-    </form>
+    </div>
   );
 }

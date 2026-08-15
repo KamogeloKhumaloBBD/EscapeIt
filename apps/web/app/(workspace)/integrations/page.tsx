@@ -10,7 +10,6 @@ import { redirect } from "next/navigation";
 
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +19,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
+import { WorkspacePage } from "@/components/workspace-page";
+import {
+  WorkspaceStatus,
+  type WorkspaceStatusTone,
+} from "@/components/workspace-status";
 import { getIntegrationsState } from "@/lib/server/integration";
 import type { IntegrationSummary } from "@/lib/validation/integration";
 
@@ -37,10 +41,11 @@ function statusLabel(integration: IntegrationSummary): string {
   return "Setup required";
 }
 
-function capabilityLabel(value: string): string {
-  return value
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+function statusTone(integration: IntegrationSummary): WorkspaceStatusTone {
+  if (integration.attention !== null) return "attention";
+  if (integration.nextStep === "ready") return "ready";
+  if (integration.installation === null) return "disconnected";
+  return "setup";
 }
 
 function PipelineStep({
@@ -85,7 +90,7 @@ export default async function IntegrationsPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage>
       <WorkspacePageHeader
         description="Connect and manage the tools that provide context to this workspace."
         title="Integrations"
@@ -140,15 +145,9 @@ export default async function IntegrationsPage() {
                         <CardTitle className="text-xl">
                           {integration.displayName}
                         </CardTitle>
-                        <Badge
-                          variant={
-                            integration.attention === null
-                              ? "default"
-                              : "destructive"
-                          }
-                        >
+                        <WorkspaceStatus tone={statusTone(integration)}>
                           {statusLabel(integration)}
-                        </Badge>
+                        </WorkspaceStatus>
                       </div>
                       <CardDescription className="mt-2 line-clamp-2">
                         {integration.description}
@@ -158,16 +157,8 @@ export default async function IntegrationsPage() {
                 </CardHeader>
 
                 <CardContent className="flex flex-1 flex-col">
-                  <div className="flex flex-wrap gap-1.5">
-                    {integration.capabilities.map((capability) => (
-                      <Badge key={capability} variant="secondary">
-                        {capabilityLabel(capability)}
-                      </Badge>
-                    ))}
-                  </div>
-
                   {hasAnyPipelineStep ? (
-                    <div className="mt-5 divide-y divide-border border-y border-border">
+                    <div className="divide-y divide-border border-y border-border">
                       {hasAccount ? (
                         <PipelineStep
                           complete={accountConnected}
@@ -194,7 +185,7 @@ export default async function IntegrationsPage() {
                       ) : null}
                     </div>
                   ) : hasNotificationChannels ? (
-                    <div className="mt-5 flex flex-1 flex-col items-center justify-center gap-2 border-y border-dashed border-border py-8 text-center">
+                    <div className="flex flex-1 flex-col items-center justify-center gap-2 border-y border-dashed border-border py-8 text-center">
                       <PlugsConnectedIcon
                         aria-hidden="true"
                         className="size-5 text-muted-foreground/55"
@@ -208,10 +199,10 @@ export default async function IntegrationsPage() {
                   ) : null}
 
                   <div className="mt-6 flex items-center justify-between gap-4">
-                    <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
-                      {hasNotificationChannels
-                        ? "Notification relay"
-                        : `${String(integration.installation?.enabledMcpToolCount ?? 0)} tools`}
+                    <span className="text-xs text-muted-foreground">
+                      {integration.nextStep === "ready"
+                        ? "Configuration complete"
+                        : "Next step available"}
                     </span>
                     <Button
                       asChild
@@ -245,7 +236,9 @@ export default async function IntegrationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <CardTitle className="text-xl">GitHub</CardTitle>
-                      <Badge variant="secondary">Not configured</Badge>
+                      <WorkspaceStatus tone="disconnected">
+                        Not configured
+                      </WorkspaceStatus>
                     </div>
                     <CardDescription className="mt-2 line-clamp-2">
                       Bring allowlisted GitHub repositories, code, issues, and
@@ -256,19 +249,7 @@ export default async function IntegrationsPage() {
               </CardHeader>
 
               <CardContent className="flex flex-1 flex-col">
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    ["context", "Context"],
-                    ["user-accounts", "User Accounts"],
-                    ["scopes", "Scopes"],
-                  ].map(([capability, label]) => (
-                    <Badge key={capability} variant="secondary">
-                      {label}
-                    </Badge>
-                  ))}
-                </div>
-
-                <div className="mt-5 divide-y divide-border border-y border-border">
+                <div className="divide-y divide-border border-y border-border">
                   <PipelineStep complete={false} label="Your account" />
                   <PipelineStep complete={false} label="Workspace resource" />
                   <PipelineStep complete={false} label="Allowed scopes" />
@@ -286,6 +267,6 @@ export default async function IntegrationsPage() {
           )}
         </section>
       )}
-    </main>
+    </WorkspacePage>
   );
 }

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
-  CreateBundleForm,
+  CreateBundleDialog,
   DeleteBundleButton,
 } from "@/app/(workspace)/bundles/bundle-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,19 +15,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { WorkspacePage } from "@/components/workspace-page";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
+import { WorkspaceStatus } from "@/components/workspace-status";
 import { getBundleListState } from "@/lib/server/integration-bundle";
 import { getCurrentWorkspaceState } from "@/lib/server/workspace";
 
@@ -45,8 +48,13 @@ export default async function BundlesPage() {
     workspaceState.workspace.role === "owner";
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage>
       <WorkspacePageHeader
+        action={
+          isOwner && state.status === "available" && state.data.length > 0 ? (
+            <CreateBundleDialog />
+          ) : undefined
+        }
         description="Group connected providers so a personal access token can be scoped to just the tools an agent needs."
         title="Bundles"
       />
@@ -61,23 +69,9 @@ export default async function BundlesPage() {
         </Alert>
       ) : (
         <>
-          {isOwner ? (
-            <Card className="mt-10">
-              <CardHeader>
-                <CardTitle>New bundle</CardTitle>
-                <CardDescription>
-                  Name a bundle, then choose its providers from the detail page.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CreateBundleForm />
-              </CardContent>
-            </Card>
-          ) : null}
-
           <section
             aria-label="Workspace bundles"
-            className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
           >
             {state.data.length === 0 ? (
               <Empty className="sm:col-span-2 xl:col-span-3">
@@ -92,6 +86,11 @@ export default async function BundlesPage() {
                       : "The workspace owner has not created any bundles yet."}
                   </EmptyDescription>
                 </EmptyHeader>
+                {isOwner ? (
+                  <EmptyContent>
+                    <CreateBundleDialog triggerLabel="Create your first bundle" />
+                  </EmptyContent>
+                ) : null}
               </Empty>
             ) : (
               state.data.map((bundle) => (
@@ -101,9 +100,29 @@ export default async function BundlesPage() {
                 >
                   <CardHeader>
                     <CardTitle>{bundle.name}</CardTitle>
-                    <CardDescription className="line-clamp-2">
+                    <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {bundle.description ?? "No description."}
-                    </CardDescription>
+                    </p>
+                    <CardAction>
+                      <WorkspaceStatus
+                        tone={
+                          bundle.providers.length > 0 &&
+                          bundle.providers.every(
+                            (provider) => provider.status === "connected",
+                          )
+                            ? "ready"
+                            : "setup"
+                        }
+                      >
+                        {bundle.providers.length === 0
+                          ? "No providers"
+                          : bundle.providers.every(
+                                (provider) => provider.status === "connected",
+                              )
+                            ? "Ready"
+                            : "Needs review"}
+                      </WorkspaceStatus>
+                    </CardAction>
                   </CardHeader>
                   <CardContent className="flex flex-1 flex-col">
                     <div className="flex flex-1 flex-wrap gap-1.5">
@@ -139,6 +158,7 @@ export default async function BundlesPage() {
                       {bundle.permissions.canManage ? (
                         <DeleteBundleButton
                           bundleId={bundle.id}
+                          menu
                           name={bundle.name}
                         />
                       ) : null}
@@ -150,6 +170,6 @@ export default async function BundlesPage() {
           </section>
         </>
       )}
-    </main>
+    </WorkspacePage>
   );
 }

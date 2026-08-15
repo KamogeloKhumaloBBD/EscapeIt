@@ -45,6 +45,7 @@ export function DashboardFilters({
 
   function setFilter(key: "membershipId" | "provider", value: string): void {
     const search = new URLSearchParams(searchParams.toString());
+    search.delete("timeZone");
     if (value === allValue) search.delete(key);
     else search.set(key, value);
     startTransition(() => {
@@ -72,7 +73,7 @@ export function DashboardFilters({
       >
         <SelectTrigger
           aria-label="Filter by integration"
-          className="min-w-44 border px-3"
+          className="w-full border px-3 sm:w-auto sm:min-w-44"
         >
           <SelectValue placeholder="All integrations" />
         </SelectTrigger>
@@ -95,7 +96,7 @@ export function DashboardFilters({
         >
           <SelectTrigger
             aria-label="Filter by member"
-            className="min-w-52 border px-3"
+            className="w-full border px-3 sm:w-auto sm:min-w-52"
           >
             <SelectValue placeholder="All members" />
           </SelectTrigger>
@@ -116,11 +117,16 @@ export function DashboardFilters({
           onClick={() => {
             startTransition(() => {
               const search = new URLSearchParams(searchParams.toString());
+              search.delete("timeZone");
               search.delete("end");
               search.delete("membershipId");
               search.delete("provider");
               search.delete("start");
-              router.push(`/dashboard?${search.toString()}`);
+              router.push(
+                search.size === 0
+                  ? "/dashboard"
+                  : `/dashboard?${search.toString()}`,
+              );
             });
           }}
           size="sm"

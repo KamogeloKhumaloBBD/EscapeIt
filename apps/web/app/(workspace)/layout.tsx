@@ -29,6 +29,7 @@ export default async function WorkspaceLayout({
       workspaceName={
         state.status === "available" ? state.workspace.name : "Workspace"
       }
+      workspaceRole={state.status === "available" ? state.workspace.role : null}
     >
       {children}
     </WorkspaceShell>

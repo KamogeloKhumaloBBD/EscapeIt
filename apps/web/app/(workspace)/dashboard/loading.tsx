@@ -1,13 +1,10 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WorkspacePage } from "@/components/workspace-page";
 
 export default function DashboardLoading() {
   return (
-    <main
-      aria-label="Loading dashboard"
-      className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12"
-      role="status"
-    >
+    <WorkspacePage aria-label="Loading dashboard" role="status">
       <div>
         <Skeleton className="h-5 w-28" />
         <Skeleton className="mt-4 h-12 w-80 max-w-full" />
@@ -49,6 +46,6 @@ export default function DashboardLoading() {
           </Card>
         ))}
       </div>
-    </main>
+    </WorkspacePage>
   );
 }

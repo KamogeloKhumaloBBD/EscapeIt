@@ -48,6 +48,7 @@ export function DashboardDateRangePicker({
 
     setError(null);
     const search = new URLSearchParams(currentSearch.toString());
+    search.delete("timeZone");
     search.set("end", dateParameter(range.to));
     search.set("start", dateParameter(range.from));
     startTransition(() => {
@@ -62,6 +63,7 @@ export function DashboardDateRangePicker({
     setError(null);
     startTransition(() => {
       const search = new URLSearchParams(currentSearch.toString());
+      search.delete("timeZone");
       search.delete("start");
       search.delete("end");
       router.push(
@@ -76,6 +78,7 @@ export function DashboardDateRangePicker({
       <PopoverTrigger asChild>
         <Button
           aria-label="Choose analytics date range"
+          className="w-full justify-start sm:w-auto"
           disabled={pending}
           variant="outline"
         >

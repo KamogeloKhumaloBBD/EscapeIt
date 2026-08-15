@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { WarningIcon } from "@phosphor-icons/react";
+import { useActionState, useEffect, useOptimistic, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -9,8 +10,19 @@ import {
   updateMcpConnectionBundleAction,
   type RevokeMcpConnectionState,
   type UpdateMcpConnectionBundleState,
-} from "@/app/(workspace)/account/actions";
+} from "@/app/(workspace)/agent-setup/connection-actions";
 import { McpClientMark } from "@/components/mcp/client-mark";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -41,16 +53,6 @@ function RevokeButton() {
   );
 }
 
-function BundleSubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button disabled={pending} size="sm" type="submit" variant="outline">
-      {pending ? "Saving…" : "Save"}
-    </Button>
-  );
-}
-
 function ConnectionBundleForm({
   bundles,
   connection,
@@ -62,6 +64,12 @@ function ConnectionBundleForm({
     updateMcpConnectionBundleAction,
     initialBundleState,
   );
+  const initialValue = connection.bundleId ?? "none";
+  const [selectedValue, setOptimisticValue] = useOptimistic(
+    initialValue,
+    (_current, next: string) => next,
+  );
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.message === null) return;
@@ -69,24 +77,31 @@ function ConnectionBundleForm({
     else toast.error(state.message);
   }, [state]);
 
+  function saveBundle(bundleId: string) {
+    const formData = new FormData();
+    formData.set("clientId", connection.clientId);
+    formData.set("bundleId", bundleId);
+
+    startTransition(() => {
+      setOptimisticValue(bundleId);
+      action(formData);
+    });
+  }
+
   return (
-    <form action={action} className="flex items-center gap-2">
-      <input name="clientId" type="hidden" value={connection.clientId} />
-      <Select defaultValue={connection.bundleId ?? "none"} name="bundleId">
-        <SelectTrigger className="w-44" size="sm">
-          <SelectValue placeholder="All connected providers" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">All connected providers</SelectItem>
-          {bundles.map((bundle) => (
-            <SelectItem key={bundle.id} value={bundle.id}>
-              {bundle.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <BundleSubmitButton />
-    </form>
+    <Select disabled={pending} onValueChange={saveBundle} value={selectedValue}>
+      <SelectTrigger className="min-w-0 flex-1 sm:w-44" size="sm">
+        <SelectValue placeholder="All connected providers" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">All connected providers</SelectItem>
+        {bundles.map((bundle) => (
+          <SelectItem key={bundle.id} value={bundle.id}>
+            {bundle.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -109,27 +124,59 @@ function ConnectionRow({
   }, [state]);
 
   return (
-    <li className="flex flex-col gap-4 border-b p-5 last:border-b-0 sm:flex-row sm:items-center">
-      <McpClientMark clientName={connection.clientName} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">
-          {connection.clientName}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {connection.workspaceName} · Authorized{" "}
-          {new Intl.DateTimeFormat("en", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          }).format(connection.authorizedAt)}
-        </p>
+    <li className="border-b p-4 last:border-b-0 sm:p-5 flex justify-between items-center">
+      <div className="flex min-w-0 items-center gap-3">
+        <McpClientMark clientName={connection.clientName} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">
+            {connection.clientName}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {connection.workspaceName} · Authorized{" "}
+            {new Intl.DateTimeFormat("en", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(connection.authorizedAt)}
+          </p>
+        </div>
       </div>
-      {bundles.length === 0 ? null : (
-        <ConnectionBundleForm bundles={bundles} connection={connection} />
-      )}
-      <form action={action}>
-        <input name="consentId" type="hidden" value={connection.consentId} />
-        <RevokeButton />
-      </form>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        {bundles.length === 0 ? null : (
+          <ConnectionBundleForm bundles={bundles} connection={connection} />
+        )}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" variant="destructive">
+              Revoke
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <form action={action}>
+              <input
+                name="consentId"
+                type="hidden"
+                value={connection.consentId}
+              />
+              <AlertDialogHeader>
+                <AlertDialogMedia>
+                  <WarningIcon aria-hidden="true" />
+                </AlertDialogMedia>
+                <AlertDialogTitle>
+                  Revoke {connection.clientName}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This client will immediately lose access to the workspace. You
+                  will need to authorize it again to reconnect.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="mt-6">
+                <AlertDialogCancel>Keep connected</AlertDialogCancel>
+                <RevokeButton />
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </li>
   );
 }

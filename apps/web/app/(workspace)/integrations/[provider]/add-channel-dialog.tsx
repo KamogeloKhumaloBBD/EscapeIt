@@ -27,7 +27,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
-export function AddChannelDialog() {
+export function AddChannelDialog({
+  providerDisplayName,
+}: {
+  providerDisplayName: string;
+}) {
   const [open, setOpen] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -41,7 +45,9 @@ export function AddChannelDialog() {
       );
 
       if (result.status === "success") {
-        toast.success(result.message ?? "The Teams channel was connected.");
+        toast.success(
+          result.message ?? `The ${providerDisplayName} channel was connected.`,
+        );
         setFieldError(null);
         formRef.current?.reset();
         setOpen(false);
@@ -66,12 +72,12 @@ export function AddChannelDialog() {
       <DialogTrigger asChild>
         <Button>
           <PlusIcon aria-hidden="true" data-icon="inline-start" />
-          Add Teams channel
+          Add channel
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Connect a Microsoft Teams channel</DialogTitle>
+          <DialogTitle>Connect a {providerDisplayName} channel</DialogTitle>
           <DialogDescription>
             In Teams, open the target channel&apos;s &ldquo;&hellip;&rdquo;
             menu, choose Workflows, and create an &ldquo;incoming webhook&rdquo;
@@ -130,7 +136,7 @@ export function AddChannelDialog() {
             </Button>
             <Button disabled={isPending} type="submit">
               {isPending ? <Spinner data-icon="inline-start" /> : null}
-              {isPending ? "Connecting..." : "Connect channel"}
+              {isPending ? "Connecting…" : "Connect channel"}
             </Button>
           </DialogFooter>
         </form>

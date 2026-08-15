@@ -34,7 +34,7 @@ function InviteSubmitButton() {
   return (
     <Button disabled={pending} type="submit">
       {pending ? <Spinner aria-hidden="true" /> : <PaperPlaneTiltIcon />}
-      {pending ? "Sending..." : "Send invitation"}
+      {pending ? "Sending…" : "Send invitation"}
     </Button>
   );
 }
@@ -95,7 +95,7 @@ function RevokeSubmitButton() {
   return (
     <Button disabled={pending} type="submit" variant="destructive">
       {pending ? <Spinner aria-hidden="true" /> : <TrashIcon />}
-      {pending ? "Revoking..." : "Revoke invitation"}
+      {pending ? "Revoking…" : "Revoke invitation"}
     </Button>
   );
 }

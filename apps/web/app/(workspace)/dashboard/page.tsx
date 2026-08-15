@@ -2,11 +2,13 @@ import {
   PlugsConnectedIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { WorkspacePage } from "@/components/workspace-page";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { getIntegrationsState } from "@/lib/server/integration";
 import { getMemberListState } from "@/lib/server/member";
@@ -18,6 +20,10 @@ import {
 import { DashboardAnalytics } from "./dashboard-analytics";
 import { DashboardFilters } from "./dashboard-filters";
 import { DashboardTimeZone } from "./dashboard-time-zone";
+import {
+  dashboardTimeZoneCookieName,
+  parseDashboardTimeZone,
+} from "./time-zone-cookie";
 
 function queryValue(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -28,12 +34,17 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const parameters = await searchParams;
+  const [parameters, cookieStore] = await Promise.all([
+    searchParams,
+    cookies(),
+  ]);
   const start = queryValue(parameters.start);
   const end = queryValue(parameters.end);
   const provider = queryValue(parameters.provider);
   const membershipId = queryValue(parameters.membershipId);
-  const timeZone = queryValue(parameters.timeZone);
+  const timeZone = parseDashboardTimeZone(
+    cookieStore.get(dashboardTimeZoneCookieName)?.value,
+  );
 
   if (timeZone === undefined) {
     return <DashboardTimeZone loading />;
@@ -63,7 +74,7 @@ export default async function DashboardPage({
 
   if (workspaceState.status !== "available") {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16 lg:px-10">
+      <WorkspacePage>
         <DashboardTimeZone current={timeZone} />
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
@@ -72,22 +83,18 @@ export default async function DashboardPage({
             We couldn&apos;t reach the API. Refresh the page to try again.
           </AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
   if (analyticsState.status === "invalid") {
     return (
-      <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+      <WorkspacePage>
         <DashboardTimeZone current={timeZone} />
         <WorkspacePageHeader
           action={
             <Button asChild variant="outline">
-              <Link
-                href={`/dashboard?timeZone=${encodeURIComponent(timeZone)}`}
-              >
-                Reset to 30 days
-              </Link>
+              <Link href="/dashboard">Reset to 30 days</Link>
             </Button>
           }
           description="Workspace tool usage, reliability, and recent activity."
@@ -98,7 +105,7 @@ export default async function DashboardPage({
           <AlertTitle>Invalid analytics filters</AlertTitle>
           <AlertDescription>{analyticsState.message}</AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
@@ -107,7 +114,7 @@ export default async function DashboardPage({
     integrationsState.status === "unavailable"
   ) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16 lg:px-10">
+      <WorkspacePage>
         <DashboardTimeZone current={timeZone} />
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
@@ -117,7 +124,7 @@ export default async function DashboardPage({
             again.
           </AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
@@ -140,7 +147,7 @@ export default async function DashboardPage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage>
       <DashboardTimeZone current={timeZone} />
       <WorkspacePageHeader
         description="Workspace tool usage, reliability, and recent activity."
@@ -206,6 +213,6 @@ export default async function DashboardPage({
           timeZone: analyticsState.analytics.timeZone,
         }}
       />
-    </main>
+    </WorkspacePage>
   );
 }

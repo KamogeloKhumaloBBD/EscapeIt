@@ -82,7 +82,7 @@ OAuth clients should send the MCP resource indicator shown by protected-resource
 
 Workspace owners can group the workspace's provider installations into named bundles from `/bundles`. A member can optionally scope a personal access token to one bundle when creating it from `/agent-setup`; that token's tools are then limited to the bundle's providers, intersected with the member's own connection and the workspace's existing tool allowlists. A token created without a bundle keeps today's behavior: every tool enabled across every provider the member has connected. A bundle cannot be deleted while a non-revoked token or MCP connection still references it.
 
-OAuth-connected MCP clients (approved from `/oauth/consent`, e.g. `claude mcp add --transport http`) can be scoped to a bundle too, chosen on the consent screen alongside Allow/Deny. Unlike personal tokens, an OAuth connection's bundle can be changed afterward from `/agent-setup` or `/account` — both list every connected client with a bundle switcher and a Revoke button — and takes effect on the client's next request, since the gateway re-resolves the connection's bundle live on every call. No client reconfiguration or reconnect is required to switch.
+OAuth-connected MCP clients (approved from `/oauth/consent`, e.g. `claude mcp add --transport http`) can be scoped to a bundle too, chosen on the consent screen alongside Allow/Deny. Unlike personal tokens, an OAuth connection's bundle can be changed afterward from `/agent-setup`, which lists every connected client with a bundle switcher and a Revoke button. The change takes effect on the client's next request because the gateway re-resolves the connection's bundle live on every call. No client reconfiguration or reconnect is required to switch.
 
 When Jira is ready, the gateway can expose fifteen individually selected tools:
 
@@ -147,7 +147,7 @@ url = "https://<web-domain>/api/mcp"
 bearer_token_env_var = "CONTEXT_LAYER_TOKEN"
 ```
 
-The Agent Setup page also provides copyable Claude, VS Code, and generic HTTP examples without embedding the token in committed configuration.
+The Agent Setup page provides copyable OAuth setup guides for Codex, Claude Code, Kiro, Cursor, VS Code, and generic Streamable HTTP clients. Its legacy-token section also includes token-based Claude, VS Code, and generic HTTP examples without embedding the token in committed configuration.
 
 ## Atlassian OAuth
 

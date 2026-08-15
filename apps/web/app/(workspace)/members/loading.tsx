@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WorkspacePage } from "@/components/workspace-page";
 
 export default function MembersLoading() {
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage aria-label="Loading members" role="status">
       <Skeleton className="h-5 w-24" />
       <Skeleton className="mt-4 h-12 w-80 max-w-full" />
       <Skeleton className="mt-3 h-5 w-[34rem] max-w-full" />
@@ -30,6 +31,6 @@ export default function MembersLoading() {
           </CardContent>
         </Card>
       ))}
-    </main>
+    </WorkspacePage>
   );
 }
