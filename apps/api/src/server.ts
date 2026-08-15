@@ -107,6 +107,8 @@ import { createJiraProviderModule } from "./integrations/jira";
 import { jiraProvider } from "./integrations/jira/definition";
 import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
 import { createConfluenceProviderModule } from "./integrations/confluence";
+import { confluenceProvider } from "./integrations/confluence/definition";
+import { createConfluenceWebhookReceiver } from "./integrations/confluence/webhook-receiver";
 import { createBitbucketProviderModule } from "./integrations/bitbucket";
 import { bitbucketProvider } from "./integrations/bitbucket/definition";
 import { createBitbucketWebhookReceiver } from "./integrations/bitbucket/webhook-receiver";
@@ -253,6 +255,30 @@ const webhookReceivers = new Map<ProviderKey, WebhookReceiver>(
     createBitbucketWebhookReceiver({
       ...notificationDependencies,
       findIntegrationByToken: findIntegrationByToken(bitbucketProvider),
+    }),
+    createConfluenceWebhookReceiver({
+      ...notificationDependencies,
+      findIntegrationByCloudId: async (cloudId) => {
+        const integration = await findIntegrationByResourceExternalId(
+          connection.client,
+          confluenceProvider,
+          cloudId,
+        );
+
+        if (integration === null) {
+          return null;
+        }
+
+        return {
+          notificationEventKeys: integration.notificationEventKeys,
+          selectedSpaceKeys: await listIntegrationScopeExternalKeys(
+            connection.client,
+            integration.id,
+          ),
+          workspaceId: integration.workspaceId,
+        };
+      },
+      forgeAppId: config.forgeAppId,
     }),
     createGitHubWebhookReceiver({
       ...notificationDependencies,
@@ -537,6 +563,7 @@ const integrationService = createIntegrationService({
   credentialEncryption,
   listNotificationChannels: (workspaceId) =>
     listNotificationChannelsForWorkspace(connection.client, workspaceId),
+  notificationSetupUrl: config.forgeAppInstallUrl,
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,

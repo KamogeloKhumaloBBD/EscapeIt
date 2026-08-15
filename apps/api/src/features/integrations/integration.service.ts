@@ -156,6 +156,11 @@ export interface IntegrationServiceDependencies {
   listNotificationChannels: (
     workspaceId: string,
   ) => Promise<NotificationChannel[]>;
+  /**
+   * Where members are sent to authorise event delivery for providers that
+   * need more than OAuth. Null leaves the prompt hidden.
+   */
+  notificationSetupUrl: string | null;
   oauthStateSecret: string;
   providerRegistry: ProviderRegistry;
   repository: IntegrationRepository;
@@ -509,6 +514,7 @@ export function createIntegrationService({
   adapters,
   credentialEncryption,
   listNotificationChannels,
+  notificationSetupUrl,
   oauthStateSecret,
   providerRegistry,
   repository,
@@ -627,6 +633,10 @@ export function createIntegrationService({
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
       notificationEvents: toNotificationEventContracts(definition, integration),
+      notificationSetupUrl:
+        definition.requiresNotificationSetup === true
+          ? notificationSetupUrl
+          : null,
       selectedScopes: scopes.map(toScopeContract),
     };
   }

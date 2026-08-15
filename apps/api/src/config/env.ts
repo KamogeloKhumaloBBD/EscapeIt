@@ -28,6 +28,13 @@ const apiEnvironmentSchema = z.object({
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
   BITBUCKET_OAUTH_CLIENT_ID: optionalCredential,
   BITBUCKET_OAUTH_CLIENT_SECRET: optionalCredential,
+  // The Forge app that relays Confluence events to us. Its app id is the
+  // audience of the invocation tokens Forge signs, so without it we cannot
+  // authenticate a delivery and Confluence notifications stay off.
+  FORGE_APP_ID: optionalCredential,
+  // Where a workspace owner sends their Confluence admin to approve that app.
+  // Generated in the Atlassian developer console under Distribution.
+  FORGE_APP_INSTALL_URL: optionalCredential,
   GITHUB_APP_CLIENT_ID: optionalCredential,
   GITHUB_APP_CLIENT_SECRET: optionalCredential,
   // Optional alongside the other three: without it the App still connects and
@@ -60,6 +67,8 @@ export interface ApiConfig {
   betterAuthUrl: string;
   credentialEncryptionKey: string;
   database: DatabaseConfig;
+  forgeAppId: string | null;
+  forgeAppInstallUrl: string | null;
   githubApp: GitHubAppConfig | null;
   nodeEnvironment: "development" | "production";
   port: number;
@@ -154,6 +163,8 @@ export function parseApiConfig(
     betterAuthUrl: parsed.BETTER_AUTH_URL,
     credentialEncryptionKey: parsed.CREDENTIAL_ENCRYPTION_KEY,
     database: parseDatabaseConfig(environment),
+    forgeAppId: parsed.FORGE_APP_ID ?? null,
+    forgeAppInstallUrl: parsed.FORGE_APP_INSTALL_URL ?? null,
     githubApp:
       parsed.GITHUB_APP_CLIENT_ID === undefined ||
       parsed.GITHUB_APP_CLIENT_SECRET === undefined ||

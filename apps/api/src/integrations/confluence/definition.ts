@@ -1,11 +1,15 @@
-import { parseProviderKey, parseScopeKey } from "@context-layer/db";
+import {
+  parseNotificationEventKey,
+  parseProviderKey,
+  parseScopeKey,
+} from "@context-layer/db";
 
 import type { ProviderDefinition } from "../provider-registry";
 
 export const confluenceProvider = parseProviderKey("confluence");
 
 export const confluenceDefinition = {
-  capabilities: ["context", "user-accounts", "scopes"],
+  capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Confluence spaces and pages into your context layer.",
   displayName: "Confluence",
   key: confluenceProvider,
@@ -84,7 +88,24 @@ export const confluenceDefinition = {
       name: "confluence_add_page_comment",
     },
   ],
-  notificationEvents: [],
+  notificationEvents: [
+    {
+      defaultEnabled: true,
+      displayName: "Page created",
+      key: parseNotificationEventKey("confluence.page-created"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Page updated",
+      key: parseNotificationEventKey("confluence.page-updated"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Comments",
+      key: parseNotificationEventKey("confluence.comment-created"),
+    },
+  ],
+  requiresNotificationSetup: true,
   presentation: {
     accountLabel: "Atlassian account",
     resourceLabel: "Confluence site",

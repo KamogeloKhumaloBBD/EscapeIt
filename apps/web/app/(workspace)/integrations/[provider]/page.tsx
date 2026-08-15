@@ -678,6 +678,33 @@ export default async function IntegrationDetailPage({
               </CardAction>
             </CardHeader>
             <CardContent>
+              {integration.notificationSetupUrl === null ? null : (
+                <div className="mb-5 flex flex-col gap-3 border border-dashed border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">
+                      One approval needed in {integration.displayName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {integration.displayName} can&apos;t send activity to us
+                      until a site administrator approves it. This is done once
+                      per {integration.displayName} site.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      href={integration.notificationSetupUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Approve in {integration.displayName}
+                      <ArrowSquareOutIcon
+                        aria-hidden="true"
+                        data-icon="inline-end"
+                      />
+                    </a>
+                  </Button>
+                </div>
+              )}
               <NotificationEventsChecklist
                 disabled={!integration.permissions.canManageNotifications}
                 events={integration.notificationEvents}
