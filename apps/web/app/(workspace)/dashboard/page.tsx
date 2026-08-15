@@ -80,9 +80,7 @@ export default async function DashboardPage({
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Workspace unavailable</AlertTitle>
-          <AlertDescription>
-            We couldn&apos;t reach the API. Refresh the page to try again.
-          </AlertDescription>
+          <AlertDescription>{workspaceState.message}</AlertDescription>
         </Alert>
       </WorkspacePage>
     );
@@ -121,8 +119,11 @@ export default async function DashboardPage({
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Dashboard unavailable</AlertTitle>
           <AlertDescription>
-            We couldn&apos;t load workspace analytics. Refresh the page to try
-            again.
+            {analyticsState.status === "unavailable"
+              ? analyticsState.message
+              : integrationsState.status === "unavailable"
+                ? integrationsState.message
+                : "We couldn't load the dashboard. Refresh the page to try again."}
           </AlertDescription>
         </Alert>
       </WorkspacePage>

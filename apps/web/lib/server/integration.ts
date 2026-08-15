@@ -16,7 +16,11 @@ import {
 export function getIntegrationsState(): Promise<
   ApiState<IntegrationSummary[]>
 > {
-  return requestState("/api/integrations", integrationListSchema);
+  return requestState(
+    "/api/integrations",
+    integrationListSchema,
+    "We couldn't load the provider catalogue. Refresh the page to try again.",
+  );
 }
 
 export function getIntegrationState(
@@ -25,6 +29,7 @@ export function getIntegrationState(
   return requestState(
     `/api/integrations/${encodeURIComponent(provider)}`,
     integrationDetailSchema,
+    "We couldn't load this integration. Refresh the page to try again.",
   );
 }
 
@@ -34,6 +39,7 @@ export function getIntegrationResourcesState(
   return requestState(
     `/api/integrations/${encodeURIComponent(provider)}/resources`,
     integrationResourcesSchema,
+    "We couldn't load available provider resources. Check the connected account and try again.",
   );
 }
 
@@ -45,5 +51,6 @@ export function getScopeDiscoveryState(
   return requestState(
     `/api/integrations/${encodeURIComponent(provider)}/scopes?${parameters.toString()}`,
     scopeDiscoverySchema,
+    "We couldn't load available provider access. Check the connected account and try again.",
   );
 }

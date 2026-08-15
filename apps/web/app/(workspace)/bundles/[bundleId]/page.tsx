@@ -43,9 +43,7 @@ export default async function BundleDetailPage({
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Bundle unavailable</AlertTitle>
-          <AlertDescription>
-            We couldn&apos;t load this bundle. Refresh to try again.
-          </AlertDescription>
+          <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       </WorkspacePage>
     );

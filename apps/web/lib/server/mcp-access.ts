@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { requestApi } from "@/lib/server/api-client";
 import { extractDataField } from "@/lib/server/api-state";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import {
   mcpTokenListSchema,
   type McpTokenList,
@@ -12,7 +13,7 @@ import {
 export type McpAccessState =
   | { data: McpTokenList; status: "available" }
   | { status: "anonymous" }
-  | { status: "unavailable" }
+  | { message: string; status: "unavailable" }
   | { status: "without-workspace" };
 
 export const getMcpAccessState = cache(async (): Promise<McpAccessState> => {
@@ -20,12 +21,24 @@ export const getMcpAccessState = cache(async (): Promise<McpAccessState> => {
 
   if (result.status === 401) return { status: "anonymous" };
   if (result.status === 404) return { status: "without-workspace" };
-  if (!result.ok) return { status: "unavailable" };
+  if (!result.ok) {
+    return {
+      message: apiErrorMessage(
+        result,
+        "We couldn't load MCP access. Refresh the page to try again.",
+      ),
+      status: "unavailable",
+    };
+  }
 
   const parsed = mcpTokenListSchema.safeParse(extractDataField(result.data));
   return parsed.success
     ? { data: parsed.data, status: "available" }
-    : { status: "unavailable" };
+    : {
+        message:
+          "The MCP access response was invalid. Refresh the page to try again.",
+        status: "unavailable",
+      };
 });
 
 export function getPublicMcpEndpoint(): string {

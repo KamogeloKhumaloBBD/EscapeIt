@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import type { NotificationActionState } from "@/app/(workspace)/integrations/[provider]/notification-action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -77,12 +78,10 @@ export async function notificationAction(
 
   if (!result.ok) {
     return {
-      message:
-        result.status === 403
-          ? "You don't have permission to make this change."
-          : result.status === 502
-            ? "Microsoft Teams rejected the request. Check the webhook URL."
-            : "We couldn't complete that action. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't complete that action. Review the channel and try again.",
+      ),
       status: "error",
     };
   }
@@ -135,18 +134,66 @@ export async function createChannelAction(
 
   if (!result.ok) {
     return {
-      message:
-        result.status === 403
-          ? "You don't have permission to add a notification channel."
-          : result.status === 502
-            ? "Microsoft Teams rejected the webhook URL. Double-check it and try again."
-            : result.status === 400
-              ? "The webhook URL must be a valid HTTPS URL."
-              : "We couldn't add the channel. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't add the channel. Review the webhook URL and try again.",
+      ),
       status: "error",
     };
   }
 
   revalidatePath("/integrations/teams");
   return { message: "The Teams channel was connected.", status: "success" };
+}
+
+const updateChannelSchema = createChannelSchema.extend({
+  channelId: z.string().min(1),
+});
+
+export async function updateChannelAction(
+  _previousState: NotificationActionState,
+  formData: FormData,
+): Promise<NotificationActionState> {
+  const parsed = updateChannelSchema.safeParse({
+    channelId: formData.get("channelId"),
+    name: formData.get("name"),
+    webhookUrl: formData.get("webhookUrl"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message:
+        parsed.error.issues[0]?.message ?? "Review the form and try again.",
+      status: "error",
+    };
+  }
+
+  const result = await requestApi(
+    `/api/notifications/channels/${encodeURIComponent(parsed.data.channelId)}`,
+    {
+      body: {
+        name: parsed.data.name,
+        webhookUrl: parsed.data.webhookUrl,
+      },
+      method: "PUT",
+    },
+  );
+
+  if (result.status === 401) redirect("/sign-in");
+
+  if (!result.ok) {
+    return {
+      message: apiErrorMessage(
+        result,
+        "We couldn't update the channel. Review the webhook URL and try again.",
+      ),
+      status: "error",
+    };
+  }
+
+  revalidatePath("/integrations/teams");
+  return {
+    message: "The Teams channel was updated and its connection is healthy.",
+    status: "success",
+  };
 }

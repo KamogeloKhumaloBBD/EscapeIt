@@ -170,6 +170,8 @@ ATLASSIAN_OAUTH_CLIENT_SECRET=...
 
 If both are absent, the core application still starts and both Atlassian providers are omitted from the catalogue. Supplying only one is rejected. Callbacks are derived from `PUBLIC_APP_URL`, so a deployed environment must register both `${PUBLIC_APP_URL}/api/integrations/jira/oauth/callback` and `${PUBLIC_APP_URL}/api/integrations/confluence/oauth/callback`. Use distinct Atlassian apps when local and production environments require different registered callbacks. Configure the Confluence API scopes and callback before deploying code that registers the provider. Accounts authorized before Confluence write scopes were enabled must reconnect before invoking write tools.
 
+Provider OAuth failures redirect back to the integration page with a stable, non-sensitive reason such as `account_access_required` or `permission_required`. The UI explains the recovery step without placing provider responses, authorization codes, state values, or internal request identifiers in the URL. In particular, members must authorize with a provider account that can access the workspace resource selected by the owner.
+
 ## Bitbucket OAuth
 
 Bitbucket owners select one workspace during resource-level consent (workspace resource selection happens explicitly afterward, since members commonly belong to more than one Bitbucket workspace), then choose a workspace-wide repository allowlist. Every member authorizes their own Bitbucket account; calls use that member's encrypted OAuth credentials and remain constrained by both the workspace allowlist and Bitbucket's permissions.
@@ -191,22 +193,29 @@ BITBUCKET_OAUTH_CLIENT_SECRET=...
 
 If either is absent, the core application still starts and Bitbucket is omitted from the catalogue. Supplying only one is rejected. The callback is derived from `PUBLIC_APP_URL`, so a deployed environment must register `${PUBLIC_APP_URL}/api/integrations/bitbucket/oauth/callback`. Use a distinct consumer when local and production environments require different registered callbacks.
 
+## Notification health
+
+Notification channel tests and webhook deliveries update the existing channel health fields. Rejected or invalid webhooks remain in an error state until an owner replaces the URL or runs a successful test. Temporary upstream and network failures remain connected, are retried on the next event, and clear automatically after a successful delivery. The integration page also warns when scopes, event selections, routing, or external provider approval prevent notifications from being delivered.
+
+Request logs record URL paths without query values. OAuth authorization codes and state parameters must never be logged.
+
 ## Commands
 
-| Command                   | Purpose                                       |
-| ------------------------- | --------------------------------------------- |
-| `pnpm dev:full`           | Start PostgreSQL, Express, and Next.js        |
-| `pnpm dev:web`            | Start Next.js                                 |
-| `pnpm dev:api`            | Start Express                                 |
-| `pnpm db:up`              | Start local PostgreSQL and wait for health    |
-| `pnpm db:down`            | Stop PostgreSQL and preserve its named volume |
-| `pnpm db:migrate`         | Run reviewed Flyway migrations locally        |
-| `pnpm db:railway:migrate` | Run Flyway against linked Railway Postgres    |
-| `pnpm db:validate`        | Validate local Flyway migrations              |
-| `pnpm db:info`            | Inspect local Flyway state                    |
-| `pnpm verify`             | Check formatting, linting, types, and builds  |
-| `pnpm docker:build`       | Build all production deployment images        |
-| `pnpm email:dev`          | Preview shared email templates on port 3001   |
+| Command                   | Purpose                                         |
+| ------------------------- | ----------------------------------------------- |
+| `pnpm dev:full`           | Start PostgreSQL, Express, and Next.js          |
+| `pnpm dev:web`            | Start Next.js                                   |
+| `pnpm dev:api`            | Start Express                                   |
+| `pnpm db:up`              | Start local PostgreSQL and wait for health      |
+| `pnpm db:down`            | Stop PostgreSQL and preserve its named volume   |
+| `pnpm db:migrate`         | Run reviewed Flyway migrations locally          |
+| `pnpm db:railway:migrate` | Run Flyway against linked Railway Postgres      |
+| `pnpm db:validate`        | Validate local Flyway migrations                |
+| `pnpm db:info`            | Inspect local Flyway state                      |
+| `pnpm test`               | Run focused API and web behavior tests          |
+| `pnpm verify`             | Check formatting, linting, tests, types, builds |
+| `pnpm docker:build`       | Build all production deployment images          |
+| `pnpm email:dev`          | Preview shared email templates on port 3001     |
 
 Migrations never run during web or API startup. Product data is never seeded.
 

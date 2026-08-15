@@ -64,9 +64,7 @@ export default async function MembersPage() {
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Members unavailable</AlertTitle>
-          <AlertDescription>
-            We couldn&apos;t load the workspace members. Refresh to try again.
-          </AlertDescription>
+          <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       </WorkspacePage>
     );

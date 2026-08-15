@@ -11,7 +11,7 @@ import type { Logger } from "pino";
 import pinoHttp from "pino-http";
 
 import { normalizeHttpError, toPublicError } from "./errors";
-import { createLogger } from "./logging";
+import { createLogger, serializeRequest } from "./logging";
 
 export interface AppDependencies {
   allowedOrigin: string;
@@ -51,6 +51,9 @@ export function createApp({
         return requestId;
       },
       logger,
+      serializers: {
+        req: serializeRequest,
+      },
     }),
   );
   app.use(helmet());

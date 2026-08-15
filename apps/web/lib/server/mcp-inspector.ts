@@ -41,13 +41,14 @@ export interface McpInspectorData {
 
 function unavailableProvider(
   integration: IntegrationSummary,
+  message: string,
 ): McpInspectorProvider {
   return {
     configuredToolCount: integration.installation?.enabledMcpToolCount ?? 0,
     displayName: integration.displayName,
     provider: integration.provider,
     readiness: "unavailable",
-    readinessReason: "We couldn't inspect this provider right now.",
+    readinessReason: message,
     tools: [],
   };
 }
@@ -120,7 +121,15 @@ export async function getMcpInspectorState(): Promise<
     integrationsState.status !== "available" ||
     bundlesState.status !== "available"
   ) {
-    return { status: "unavailable" };
+    return {
+      message:
+        integrationsState.status === "unavailable"
+          ? integrationsState.message
+          : bundlesState.status === "unavailable"
+            ? bundlesState.message
+            : "We couldn't load the MCP map. Refresh the page to try again.",
+      status: "unavailable",
+    };
   }
 
   const installedContextProviders = integrationsState.data.filter(
@@ -146,7 +155,12 @@ export async function getMcpInspectorState(): Promise<
         const detailState = detailStates[index];
         return detailState?.status === "available"
           ? providerFromDetail(detailState.data)
-          : unavailableProvider(integration);
+          : unavailableProvider(
+              integration,
+              detailState?.status === "unavailable"
+                ? detailState.message
+                : "This provider is no longer available. Review its integration setup.",
+            );
       }),
     },
     status: "available",

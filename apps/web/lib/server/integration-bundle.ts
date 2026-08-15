@@ -9,12 +9,17 @@ import {
 } from "@/lib/validation/integration-bundle";
 
 export function getBundleListState(): Promise<ApiState<Bundle[]>> {
-  return requestState("/api/integration-bundles", bundleListSchema);
+  return requestState(
+    "/api/integration-bundles",
+    bundleListSchema,
+    "We couldn't load workspace bundles. Refresh the page to try again.",
+  );
 }
 
 export function getBundleState(bundleId: string): Promise<ApiState<Bundle>> {
   return requestState(
     `/api/integration-bundles/${encodeURIComponent(bundleId)}`,
     bundleSchema,
+    "We couldn't load this bundle. Refresh the page to try again.",
   );
 }

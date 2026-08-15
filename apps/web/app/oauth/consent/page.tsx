@@ -65,8 +65,8 @@ export default async function OAuthConsentPage({
 
   if (
     workspaceState.status !== "available" ||
-    connectionState?.requestedClient === null ||
-    connectionState === null
+    connectionState.status !== "available" ||
+    connectionState.data.requestedClient === null
   ) {
     return (
       <ConsentShell>
@@ -74,7 +74,9 @@ export default async function OAuthConsentPage({
           Authorization is unavailable
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Return to your MCP client and try again in a moment.
+          {connectionState.status === "unavailable"
+            ? connectionState.message
+            : "Return to your MCP client and start the authorization again."}
         </p>
       </ConsentShell>
     );
@@ -82,18 +84,20 @@ export default async function OAuthConsentPage({
 
   return (
     <ConsentShell>
-      <McpClientMark clientName={connectionState.requestedClient.clientName} />
+      <McpClientMark
+        clientName={connectionState.data.requestedClient.clientName}
+      />
       <p className="mt-7 text-xs font-medium tracking-[0.16em] text-primary uppercase">
         MCP authorization
       </p>
       <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em]">
-        Connect {connectionState.requestedClient.clientName}
+        Connect {connectionState.data.requestedClient.clientName}
       </h1>
       <dl className="mt-7 divide-y border-y text-sm">
         <div className="flex items-center justify-between gap-5 py-4">
           <dt className="text-muted-foreground">Client</dt>
           <dd className="font-medium">
-            {connectionState.requestedClient.clientName}
+            {connectionState.data.requestedClient.clientName}
           </dd>
         </div>
         <div className="flex items-center justify-between gap-5 py-4">

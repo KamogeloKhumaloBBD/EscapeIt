@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 
 export interface RevokeMcpConnectionState {
   message: string | null;
@@ -49,7 +50,10 @@ export async function revokeMcpConnectionAction(
 
   if (!result.ok) {
     return {
-      message: "We couldn't revoke this connection. Try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't revoke this connection. Refresh the page and try again.",
+      ),
       status: "error",
     };
   }
@@ -88,7 +92,10 @@ export async function updateMcpConnectionBundleAction(
 
   if (!result.ok) {
     return {
-      message: "We couldn't update this connection's bundle. Try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't update this connection's bundle. Review the selection and try again.",
+      ),
       status: "error",
     };
   }

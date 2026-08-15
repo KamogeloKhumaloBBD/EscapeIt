@@ -67,7 +67,7 @@ export function normalizeHttpError(error: unknown): HttpError {
     return new HttpError(
       400,
       "INVALID_REQUEST",
-      "The request body must contain valid JSON.",
+      "The request body is invalid. Review it and try again.",
     );
   }
 
@@ -75,14 +75,14 @@ export function normalizeHttpError(error: unknown): HttpError {
     return new HttpError(
       503,
       "DATABASE_UNAVAILABLE",
-      "The service is temporarily unavailable.",
+      "The service is temporarily unavailable. Try again in a few minutes.",
     );
   }
 
   return new HttpError(
     500,
     "INTERNAL_SERVER_ERROR",
-    "An unexpected error occurred.",
+    "Something went wrong. Try again in a few minutes.",
   );
 }
 
@@ -92,7 +92,53 @@ export function toPublicError(error: unknown): PublicError {
   return {
     error: {
       code: normalized.code,
-      message: normalized.message,
+      message: actionableErrorMessage(normalized),
     },
   };
+}
+
+export function actionableErrorMessage(error: HttpError): string {
+  if (
+    /\b(ask|check|choose|connect|contact|grant|reconnect|refresh|replace|resolve|review|select|sign in|start|try again|wait)\b/i.test(
+      error.message,
+    )
+  ) {
+    return error.message;
+  }
+
+  let nextStep: string;
+  switch (error.status) {
+    case 400:
+      nextStep = "Review the information and try again.";
+      break;
+    case 401:
+      nextStep = "Sign in again to continue.";
+      break;
+    case 403:
+      nextStep = "Ask the appropriate owner or administrator to do this.";
+      break;
+    case 404:
+      nextStep = "Refresh the page and verify that it still exists.";
+      break;
+    case 409:
+      nextStep = "Resolve the current setup or conflict, then try again.";
+      break;
+    case 410:
+      nextStep = "Ask the workspace owner for a replacement.";
+      break;
+    case 413:
+    case 415:
+      nextStep = "Choose a different item and try again.";
+      break;
+    case 429:
+      nextStep = "Wait a moment, then try again.";
+      break;
+    default:
+      nextStep =
+        error.status >= 500
+          ? "Wait a few minutes, then try again."
+          : "Review the current state and try again.";
+  }
+
+  return `${error.message} ${nextStep}`;
 }

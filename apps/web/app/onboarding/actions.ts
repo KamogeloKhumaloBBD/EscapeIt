@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import type { OnboardingActionState } from "@/app/onboarding/onboarding-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import { workspaceNameSchema } from "@/lib/validation/workspace";
 
 const unavailableMessage =
@@ -43,7 +44,7 @@ export async function createWorkspaceAction(
 
   return {
     fieldErrors: {},
-    message: unavailableMessage,
+    message: apiErrorMessage(result, unavailableMessage),
     name: parsed.data,
     status: "error",
   };

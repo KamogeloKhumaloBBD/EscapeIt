@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import type { IntegrationActionState } from "@/app/(workspace)/integrations/[provider]/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 
 const actionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("disconnect-account"), provider: z.string() }),
@@ -129,10 +130,10 @@ export async function integrationAction(
 
   if (!result.ok) {
     return {
-      message:
-        result.status === 403
-          ? "You don't have permission to make this change."
-          : "We couldn't update the integration. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't update the integration. Review its setup and try again.",
+      ),
       status: "error",
     };
   }

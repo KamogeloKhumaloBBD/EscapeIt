@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import { safeReturnPath } from "@/lib/validation/return-path";
 
 export interface ConsentActionState {
@@ -57,7 +58,12 @@ export async function consentAction(
 
   if (!result.ok || !parsed.success || !parsed.data.redirect) {
     return {
-      message: "We couldn't complete this authorization request.",
+      message: result.ok
+        ? "The authorization response was invalid. Return to your MCP client and start again."
+        : apiErrorMessage(
+            result,
+            "We couldn't complete this authorization request. Return to your MCP client and start again.",
+          ),
       status: "error",
     };
   }
@@ -83,7 +89,6 @@ export async function consentAction(
 
       if (!bundleResult.ok) {
         console.error("Failed to set MCP connection bundle after consent", {
-          clientId,
           status: bundleResult.status,
         });
       }

@@ -8,6 +8,7 @@ import type {
   RevokeMcpTokenActionState,
 } from "@/app/(workspace)/agent-setup/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import {
   createdMcpTokenSchema,
   mcpTokenIdSchema,
@@ -59,7 +60,10 @@ export async function createMcpTokenAction(
 
   if (!result.ok) {
     return {
-      message: "We couldn't create the token. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't create the token. Review its name and bundle, then try again.",
+      ),
       name: parsed.data,
       rawToken: null,
       status: "error",
@@ -105,7 +109,10 @@ export async function revokeMcpTokenAction(
 
   if (!result.ok) {
     return {
-      message: "The token could not be revoked. Refresh and try again.",
+      message: apiErrorMessage(
+        result,
+        "The token could not be revoked. Refresh the page and try again.",
+      ),
       status: "error",
     };
   }

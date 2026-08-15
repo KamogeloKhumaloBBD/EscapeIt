@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { requestApi } from "@/lib/server/api-client";
 import { extractDataField } from "@/lib/server/api-state";
+import { apiErrorMessage, readPublicApiError } from "@/lib/server/api-error";
 import {
   invitationPreviewSchema,
   memberListSchema,
@@ -16,7 +17,7 @@ type InvitationFailure = "already-member" | "email-mismatch" | "unavailable";
 export type MemberListState =
   | { data: MemberList; status: "available" }
   | { status: "anonymous" }
-  | { status: "unavailable" }
+  | { message: string; status: "unavailable" }
   | { status: "without-workspace" };
 
 export type InvitationState =
@@ -24,31 +25,29 @@ export type InvitationState =
   | { reason: InvitationFailure; status: "blocked" }
   | { status: "anonymous" };
 
-function errorCode(data: unknown): string | null {
-  if (typeof data !== "object" || data === null || !("error" in data)) {
-    return null;
-  }
-
-  const error = Reflect.get(data, "error");
-  return typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof Reflect.get(error, "code") === "string"
-    ? (Reflect.get(error, "code") as string)
-    : null;
-}
-
 export const getMemberListState = cache(async (): Promise<MemberListState> => {
   const result = await requestApi("/api/members");
 
   if (result.status === 401) return { status: "anonymous" };
   if (result.status === 404) return { status: "without-workspace" };
-  if (!result.ok) return { status: "unavailable" };
+  if (!result.ok) {
+    return {
+      message: apiErrorMessage(
+        result,
+        "We couldn't load workspace members. Refresh the page to try again.",
+      ),
+      status: "unavailable",
+    };
+  }
 
   const parsed = memberListSchema.safeParse(extractDataField(result.data));
   return parsed.success
     ? { data: parsed.data, status: "available" }
-    : { status: "unavailable" };
+    : {
+        message:
+          "The member list response was invalid. Refresh the page to try again.",
+        status: "unavailable",
+      };
 });
 
 export async function getInvitationState(
@@ -62,7 +61,7 @@ export async function getInvitationState(
   if (result.status === 401) return { status: "anonymous" };
 
   if (!result.ok) {
-    const code = errorCode(result.data);
+    const code = readPublicApiError(result.data)?.code ?? null;
     const reason: InvitationFailure =
       code === "INVITATION_EMAIL_MISMATCH"
         ? "email-mismatch"

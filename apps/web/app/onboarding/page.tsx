@@ -27,10 +27,7 @@ export default async function OnboardingPage() {
             <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em]">
               We can&apos;t load setup right now.
             </h1>
-            <p className="mt-4 leading-7 text-[#68635a]">
-              The API is temporarily unavailable. Your account is safe; try
-              again in a moment.
-            </p>
+            <p className="mt-4 leading-7 text-[#68635a]">{state.message}</p>
             <Button asChild className="mt-8">
               <Link href="/onboarding">Try again</Link>
             </Button>

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import type { SendDigestState } from "@/app/(workspace)/dashboard/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 
 /**
  * Express owns the owner check and the recipient list; this action only
@@ -24,16 +25,12 @@ export async function sendDigestNowAction(
     redirect("/sign-in");
   }
 
-  if (result.status === 403) {
-    return {
-      message: "Only workspace owners can send the digest.",
-      status: "error",
-    };
-  }
-
   if (!result.ok) {
     return {
-      message: "We couldn't send the digest. Try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't send the digest. Check the workspace recipients and try again.",
+      ),
       status: "error",
     };
   }

@@ -10,6 +10,7 @@ import type {
   UpdateBundleActionState,
 } from "@/app/(workspace)/bundles/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import {
   bundleDescriptionSchema,
   bundleNameSchema,
@@ -93,7 +94,10 @@ export async function createBundleAction(
     return {
       bundleId: null,
       description,
-      message: "We couldn't create the bundle. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't create the bundle. Review its details and try again.",
+      ),
       name: parsedName.data,
       status: "error",
     };
@@ -158,7 +162,10 @@ export async function updateBundleAction(
   if (!result.ok) {
     return {
       description,
-      message: "We couldn't update the bundle. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't update the bundle. Review its details and try again.",
+      ),
       name: parsedName.data,
       status: "error",
     };
@@ -188,10 +195,10 @@ export async function deleteBundleAction(
 
   if (!result.ok) {
     return {
-      message:
-        result.status === 409
-          ? "Revoke or reassign tokens scoped to this bundle before deleting it."
-          : "The bundle could not be deleted. Refresh and try again.",
+      message: apiErrorMessage(
+        result,
+        "The bundle could not be deleted. Refresh the page and try again.",
+      ),
       status: "error",
     };
   }
@@ -217,7 +224,10 @@ export async function replaceBundleProvidersAction(
 
   if (!result.ok) {
     return {
-      message: "We couldn't update the bundle's providers. Please try again.",
+      message: apiErrorMessage(
+        result,
+        "We couldn't update the bundle's providers. Review the selection and try again.",
+      ),
       status: "error",
     };
   }

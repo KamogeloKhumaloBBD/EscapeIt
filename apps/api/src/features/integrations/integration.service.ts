@@ -212,9 +212,9 @@ function mapProviderError(error: unknown): never {
     }
 
     throw new HttpError(
-      500,
+      409,
       "CREDENTIALS_UNAVAILABLE",
-      "The stored provider credentials could not be read.",
+      "Your provider credentials are no longer usable. Reconnect your account and try again.",
     );
   }
 
@@ -223,47 +223,47 @@ function mapProviderError(error: unknown): never {
       authorization_expired: [
         409,
         "PROVIDER_AUTHORIZATION_EXPIRED",
-        "Reconnect your provider account and try again.",
+        "Your provider authorization has expired. Reconnect your account and try again.",
       ],
       content_too_large: [
         413,
         "PROVIDER_CONTENT_TOO_LARGE",
-        "The provider content exceeds the supported size.",
+        "The provider content is too large. Choose a smaller item and try again.",
       ],
       forbidden: [
         403,
         "PROVIDER_PERMISSION_REQUIRED",
-        "Your provider account does not permit this operation.",
+        "Your provider account is missing a required permission. Grant access or ask a provider administrator, then reconnect.",
       ],
       inaccessible_resource: [
         409,
         "PROVIDER_RESOURCE_UNAVAILABLE",
-        "The selected provider resource is unavailable.",
+        "Your provider account cannot access the workspace's selected resource. Use an account with access or ask a workspace owner to select another resource.",
       ],
       invalid_request: [
         400,
         "PROVIDER_REQUEST_REJECTED",
-        "The provider rejected the requested operation.",
+        "The provider rejected this request. Review the selected values and try again.",
       ],
       invalid_response: [
         503,
         "PROVIDER_INVALID_RESPONSE",
-        "The provider returned an unexpected response.",
+        "The provider returned an unexpected response. Wait a few minutes, then try again.",
       ],
       not_found: [
         404,
         "PROVIDER_RESOURCE_NOT_FOUND",
-        "The provider resource was not found.",
+        "The provider resource no longer exists or is inaccessible. Select another resource and try again.",
       ],
       temporarily_unavailable: [
         503,
         "PROVIDER_UNAVAILABLE",
-        "The provider is temporarily unavailable.",
+        "The provider is temporarily unavailable. Wait a few minutes, then try again.",
       ],
       unsupported_content: [
         415,
         "PROVIDER_CONTENT_UNSUPPORTED",
-        "The provider content type is unsupported.",
+        "This content type is not supported. Choose a supported provider item and try again.",
       ],
     } as const;
     const [status, code, message] = mapping[error.code];
@@ -417,6 +417,33 @@ function buildSummary(
   );
   const isInstallationConnected = integration?.status === "connected";
   let nextStep: IntegrationSummaryContract["nextStep"];
+  const errorCode = account?.lastErrorCode ?? integration?.lastErrorCode;
+  let attention: string | null = null;
+
+  if (integration?.status === "error" || account?.status === "error") {
+    switch (errorCode) {
+      case "PROVIDER_AUTHORIZATION_EXPIRED":
+      case "authorization_expired":
+      case "CREDENTIALS_UNAVAILABLE":
+        attention = `Your ${definition.displayName} authorization has expired. Reconnect your account to restore access.`;
+        break;
+      case "PROVIDER_PERMISSION_REQUIRED":
+      case "forbidden":
+        attention = `Your ${definition.displayName} account is missing a required permission. Grant access, then reconnect the account.`;
+        break;
+      case "PROVIDER_RESOURCE_UNAVAILABLE":
+      case "PROVIDER_RESOURCE_NOT_FOUND":
+      case "inaccessible_resource":
+        attention = isOwner
+          ? `The connected account cannot access the selected ${definition.displayName} resource. Reconnect with an account that has access or select another resource.`
+          : `Your account cannot access the workspace's selected ${definition.displayName} resource. Reconnect with an account that has access or ask the workspace owner for help.`;
+        break;
+      default:
+        attention = isOwner
+          ? `The ${definition.displayName} connection could not be validated. Validate it again, then reconnect if the problem continues.`
+          : `Your ${definition.displayName} account could not be validated. Reconnect it to restore access.`;
+    }
+  }
 
   if (hasNotificationChannels) {
     nextStep =
@@ -452,10 +479,7 @@ function buildSummary(
   }
 
   return {
-    attention:
-      integration?.status === "error" || account?.status === "error"
-        ? "This connection needs attention."
-        : null,
+    attention,
     capabilities: definition.capabilities,
     currentAccount:
       account === null

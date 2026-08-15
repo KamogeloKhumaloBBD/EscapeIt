@@ -9,6 +9,7 @@ import type {
   RevokeInvitationActionState,
 } from "@/app/(workspace)/members/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage, readPublicApiError } from "@/lib/server/api-error";
 import { invitationEmailSchema } from "@/lib/validation/member";
 
 const invitationIdSchema = z.uuid();
@@ -16,20 +17,6 @@ const invitationIdSchema = z.uuid();
 function readString(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value : "";
-}
-
-function apiErrorCode(data: unknown): string | null {
-  if (typeof data !== "object" || data === null || !("error" in data)) {
-    return null;
-  }
-
-  const error = Reflect.get(data, "error");
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return null;
-  }
-
-  const code = Reflect.get(error, "code");
-  return typeof code === "string" ? code : null;
 }
 
 export async function inviteMemberAction(
@@ -57,7 +44,7 @@ export async function inviteMemberAction(
   if (result.status === 401) redirect("/sign-in");
 
   if (!result.ok) {
-    const code = apiErrorCode(result.data);
+    const code = readPublicApiError(result.data)?.code ?? null;
     return {
       email: parsed.data,
       ...(result.status === 409
@@ -71,7 +58,10 @@ export async function inviteMemberAction(
       message:
         result.status === 409
           ? null
-          : "We couldn't send the invitation. Please try again.",
+          : apiErrorMessage(
+              result,
+              "We couldn't send the invitation. Check the address and try again.",
+            ),
       status: "error",
     };
   }
@@ -108,7 +98,10 @@ export async function revokeInvitationAction(
 
   if (!result.ok) {
     return {
-      message: "The invitation could not be revoked. Refresh and try again.",
+      message: apiErrorMessage(
+        result,
+        "The invitation could not be revoked. Refresh the page and try again.",
+      ),
       status: "error",
     };
   }

@@ -14,6 +14,10 @@ import type {
   NotificationCard,
   NotificationChannelAdapter,
 } from "../../integrations/notification-channel-adapter";
+import {
+  classifyNotificationChannelFailure,
+  notificationCredentialsFailure,
+} from "../../integrations/notification-channel-adapter";
 import type { CredentialEncryption } from "../../security/credential-encryption";
 import {
   WebhookReceiverError,
@@ -45,7 +49,17 @@ export interface ResolvedWebhookIntegration {
  * and answers 202 so the provider does not treat it as a failed delivery and
  * disable the webhook.
  */
-export type WebhookResolution = ResolvedWebhookIntegration | "ignore" | null;
+export type WebhookResolution =
+  | ResolvedWebhookIntegration
+  | readonly ResolvedWebhookIntegration[]
+  | "ignore"
+  | null;
+
+function isWebhookIntegrationList(
+  resolution: WebhookResolution,
+): resolution is readonly ResolvedWebhookIntegration[] {
+  return Array.isArray(resolution);
+}
 
 export interface WebhookResolutionInput {
   headers: WebhookHeaders;
@@ -64,6 +78,13 @@ export interface NotificationWebhookReceiverDependencies {
     workspaceId: string,
   ) => Promise<NotificationChannelSource[]>;
   notificationChannelAdapters: ReadonlyMap<string, NotificationChannelAdapter>;
+  updateNotificationChannelHealth: (input: {
+    channelId: string;
+    checkedAt: Date;
+    lastErrorCode: string | null;
+    status: "connected" | "error";
+    workspaceId: string;
+  }) => Promise<boolean>;
 }
 
 export interface NotificationWebhookReceiverOptions extends NotificationWebhookReceiverDependencies {
@@ -90,17 +111,23 @@ async function notifyChannels(
   provider: ProviderKey,
   workspaceId: string,
   card: NotificationCard,
+  parentEventId: string,
+  correlationId: string,
   {
     credentialEncryption,
+    database,
     listNotificationChannels,
     listNotificationChannelSources,
     notificationChannelAdapters,
+    updateNotificationChannelHealth,
   }: Pick<
     NotificationWebhookReceiverDependencies,
     | "credentialEncryption"
+    | "database"
     | "listNotificationChannels"
     | "listNotificationChannelSources"
     | "notificationChannelAdapters"
+    | "updateNotificationChannelHealth"
   >,
 ): Promise<void> {
   const [channels, sources] = await Promise.all([
@@ -125,21 +152,92 @@ async function notifyChannels(
         const adapter = notificationChannelAdapters.get(channel.provider);
 
         if (adapter === undefined || channel.credentialEnvelope === null) {
+          await Promise.allSettled([
+            updateNotificationChannelHealth({
+              channelId: channel.id,
+              checkedAt: new Date(),
+              lastErrorCode: "adapter_unavailable",
+              status: "error",
+              workspaceId,
+            }),
+            appendActivityEvent(database, {
+              category: "notification",
+              correlationId,
+              metadata: {
+                destinationProvider: channel.provider,
+                failureCode: "adapter_unavailable",
+              },
+              operation: "notification.delivery.failed",
+              parentEventId,
+              provider,
+              status: "failed",
+              summary:
+                "Notification delivery failed because the destination is not configured.",
+              workspaceId,
+            }),
+          ]);
           return;
         }
 
+        let failure: ReturnType<
+          typeof classifyNotificationChannelFailure
+        > | null = null;
+
+        let credentials: { webhookUrl: string } | null = null;
         try {
-          const credentials = credentialEncryption.decrypt(
+          credentials = credentialEncryption.decrypt(
             channel.credentialEnvelope,
             "notification-channel",
             channel.id,
           ) as { webhookUrl: string };
-
-          await adapter.send(credentials, card);
         } catch {
-          // A single channel's failure (bad/expired webhook, network issue)
-          // should not block delivery to other channels.
+          failure = notificationCredentialsFailure();
         }
+
+        if (credentials !== null) {
+          try {
+            await adapter.send(credentials, card);
+          } catch (error) {
+            failure = classifyNotificationChannelFailure(error);
+          }
+        }
+
+        if (failure === null) {
+          await updateNotificationChannelHealth({
+            channelId: channel.id,
+            checkedAt: new Date(),
+            lastErrorCode: null,
+            status: "connected",
+            workspaceId,
+          }).catch(() => undefined);
+          return;
+        }
+
+        // Health persistence and diagnostics are best effort so one broken
+        // destination never prevents delivery to the remaining channels.
+        await Promise.allSettled([
+          updateNotificationChannelHealth({
+            channelId: channel.id,
+            checkedAt: new Date(),
+            lastErrorCode: failure.code,
+            status: failure.permanent ? "error" : "connected",
+            workspaceId,
+          }),
+          appendActivityEvent(database, {
+            category: "notification",
+            correlationId,
+            metadata: {
+              destinationProvider: channel.provider,
+              failureCode: failure.code,
+            },
+            operation: "notification.delivery.failed",
+            parentEventId,
+            provider,
+            status: "failed",
+            summary: failure.publicMessage,
+            workspaceId,
+          }),
+        ]);
       }),
   );
 }
@@ -150,6 +248,7 @@ export function createNotificationWebhookReceiver({
   listNotificationChannels,
   listNotificationChannelSources,
   notificationChannelAdapters,
+  updateNotificationChannelHealth,
   provider,
   resolve,
   translate,
@@ -174,7 +273,12 @@ export function createNotificationWebhookReceiver({
         throw new WebhookReceiverError("invalid_token");
       }
 
-      const integration = resolution;
+      const integrations: readonly ResolvedWebhookIntegration[] =
+        isWebhookIntegrationList(resolution) ? resolution : [resolution];
+
+      if (integrations.length === 0) {
+        return;
+      }
 
       const translated = translate(payload, headers);
 
@@ -184,39 +288,52 @@ export function createNotificationWebhookReceiver({
 
       const { card, eventKey, externalEventId, metadata } = translated;
 
-      const existing = await database`
-        select id
-        from activity_events
-        where "workspaceId" = ${integration.workspaceId}
-          and provider = ${provider}
-          and "externalEventId" = ${externalEventId}
-      `;
-      const alreadyRecorded = existing.length > 0;
+      await Promise.all(
+        integrations.map(async (integration) => {
+          const existing = await database`
+            select id
+            from activity_events
+            where "workspaceId" = ${integration.workspaceId}
+              and provider = ${provider}
+              and "externalEventId" = ${externalEventId}
+          `;
+          const alreadyRecorded = existing.length > 0;
 
-      await appendActivityEvent(database, {
-        category: "webhook",
-        correlationId: randomUUID(),
-        externalEventId,
-        metadata,
-        operation: `${provider}.webhook_received`,
-        provider,
-        status: "succeeded",
-        summary: card.summary,
-        workspaceId: integration.workspaceId,
-      });
+          const activity = await appendActivityEvent(database, {
+            category: "webhook",
+            correlationId: randomUUID(),
+            externalEventId,
+            metadata,
+            operation: `${provider}.webhook_received`,
+            provider,
+            status: "succeeded",
+            summary: card.summary,
+            workspaceId: integration.workspaceId,
+          });
 
-      const eventEnabled =
-        eventKey !== null &&
-        integration.notificationEventKeys.includes(eventKey);
+          const eventEnabled =
+            eventKey !== null &&
+            integration.notificationEventKeys.includes(eventKey);
 
-      if (!alreadyRecorded && eventEnabled) {
-        await notifyChannels(provider, integration.workspaceId, card, {
-          credentialEncryption,
-          listNotificationChannels,
-          listNotificationChannelSources,
-          notificationChannelAdapters,
-        });
-      }
+          if (!alreadyRecorded && eventEnabled) {
+            await notifyChannels(
+              provider,
+              integration.workspaceId,
+              card,
+              activity.id,
+              activity.correlationId,
+              {
+                credentialEncryption,
+                database,
+                listNotificationChannels,
+                listNotificationChannelSources,
+                notificationChannelAdapters,
+                updateNotificationChannelHealth,
+              },
+            );
+          }
+        }),
+      );
     },
     provider,
   };

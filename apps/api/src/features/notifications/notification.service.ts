@@ -12,8 +12,10 @@ import {
 
 import { HttpError } from "../../errors";
 import {
-  NotificationChannelAdapterError,
+  classifyNotificationChannelFailure,
+  notificationCredentialsFailure,
   type NotificationChannelAdapter,
+  type NotificationChannelFailure,
 } from "../../integrations/notification-channel-adapter";
 import type { ProviderRegistry } from "../../integrations/provider-registry";
 import { resolveProviderEventPreference } from "../../integrations/provider-registry";
@@ -35,6 +37,8 @@ interface NotificationRepository {
     configuration: Record<string, never>;
     createdByMembershipId: string;
     credentialEnvelope: EncryptedCredentialEnvelope;
+    lastErrorCode: null;
+    lastValidatedAt: Date;
     name: string;
     provider: ProviderKey;
     status: "connected";
@@ -78,11 +82,20 @@ interface NotificationRepository {
     channelId: string;
     configuration: Record<string, never>;
     credentialEnvelope: EncryptedCredentialEnvelope;
+    lastErrorCode: null;
+    lastValidatedAt: Date;
     name: string;
     ownerMembershipId: string;
     status: "connected";
     workspaceId: string;
   }): Promise<NotificationChannel>;
+  updateChannelHealth(input: {
+    channelId: string;
+    checkedAt: Date;
+    lastErrorCode: string | null;
+    status: "connected" | "error";
+    workspaceId: string;
+  }): Promise<boolean>;
 }
 
 export interface NotificationServiceDependencies {
@@ -137,16 +150,20 @@ function requireAdapter(
   return adapter;
 }
 
+function throwAdapterFailure(failure: NotificationChannelFailure): never {
+  throw new HttpError(
+    failure.code === "invalid_webhook_url"
+      ? 400
+      : failure.permanent
+        ? 502
+        : 503,
+    failure.publicCode,
+    failure.publicMessage,
+  );
+}
+
 function mapAdapterError(error: unknown): never {
-  if (error instanceof NotificationChannelAdapterError) {
-    if (error.code === "invalid_webhook_url") {
-      throw new HttpError(400, "INVALID_REQUEST", error.message);
-    }
-
-    throw new HttpError(502, "PROVIDER_UNAVAILABLE", error.message);
-  }
-
-  throw error;
+  throwAdapterFailure(classifyNotificationChannelFailure(error));
 }
 
 export function createNotificationService({
@@ -204,6 +221,8 @@ export function createNotificationService({
         credentialEnvelope,
         name,
         provider: providerKey,
+        lastErrorCode: null,
+        lastValidatedAt: new Date(),
         status: "connected",
         workspaceId: workspace.workspace.id,
       });
@@ -372,6 +391,15 @@ export function createNotificationService({
 
     async testChannel(userId: string, channelId: string): Promise<void> {
       const workspace = await requireWorkspace(repository, userId);
+
+      if (workspace.membership.role !== "owner") {
+        throw new HttpError(
+          403,
+          "FORBIDDEN",
+          "Only the workspace owner can test notification channels. Ask the owner to run the test.",
+        );
+      }
+
       const channel = await repository.findChannel(
         workspace.workspace.id,
         channelId,
@@ -394,11 +422,25 @@ export function createNotificationService({
       }
 
       const adapter = requireAdapter(adapters, channel.provider);
-      const credentials = credentialEncryption.decrypt(
-        channel.credentialEnvelope,
-        "notification-channel",
-        channel.id,
-      ) as { webhookUrl: string };
+      let credentials: { webhookUrl: string };
+
+      try {
+        credentials = credentialEncryption.decrypt(
+          channel.credentialEnvelope,
+          "notification-channel",
+          channel.id,
+        ) as { webhookUrl: string };
+      } catch {
+        const failure = notificationCredentialsFailure();
+        await repository.updateChannelHealth({
+          channelId: channel.id,
+          checkedAt: new Date(),
+          lastErrorCode: failure.code,
+          status: "error",
+          workspaceId: workspace.workspace.id,
+        });
+        throwAdapterFailure(failure);
+      }
 
       try {
         await adapter.send(credentials, {
@@ -406,8 +448,24 @@ export function createNotificationService({
           title: "Test notification",
         });
       } catch (error) {
-        mapAdapterError(error);
+        const failure = classifyNotificationChannelFailure(error);
+        await repository.updateChannelHealth({
+          channelId: channel.id,
+          checkedAt: new Date(),
+          lastErrorCode: failure.code,
+          status: failure.permanent ? "error" : "connected",
+          workspaceId: workspace.workspace.id,
+        });
+        throwAdapterFailure(failure);
       }
+
+      await repository.updateChannelHealth({
+        channelId: channel.id,
+        checkedAt: new Date(),
+        lastErrorCode: null,
+        status: "connected",
+        workspaceId: workspace.workspace.id,
+      });
     },
 
     async updateChannel(
@@ -467,6 +525,8 @@ export function createNotificationService({
         credentialEnvelope,
         name,
         ownerMembershipId: workspace.membership.id,
+        lastErrorCode: null,
+        lastValidatedAt: new Date(),
         status: "connected",
         workspaceId: workspace.workspace.id,
       });

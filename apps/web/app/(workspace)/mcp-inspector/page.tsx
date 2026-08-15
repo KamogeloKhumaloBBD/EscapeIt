@@ -26,7 +26,9 @@ export default async function McpInspectorPage() {
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>MCP inspector unavailable</AlertTitle>
           <AlertDescription>
-            We couldn&apos;t load your workspace MCP map. Refresh to try again.
+            {state.status === "unavailable"
+              ? state.message
+              : "The MCP map was not found. Refresh the page to try again."}
           </AlertDescription>
         </Alert>
       )}

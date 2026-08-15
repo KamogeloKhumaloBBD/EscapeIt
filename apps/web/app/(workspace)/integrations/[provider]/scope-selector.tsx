@@ -40,6 +40,30 @@ function parseResponse(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
+async function responseErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null || !("error" in body)) {
+      return fallback;
+    }
+
+    const error = Reflect.get(body, "error");
+    if (typeof error !== "object" || error === null || !("message" in error)) {
+      return fallback;
+    }
+
+    const message = Reflect.get(error, "message");
+    return typeof message === "string" && message.trim().length > 0
+      ? message
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function ScopeSelector({
   initialItems,
   initialSelected,
@@ -108,7 +132,12 @@ export function ScopeSelector({
       )
         .then(async (response) => {
           if (!response.ok) {
-            throw new Error("Scope discovery failed.");
+            throw new Error(
+              await responseErrorMessage(
+                response,
+                `We couldn't load ${providerDisplayName} ${scopeLabels.plural}. Check the connected account and try again.`,
+              ),
+            );
           }
 
           const discovered = parseResponse((await response.json()) as unknown);
@@ -123,7 +152,9 @@ export function ScopeSelector({
         .catch((error: unknown) => {
           if (!(error instanceof DOMException && error.name === "AbortError")) {
             toast.error(
-              `We couldn't load ${providerDisplayName} ${scopeLabels.plural}.`,
+              error instanceof Error
+                ? error.message
+                : `We couldn't load ${providerDisplayName} ${scopeLabels.plural}. Check the connected account and try again.`,
             );
           }
         })
@@ -153,7 +184,12 @@ export function ScopeSelector({
       );
 
       if (!response.ok) {
-        throw new Error("Scope discovery failed.");
+        throw new Error(
+          await responseErrorMessage(
+            response,
+            `We couldn't load more ${providerDisplayName} ${scopeLabels.plural}. Check the connected account and try again.`,
+          ),
+        );
       }
 
       const discovered = parseResponse((await response.json()) as unknown);
@@ -164,9 +200,11 @@ export function ScopeSelector({
 
       setItems((current) => [...current, ...discovered.items]);
       setNextCursor(discovered.nextCursor);
-    } catch {
+    } catch (error) {
       toast.error(
-        `We couldn't load more ${providerDisplayName} ${scopeLabels.plural}.`,
+        error instanceof Error
+          ? error.message
+          : `We couldn't load more ${providerDisplayName} ${scopeLabels.plural}. Check the connected account and try again.`,
       );
     } finally {
       setLoading(false);

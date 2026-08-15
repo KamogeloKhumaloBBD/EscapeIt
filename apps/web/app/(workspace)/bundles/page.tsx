@@ -60,7 +60,9 @@ export default async function BundlesPage() {
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Bundles unavailable</AlertTitle>
           <AlertDescription>
-            We couldn&apos;t load your workspace bundles. Refresh to try again.
+            {state.status === "unavailable"
+              ? state.message
+              : "The bundle list was not found. Refresh the page to try again."}
           </AlertDescription>
         </Alert>
       ) : (

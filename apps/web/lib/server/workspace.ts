@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage, readPublicApiError } from "@/lib/server/api-error";
 import { parseData } from "@/lib/server/api-state";
 import {
   workspaceOverviewSchema,
@@ -16,7 +17,7 @@ import {
 export type CurrentWorkspaceState =
   | { status: "anonymous" }
   | { status: "available"; workspace: WorkspaceSummary }
-  | { status: "unavailable" }
+  | { message: string; status: "unavailable" }
   | { status: "without-workspace" };
 
 export const getCurrentWorkspaceState = cache(
@@ -32,12 +33,22 @@ export const getCurrentWorkspaceState = cache(
     }
 
     if (!result.ok) {
-      return { status: "unavailable" };
+      return {
+        message: apiErrorMessage(
+          result,
+          "We couldn't load your workspace. Refresh the page to try again.",
+        ),
+        status: "unavailable",
+      };
     }
 
     const workspace = parseData(result.data, workspaceSummarySchema);
     return workspace === null
-      ? { status: "unavailable" }
+      ? {
+          message:
+            "The workspace response was invalid. Refresh the page to try again.",
+          status: "unavailable",
+        }
       : { status: "available", workspace };
   },
 );
@@ -46,7 +57,7 @@ export type WorkspaceAnalyticsState =
   | { status: "anonymous" }
   | { analytics: WorkspaceAnalytics; status: "available" }
   | { message: string; status: "invalid" }
-  | { status: "unavailable" }
+  | { message: string; status: "unavailable" }
   | { status: "without-workspace" };
 
 export const getWorkspaceAnalyticsState = cache(
@@ -71,27 +82,28 @@ export const getWorkspaceAnalyticsState = cache(
     if (result.status === 401) return { status: "anonymous" };
     if (result.status === 404) return { status: "without-workspace" };
     if (result.status === 400) {
-      const errorValue =
-        typeof result.data === "object" &&
-        result.data !== null &&
-        "error" in result.data
-          ? (result.data as Record<string, unknown>).error
-          : null;
-      const messageValue =
-        typeof errorValue === "object" && errorValue !== null
-          ? (errorValue as Record<string, unknown>).message
-          : null;
       const message =
-        typeof messageValue === "string"
-          ? messageValue
-          : "The selected date range is invalid.";
+        readPublicApiError(result.data)?.message ??
+        "The selected date range is invalid. Reset the filters and try again.";
       return { message, status: "invalid" };
     }
-    if (!result.ok) return { status: "unavailable" };
+    if (!result.ok) {
+      return {
+        message: apiErrorMessage(
+          result,
+          "We couldn't load workspace analytics. Refresh the page to try again.",
+        ),
+        status: "unavailable",
+      };
+    }
 
     const analytics = parseData(result.data, workspaceAnalyticsSchema);
     return analytics === null
-      ? { status: "unavailable" }
+      ? {
+          message:
+            "The analytics response was invalid. Refresh the page to try again.",
+          status: "unavailable",
+        }
       : { analytics, status: "available" };
   },
 );
@@ -99,7 +111,7 @@ export const getWorkspaceAnalyticsState = cache(
 export type WorkspaceOverviewState =
   | { status: "anonymous" }
   | { status: "available"; overview: WorkspaceOverview }
-  | { status: "unavailable" }
+  | { message: string; status: "unavailable" }
   | { status: "without-workspace" };
 
 export const getWorkspaceOverviewState = cache(
@@ -115,12 +127,22 @@ export const getWorkspaceOverviewState = cache(
     }
 
     if (!result.ok) {
-      return { status: "unavailable" };
+      return {
+        message: apiErrorMessage(
+          result,
+          "We couldn't load the workspace overview. Refresh the page to try again.",
+        ),
+        status: "unavailable",
+      };
     }
 
     const overview = parseData(result.data, workspaceOverviewSchema);
     return overview === null
-      ? { status: "unavailable" }
+      ? {
+          message:
+            "The workspace overview response was invalid. Refresh the page to try again.",
+          status: "unavailable",
+        }
       : { status: "available", overview };
   },
 );

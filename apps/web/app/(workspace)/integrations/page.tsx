@@ -101,7 +101,9 @@ export default async function IntegrationsPage() {
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Integrations unavailable</AlertTitle>
           <AlertDescription>
-            We couldn&apos;t load the provider catalogue. Refresh to try again.
+            {state.status === "unavailable"
+              ? state.message
+              : "The provider catalogue was not found. Refresh the page to try again."}
           </AlertDescription>
         </Alert>
       ) : (

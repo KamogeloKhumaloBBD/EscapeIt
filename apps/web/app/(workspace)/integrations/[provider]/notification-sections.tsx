@@ -1,9 +1,11 @@
 import {
   BellRingingIcon,
   CheckCircleIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 
 import { ProviderMark } from "@/components/integrations/provider-mark";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -31,7 +33,9 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import type { NotificationChannel } from "@/lib/validation/notification";
+import { notificationChannelHealth } from "@/lib/notification-health";
 import { AddChannelDialog } from "./add-channel-dialog";
+import { EditChannelDialog } from "./edit-channel-dialog";
 import {
   ChannelSourceSelector,
   DeleteChannelButton,
@@ -46,16 +50,18 @@ export interface NotificationSourceOption {
 export function NotificationChannelsSection({
   canManage,
   channels,
+  errorMessage,
   providerDisplayName,
 }: {
   canManage: boolean;
   channels: NotificationChannel[];
+  errorMessage: string | null;
   providerDisplayName: string;
 }) {
   return (
     <Card className="relative overflow-visible">
       <CardHeader>
-        <CardTitle>Connected channels</CardTitle>
+        <CardTitle>Notification channels</CardTitle>
         <CardDescription>
           Configure which integrations each channel hears from in Routing below.
         </CardDescription>
@@ -66,7 +72,13 @@ export function NotificationChannelsSection({
         ) : null}
       </CardHeader>
       <CardContent>
-        {channels.length === 0 ? (
+        {errorMessage !== null ? (
+          <Alert variant="destructive">
+            <WarningCircleIcon aria-hidden="true" />
+            <AlertTitle>Channels unavailable</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : channels.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -82,43 +94,57 @@ export function NotificationChannelsSection({
           </Empty>
         ) : (
           <ItemGroup className="gap-0">
-            {channels.map((channel, index) => (
-              <div key={channel.id}>
-                {index > 0 ? <ItemSeparator /> : null}
-                <Item>
-                  <ItemMedia>
-                    <ProviderMark
-                      displayName={channel.name}
-                      provider={channel.provider}
-                      size="sm"
-                    />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{channel.name}</ItemTitle>
-                    <ItemDescription>
-                      {channel.status === "connected" ? (
-                        <span className="inline-flex items-center gap-1.5 text-emerald-600">
-                          <CheckCircleIcon aria-hidden="true" weight="fill" />
-                          Connected
-                        </span>
-                      ) : (
-                        (channel.lastErrorCode ?? "Not connected")
-                      )}
-                    </ItemDescription>
-                  </ItemContent>
-                  {canManage ? (
-                    <ItemActions className="w-full justify-end gap-2 sm:w-auto">
-                      <TestChannelButton channelId={channel.id} />
-                      <DeleteChannelButton
-                        channelId={channel.id}
-                        channelName={channel.name}
-                        providerDisplayName={providerDisplayName}
+            {channels.map((channel, index) => {
+              const health = notificationChannelHealth(channel);
+              return (
+                <div key={channel.id}>
+                  {index > 0 ? <ItemSeparator /> : null}
+                  <Item>
+                    <ItemMedia>
+                      <ProviderMark
+                        displayName={channel.name}
+                        provider={channel.provider}
+                        size="sm"
                       />
-                    </ItemActions>
-                  ) : null}
-                </Item>
-              </div>
-            ))}
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{channel.name}</ItemTitle>
+                      <ItemDescription>
+                        {health.tone === "healthy" ? (
+                          <span className="inline-flex items-center gap-1.5 text-emerald-600">
+                            <CheckCircleIcon aria-hidden="true" weight="fill" />
+                            {health.message}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                            <WarningCircleIcon
+                              aria-hidden="true"
+                              className="mt-0.5 shrink-0"
+                              weight="fill"
+                            />
+                            {health.message}
+                          </span>
+                        )}
+                      </ItemDescription>
+                    </ItemContent>
+                    {canManage ? (
+                      <ItemActions className="w-full justify-end gap-2 sm:w-auto">
+                        <TestChannelButton channelId={channel.id} />
+                        <EditChannelDialog
+                          channelId={channel.id}
+                          channelName={channel.name}
+                        />
+                        <DeleteChannelButton
+                          channelId={channel.id}
+                          channelName={channel.name}
+                          providerDisplayName={providerDisplayName}
+                        />
+                      </ItemActions>
+                    ) : null}
+                  </Item>
+                </div>
+              );
+            })}
           </ItemGroup>
         )}
       </CardContent>
@@ -129,10 +155,12 @@ export function NotificationChannelsSection({
 export function NotificationRoutingSection({
   canManage,
   channels,
+  errorMessage,
   sourceOptions,
 }: {
   canManage: boolean;
   channels: NotificationChannel[];
+  errorMessage: string | null;
   sourceOptions: NotificationSourceOption[];
 }) {
   return (
@@ -148,7 +176,13 @@ export function NotificationRoutingSection({
         </CardAction>
       </CardHeader>
       <CardContent>
-        {channels.length === 0 ? (
+        {errorMessage !== null ? (
+          <Alert variant="destructive">
+            <WarningCircleIcon aria-hidden="true" />
+            <AlertTitle>Routing unavailable</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : channels.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyTitle>No channels connected yet</EmptyTitle>

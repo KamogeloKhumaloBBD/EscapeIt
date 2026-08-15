@@ -45,6 +45,7 @@ import {
   getScopeDiscoveryState,
 } from "@/lib/server/integration";
 import { getNotificationChannelsState } from "@/lib/server/notification";
+import { notificationSetupWarnings } from "@/lib/notification-health";
 import {
   DisconnectInstallation,
   McpToolSelector,
@@ -64,7 +65,7 @@ export default async function IntegrationDetailPage({
   searchParams,
 }: {
   params: Promise<{ provider: string }>;
-  searchParams: Promise<{ oauth?: string }>;
+  searchParams: Promise<{ oauth?: string; reason?: string }>;
 }) {
   const [{ provider }, query] = await Promise.all([params, searchParams]);
   const state = await getIntegrationState(provider);
@@ -78,7 +79,7 @@ export default async function IntegrationDetailPage({
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Integration unavailable</AlertTitle>
-          <AlertDescription>Refresh the page to try again.</AlertDescription>
+          <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       </WorkspacePage>
     );
@@ -131,19 +132,30 @@ export default async function IntegrationDetailPage({
       canDiscoverScopes
         ? getScopeDiscoveryState(provider)
         : Promise.resolve({ status: "not-found" } as const),
-      hasNotificationChannels
+      hasNotificationChannels || hasNotifications
         ? getNotificationChannelsState()
         : Promise.resolve({ status: "not-found" } as const),
       hasNotificationChannels
         ? getIntegrationsState()
         : Promise.resolve({ status: "not-found" } as const),
     ]);
+  const allNotificationChannels =
+    channelsState.status === "available" ? channelsState.data : [];
   const notificationChannels =
     channelsState.status === "available"
-      ? channelsState.data.filter((channel) => channel.provider === provider)
+      ? allNotificationChannels.filter(
+          (channel) => channel.provider === provider,
+        )
       : [];
+  const hasSubscribedConnectedChannel = allNotificationChannels.some(
+    (channel) =>
+      channel.status === "connected" &&
+      channel.sourceProviders.includes(provider),
+  );
   const connectedIntegrationCount = new Set(
-    notificationChannels.flatMap((channel) => channel.sourceProviders),
+    notificationChannels
+      .filter((channel) => channel.status === "connected")
+      .flatMap((channel) => channel.sourceProviders),
   ).size;
   const notificationSourceOptions =
     integrationsState.status === "available"
@@ -158,6 +170,18 @@ export default async function IntegrationDetailPage({
     resourcesState.status === "available" && resourcesState.data.length > 0;
   const hasNoAvailableResources =
     resourcesState.status === "available" && resourcesState.data.length === 0;
+  const notificationWarnings = notificationSetupWarnings({
+    channelErrorMessage:
+      channelsState.status === "unavailable" ? channelsState.message : null,
+    channelsAvailable: channelsState.status === "available",
+    enabledEventCount: enabledNotificationEvents.length,
+    eventCount: integration.notificationEvents.length,
+    hasScopes,
+    hasSubscribedConnectedChannel,
+    providerDisplayName: integration.displayName,
+    scopeLabel: scopeLabels?.plural ?? "resources",
+    selectedScopeCount: integration.selectedScopes.length,
+  });
   const summaryMetrics = [
     ...(hasAccount
       ? [
@@ -190,7 +214,7 @@ export default async function IntegrationDetailPage({
       : []),
     ...(hasNotificationChannels
       ? [
-          ["Connected channels", String(notificationChannels.length)],
+          ["Configured channels", String(notificationChannels.length)],
           ["Connected integrations", String(connectedIntegrationCount)],
         ]
       : []),
@@ -225,7 +249,12 @@ export default async function IntegrationDetailPage({
   return (
     <WorkspacePage width="focused">
       {hasAccount ? (
-        <OAuthNotice accountLabel={accountLabel} result={query.oauth} />
+        <OAuthNotice
+          accountLabel={accountLabel}
+          providerDisplayName={integration.displayName}
+          reason={query.reason}
+          result={query.oauth}
+        />
       ) : null}
       <section className="relative overflow-hidden border border-border bg-card p-6 sm:p-8">
         <div className="absolute -right-24 -top-32 size-80 rounded-full bg-primary/8 blur-3xl" />
@@ -468,6 +497,12 @@ export default async function IntegrationDetailPage({
                   resourceLabel={resourceLabel}
                   resources={resourcesState.data}
                 />
+              ) : resourcesState.status === "unavailable" ? (
+                <Alert variant="destructive">
+                  <WarningCircleIcon aria-hidden="true" />
+                  <AlertTitle>Provider resources unavailable</AlertTitle>
+                  <AlertDescription>{resourcesState.message}</AlertDescription>
+                </Alert>
               ) : integration.currentAccount?.status !== "connected" ? (
                 <Alert>
                   <AlertTitle>Account required</AlertTitle>
@@ -521,6 +556,14 @@ export default async function IntegrationDetailPage({
                   providerDisplayName={integration.displayName}
                   scopeLabels={scopeLabels}
                 />
+              ) : canDiscoverScopes && scopesState.status === "unavailable" ? (
+                <Alert variant="destructive">
+                  <WarningCircleIcon aria-hidden="true" />
+                  <AlertTitle>
+                    {integration.displayName} access unavailable
+                  </AlertTitle>
+                  <AlertDescription>{scopesState.message}</AlertDescription>
+                </Alert>
               ) : integration.permissions.canManageScopes ? (
                 <Alert>
                   <AlertTitle>
@@ -656,16 +699,27 @@ export default async function IntegrationDetailPage({
               </CardAction>
             </CardHeader>
             <CardContent>
+              {notificationWarnings.length === 0 ? null : (
+                <div className="mb-5 space-y-3">
+                  {notificationWarnings.map((warning) => (
+                    <Alert key={warning.title}>
+                      <WarningCircleIcon aria-hidden="true" />
+                      <AlertTitle>{warning.title}</AlertTitle>
+                      <AlertDescription>{warning.message}</AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              )}
               {integration.notificationSetupUrl === null ? null : (
                 <div className="mb-5 flex flex-col gap-3 border border-dashed border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      One approval needed in {integration.displayName}
+                      Confirm external approval in {integration.displayName}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {integration.displayName} can&apos;t send activity to us
-                      until a site administrator approves it. This is done once
-                      per {integration.displayName} site.
+                      If this site has not been approved yet, a site
+                      administrator must complete this step before activity can
+                      reach Context Layer.
                     </p>
                   </div>
                   <Button asChild size="sm" variant="outline">
@@ -697,11 +751,21 @@ export default async function IntegrationDetailPage({
             <NotificationChannelsSection
               canManage={integration.permissions.canManageNotificationChannels}
               channels={notificationChannels}
+              errorMessage={
+                channelsState.status === "unavailable"
+                  ? channelsState.message
+                  : null
+              }
               providerDisplayName={integration.displayName}
             />
             <NotificationRoutingSection
               canManage={integration.permissions.canManageNotificationChannels}
               channels={notificationChannels}
+              errorMessage={
+                integrationsState.status === "unavailable"
+                  ? integrationsState.message
+                  : null
+              }
               sourceOptions={notificationSourceOptions}
             />
           </div>

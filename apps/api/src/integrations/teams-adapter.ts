@@ -104,6 +104,13 @@ export function createTeamsAdapter(): NotificationChannelAdapter {
       }
 
       if (!response.ok) {
+        if (response.status >= 500) {
+          throw new NotificationChannelAdapterError(
+            "temporarily_unavailable",
+            "Microsoft Teams is temporarily unavailable.",
+          );
+        }
+
         throw new NotificationChannelAdapterError(
           "invalid_response",
           `Microsoft Teams rejected the notification (status ${String(response.status)}).`,

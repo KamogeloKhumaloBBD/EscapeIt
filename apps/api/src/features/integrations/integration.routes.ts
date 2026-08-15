@@ -17,6 +17,7 @@ import {
   scopeSelectionSchema,
 } from "./integration.schemas";
 import type { createIntegrationService } from "./integration.service";
+import { oauthFailureReason, type OAuthFailureReason } from "./oauth-failure";
 
 export interface IntegrationRouterDependencies {
   nodeEnvironment: "development" | "production";
@@ -80,9 +81,15 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null;
 }
 
-function detailUrl(publicAppUrl: string, provider: string, result: string) {
+function detailUrl(
+  publicAppUrl: string,
+  provider: string,
+  result: "cancelled" | "connected" | "failed",
+  reason?: OAuthFailureReason | "invalid_state",
+) {
   const url = new URL(`/integrations/${provider}`, publicAppUrl);
   url.searchParams.set("oauth", result);
+  if (reason !== undefined) url.searchParams.set("reason", reason);
   return url.toString();
 }
 
@@ -105,19 +112,32 @@ export function createIntegrationRouter({
 
   router.get("/:provider/oauth/start", async (request, response) => {
     const provider = requireProvider(request.params.provider);
-    const result = await service.beginOAuth(
-      (response.locals as AuthenticatedLocals).authenticatedUser.id,
-      provider,
-    );
+    try {
+      const result = await service.beginOAuth(
+        (response.locals as AuthenticatedLocals).authenticatedUser.id,
+        provider,
+      );
 
-    response.cookie(oauthCookieName(provider), result.state, {
-      httpOnly: true,
-      maxAge: 10 * 60 * 1_000,
-      path: `/api/integrations/${provider}/oauth/callback`,
-      sameSite: "lax",
-      secure: nodeEnvironment === "production",
-    });
-    response.redirect(302, result.authorizationUrl);
+      response.cookie(oauthCookieName(provider), result.state, {
+        httpOnly: true,
+        maxAge: 10 * 60 * 1_000,
+        path: `/api/integrations/${provider}/oauth/callback`,
+        sameSite: "lax",
+        secure: nodeEnvironment === "production",
+      });
+      response.redirect(302, result.authorizationUrl);
+    } catch (error) {
+      request.log.warn(
+        {
+          code: error instanceof HttpError ? error.code : "OAUTH_START_FAILED",
+        },
+        "Provider OAuth start failed",
+      );
+      response.redirect(
+        302,
+        detailUrl(publicAppUrl, provider, "failed", oauthFailureReason(error)),
+      );
+    }
   });
 
   router.get("/:provider/oauth/callback", async (request, response) => {
@@ -152,14 +172,20 @@ export function createIntegrationRouter({
       cookieState === null ||
       !oauthStatesMatch(cookieState, parsed.data.state)
     ) {
-      response.redirect(302, detailUrl(publicAppUrl, provider, "invalid"));
+      response.redirect(
+        302,
+        detailUrl(publicAppUrl, provider, "failed", "invalid_state"),
+      );
       return;
     }
 
     const verified = verifyOAuthState(cookieState, oauthStateSecret);
 
     if (verified?.provider !== provider) {
-      response.redirect(302, detailUrl(publicAppUrl, provider, "invalid"));
+      response.redirect(
+        302,
+        detailUrl(publicAppUrl, provider, "failed", "invalid_state"),
+      );
       return;
     }
 
@@ -193,7 +219,10 @@ export function createIntegrationRouter({
         },
         "Provider OAuth callback failed",
       );
-      response.redirect(302, detailUrl(publicAppUrl, provider, "failed"));
+      response.redirect(
+        302,
+        detailUrl(publicAppUrl, provider, "failed", oauthFailureReason(error)),
+      );
     }
   });
 

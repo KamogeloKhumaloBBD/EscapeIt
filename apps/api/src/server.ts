@@ -22,7 +22,6 @@ import {
   findIntegrationBundle,
   findIntegrationBundleProviderKeys,
   findIntegrationBundleSummary,
-  findIntegrationByResourceExternalId,
   findIntegrationByWebhookToken,
   findNotificationChannel,
   findMemberIntegrationAccess,
@@ -35,8 +34,9 @@ import {
   getWorkspaceUsageAnalytics,
   hasLiveMcpOAuthConsent,
   listIntegrationBundles,
+  listIntegrationsByResourceExternalId,
   listIntegrationResourceUrls,
-  listIntegrationScopeExternalKeys,
+  listIntegrationScopeExternalIds,
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
@@ -77,6 +77,7 @@ import {
   setIntegrationWebhookRegistration,
   setNotificationPreferenceOverride,
   updateNotificationChannel,
+  updateNotificationChannelHealth,
   type ProviderKey,
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
@@ -260,6 +261,8 @@ const notificationDependencies: NotificationWebhookReceiverDependencies = {
   listNotificationChannelSources: (workspaceId) =>
     listNotificationChannelSourcesForWorkspace(connection.client, workspaceId),
   notificationChannelAdapters,
+  updateNotificationChannelHealth: (input) =>
+    updateNotificationChannelHealth(connection.client, input),
 };
 
 function findIntegrationByToken(provider: ProviderKey) {
@@ -288,48 +291,52 @@ const webhookReceivers = new Map<ProviderKey, WebhookReceiver>(
     createConfluenceWebhookReceiver({
       ...notificationDependencies,
       findIntegrationByCloudId: async (cloudId) => {
-        const integration = await findIntegrationByResourceExternalId(
+        const integrations = await listIntegrationsByResourceExternalId(
           connection.client,
           confluenceProvider,
           cloudId,
         );
 
-        if (integration === null) {
+        if (integrations.length === 0) {
           return null;
         }
 
-        return {
-          notificationEventKeys: integration.notificationEventKeys,
-          selectedSpaceKeys: await listIntegrationScopeExternalKeys(
-            connection.client,
-            integration.id,
-          ),
-          workspaceId: integration.workspaceId,
-        };
+        return Promise.all(
+          integrations.map(async (integration) => ({
+            notificationEventKeys: integration.notificationEventKeys,
+            selectedSpaceIds: await listIntegrationScopeExternalIds(
+              connection.client,
+              integration.id,
+            ),
+            workspaceId: integration.workspaceId,
+          })),
+        );
       },
       forgeAppId: config.forgeAppId,
     }),
     createGitHubWebhookReceiver({
       ...notificationDependencies,
       findIntegrationByInstallationId: async (installationId) => {
-        const integration = await findIntegrationByResourceExternalId(
+        const integrations = await listIntegrationsByResourceExternalId(
           connection.client,
           githubProvider,
           installationId,
         );
 
-        if (integration === null) {
+        if (integrations.length === 0) {
           return null;
         }
 
-        return {
-          notificationEventKeys: integration.notificationEventKeys,
-          selectedRepositoryFullNames: await listIntegrationScopeExternalKeys(
-            connection.client,
-            integration.id,
-          ),
-          workspaceId: integration.workspaceId,
-        };
+        return Promise.all(
+          integrations.map(async (integration) => ({
+            notificationEventKeys: integration.notificationEventKeys,
+            selectedRepositoryIds: await listIntegrationScopeExternalIds(
+              connection.client,
+              integration.id,
+            ),
+            workspaceId: integration.workspaceId,
+          })),
+        );
       },
       webhookSecret: config.githubApp?.webhookSecret ?? null,
     }),
@@ -667,6 +674,9 @@ const notificationRepository: NotificationServiceDependencies["repository"] = {
     ),
   updateChannel: (input: Parameters<typeof updateNotificationChannel>[1]) =>
     updateNotificationChannel(connection.client, input),
+  updateChannelHealth: (
+    input: Parameters<typeof updateNotificationChannelHealth>[1],
+  ) => updateNotificationChannelHealth(connection.client, input),
 };
 const notificationService = createNotificationService({
   adapters: notificationChannelAdapters,

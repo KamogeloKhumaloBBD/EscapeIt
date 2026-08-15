@@ -30,6 +30,7 @@ const maximumCommentCharacters = 400;
 const repositorySchema = z.object({
   full_name: z.string().min(1),
   html_url: z.url().optional(),
+  id: z.number().int().positive().optional(),
 });
 
 const pullRequestEventSchema = z.object({
@@ -326,18 +327,22 @@ export function translateGitHubWebhookEvent(
 
 const installationPayloadSchema = z.object({
   installation: z.object({ id: z.number().int().positive() }),
-  repository: z.object({ full_name: z.string().min(1) }).optional(),
+  repository: z
+    .object({
+      id: z.union([z.string(), z.number()]).transform(String),
+    })
+    .optional(),
 });
 
 export interface GitHubWebhookReceiverDependencies extends NotificationWebhookReceiverDependencies {
   /**
-   * Resolves the workspace from a GitHub App installation id, and the
-   * repositories that installation's members actually selected.
+   * Resolves every workspace connected to a GitHub App installation id and
+   * the stable repository ids each workspace owner selected.
    */
   findIntegrationByInstallationId: (installationId: string) => Promise<
-    | (ResolvedWebhookIntegration & {
-        selectedRepositoryFullNames: readonly string[];
-      })
+    | readonly (ResolvedWebhookIntegration & {
+        selectedRepositoryIds: readonly string[];
+      })[]
     | null
   >;
   /**
@@ -393,30 +398,33 @@ export function createGitHubWebhookReceiver({
         return null;
       }
 
-      const integration = await findIntegrationByInstallationId(
+      const integrations = await findIntegrationByInstallationId(
         String(parsed.data.installation.id),
       );
 
-      if (integration === null) {
+      if (integrations === null) {
         return null;
       }
 
       // GitHub sends events for every repository in the installation, but the
       // member may have allowlisted only some of them. A genuine delivery from
       // an unselected repository is dropped, not rejected.
-      const repository = parsed.data.repository?.full_name;
+      const repositoryId = parsed.data.repository?.id;
 
-      if (
-        repository !== undefined &&
-        !integration.selectedRepositoryFullNames.includes(repository)
-      ) {
+      const matchingIntegrations = integrations.filter(
+        (integration) =>
+          repositoryId === undefined ||
+          integration.selectedRepositoryIds.includes(repositoryId),
+      );
+
+      if (matchingIntegrations.length === 0) {
         return "ignore";
       }
 
-      return {
+      return matchingIntegrations.map((integration) => ({
         notificationEventKeys: integration.notificationEventKeys,
         workspaceId: integration.workspaceId,
-      };
+      }));
     },
     translate: translateGitHubWebhookEvent,
   });

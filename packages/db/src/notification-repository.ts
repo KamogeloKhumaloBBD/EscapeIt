@@ -43,6 +43,14 @@ export interface UpdateNotificationChannelInput {
   workspaceId: string;
 }
 
+export interface UpdateNotificationChannelHealthInput {
+  channelId: string;
+  checkedAt: Date;
+  lastErrorCode: string | null;
+  status: "connected" | "error";
+  workspaceId: string;
+}
+
 function validateCredentialState(
   status: ConnectionStatus,
   credentialEnvelope: EncryptedCredentialEnvelope | null,
@@ -130,6 +138,27 @@ export async function updateNotificationChannel(
 
     return channel;
   });
+}
+
+export async function updateNotificationChannelHealth(
+  database: DatabaseClient,
+  input: UpdateNotificationChannelHealthInput,
+): Promise<boolean> {
+  const rows = await database<{ id: string }[]>`
+    update notification_channels
+    set
+      status = ${input.status},
+      "lastValidatedAt" = ${input.checkedAt},
+      "lastErrorCode" = ${input.lastErrorCode},
+      "updatedAt" = now()
+    where
+      id = ${input.channelId}
+      and "workspaceId" = ${input.workspaceId}
+      and "credentialEnvelope" is not null
+    returning id
+  `;
+
+  return rows[0] !== undefined;
 }
 
 export async function listNotificationChannels(

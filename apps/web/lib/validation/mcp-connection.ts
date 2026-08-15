@@ -22,3 +22,4 @@ export const mcpConnectionsPayloadSchema = z.object({
 });
 
 export type McpOAuthConnection = z.infer<typeof mcpOAuthConnectionSchema>;
+export type McpConnectionsPayload = z.infer<typeof mcpConnectionsPayloadSchema>;

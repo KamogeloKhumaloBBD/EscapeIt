@@ -808,24 +808,25 @@ export async function listWorkspaceIntegrations(
 }
 
 /**
- * Providers whose webhook is registered per integration are found by the token
- * in the delivery URL. A GitHub App instead has one webhook for every
- * installation, so its deliveries identify themselves by installation id,
- * which is the resource external id stored on the integration.
+ * Providers with one shared webhook identify deliveries by a provider resource
+ * id (for example, a GitHub App installation or an Atlassian cloud). The same
+ * resource can be connected to more than one Context Layer workspace, so every
+ * connected integration must receive the event rather than an arbitrary first
+ * match.
  */
-export async function findIntegrationByResourceExternalId(
+export async function listIntegrationsByResourceExternalId(
   database: DatabaseClient,
   provider: ProviderKey,
   externalId: string,
-): Promise<Integration | null> {
-  const rows = await database<Integration[]>`
+): Promise<Integration[]> {
+  return database<Integration[]>`
     select *
     from integrations
     where provider = ${provider}
+      and status = 'connected'
       and configuration ->> 'externalId' = ${externalId}
+    order by "createdAt", id
   `;
-
-  return rows[0] ?? null;
 }
 
 /**
@@ -865,6 +866,19 @@ export async function listIntegrationScopeExternalKeys(
   return rows.flatMap((row) =>
     row.externalKey === null ? [] : [row.externalKey],
   );
+}
+
+export async function listIntegrationScopeExternalIds(
+  database: DatabaseClient,
+  integrationId: string,
+): Promise<readonly string[]> {
+  const rows = await database<{ externalId: string }[]>`
+    select "externalId"
+    from integration_scopes
+    where "integrationId" = ${integrationId}
+  `;
+
+  return rows.map((row) => row.externalId);
 }
 
 export async function setIntegrationWebhookRegistration(

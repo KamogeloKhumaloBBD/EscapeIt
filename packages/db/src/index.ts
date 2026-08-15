@@ -79,11 +79,12 @@ export {
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
-  findIntegrationByResourceExternalId,
   findIntegrationByWebhookToken,
   findMemberIntegrationAccess,
   findWorkspaceIntegration,
+  listIntegrationsByResourceExternalId,
   listIntegrationResourceUrls,
+  listIntegrationScopeExternalIds,
   listIntegrationScopeExternalKeys,
   listIntegrationScopes,
   listIntegrationMcpTools,
@@ -162,8 +163,10 @@ export {
   resolveNotificationPreference,
   setNotificationPreferenceOverride,
   updateNotificationChannel,
+  updateNotificationChannelHealth,
   type CreateNotificationChannelInput,
   type UpdateNotificationChannelInput,
+  type UpdateNotificationChannelHealthInput,
 } from "./notification-repository";
 export { RepositoryError, type RepositoryErrorCode } from "./repository-errors";
 export { createProductId, normalizeEmail } from "./repository-helpers";

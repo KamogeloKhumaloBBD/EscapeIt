@@ -208,7 +208,8 @@ export default async function AgentSetupPage() {
     getMcpConnections(),
   ]);
 
-  if (state.status === "anonymous") redirect("/sign-in");
+  if (state.status === "anonymous" || connectionState.status === "anonymous")
+    redirect("/sign-in");
   if (state.status === "without-workspace") redirect("/onboarding");
 
   const bundles =
@@ -222,9 +223,7 @@ export default async function AgentSetupPage() {
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Agent setup unavailable</AlertTitle>
-          <AlertDescription>
-            We couldn&apos;t load MCP access. Refresh to try again.
-          </AlertDescription>
+          <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       </WorkspacePage>
     );
@@ -270,15 +269,16 @@ export default async function AgentSetupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {connectionState === null ? (
+            {connectionState.status !== "available" ? (
               <p className="text-sm text-muted-foreground">
-                We couldn&apos;t load your connected clients. Refresh to try
-                again.
+                {connectionState.status === "unavailable"
+                  ? connectionState.message
+                  : "No connected clients were found. Connect a client to get started."}
               </p>
             ) : (
               <McpConnectionList
                 bundles={bundles}
-                connections={connectionState.connections}
+                connections={connectionState.data.connections}
               />
             )}
           </CardContent>

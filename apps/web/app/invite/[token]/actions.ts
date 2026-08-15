@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { AcceptInvitationActionState } from "@/app/invite/[token]/action-state";
 import { requestApi } from "@/lib/server/api-client";
+import { apiErrorMessage } from "@/lib/server/api-error";
 import { invitationTokenSchema } from "@/lib/validation/member";
 
 export async function acceptInvitationAction(
@@ -36,14 +37,10 @@ export async function acceptInvitationAction(
 
   if (!result.ok) {
     return {
-      message:
-        result.status === 403
-          ? "Sign in with the email address that received this invitation."
-          : result.status === 409
-            ? "This account already belongs to a workspace."
-            : result.status === 503
-              ? "We couldn't accept the invitation right now. Try again."
-              : "This invitation is no longer available.",
+      message: apiErrorMessage(
+        result,
+        "This invitation is invalid or has expired. Ask the workspace owner for a new invitation.",
+      ),
       status: "error",
     };
   }
