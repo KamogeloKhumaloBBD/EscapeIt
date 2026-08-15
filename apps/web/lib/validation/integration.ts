@@ -58,6 +58,7 @@ const integrationSummarySchema = z.object({
     canManageInstallation: z.boolean(),
     canManageMcpTools: z.boolean(),
     canManageNotifications: z.boolean(),
+    canManageNotificationChannels: z.boolean(),
     canManageScopes: z.boolean(),
   }),
   presentation: z.object({

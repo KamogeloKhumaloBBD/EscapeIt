@@ -78,7 +78,7 @@ export function DashboardDateRangePicker({
       <PopoverTrigger asChild>
         <Button
           aria-label="Choose analytics date range"
-          className="w-full justify-start sm:w-auto"
+          className="w-full justify-start border-input/70! focus-visible:border-ring! sm:w-auto"
           disabled={pending}
           variant="outline"
         >

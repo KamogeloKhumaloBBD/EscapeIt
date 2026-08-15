@@ -22,6 +22,7 @@ export interface IntegrationPermissionsContract {
   canConnectAccount: boolean;
   canManageInstallation: boolean;
   canManageNotifications: boolean;
+  canManageNotificationChannels: boolean;
   canManageScopes: boolean;
   canManageMcpTools: boolean;
 }

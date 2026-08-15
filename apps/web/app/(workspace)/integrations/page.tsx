@@ -134,26 +134,28 @@ export default async function IntegrationsPage() {
                 key={integration.provider}
               >
                 <CardHeader className="border-b border-border pb-5">
-                  <div className="flex items-start gap-4">
+                  <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4">
                     <ProviderMark
                       displayName={integration.displayName}
                       provider={integration.provider}
                       size="md"
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <CardTitle className="text-xl">
-                          {integration.displayName}
-                        </CardTitle>
-                        <WorkspaceStatus tone={statusTone(integration)}>
-                          {statusLabel(integration)}
-                        </WorkspaceStatus>
-                      </div>
-                      <CardDescription className="mt-2 line-clamp-2">
-                        {integration.description}
-                      </CardDescription>
-                    </div>
+                    <CardTitle
+                      className="min-w-0 truncate text-xl"
+                      title={integration.displayName}
+                    >
+                      {integration.displayName}
+                    </CardTitle>
+                    <WorkspaceStatus
+                      className="shrink-0 whitespace-nowrap"
+                      tone={statusTone(integration)}
+                    >
+                      {statusLabel(integration)}
+                    </WorkspaceStatus>
                   </div>
+                  <CardDescription className="mt-3">
+                    {integration.description}
+                  </CardDescription>
                 </CardHeader>
 
                 <CardContent className="flex flex-1 flex-col">
@@ -198,7 +200,7 @@ export default async function IntegrationsPage() {
                     </div>
                   ) : null}
 
-                  <div className="mt-6 flex items-center justify-between gap-4">
+                  <div className="mt-auto flex items-center justify-between gap-4 pt-6">
                     <span className="text-xs text-muted-foreground">
                       {integration.nextStep === "ready"
                         ? "Configuration complete"
@@ -227,25 +229,29 @@ export default async function IntegrationsPage() {
           {hasGitHub ? null : (
             <Card className="h-full border-dashed shadow-none">
               <CardHeader className="border-b border-border pb-5">
-                <div className="flex items-start gap-4">
+                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4">
                   <ProviderMark
                     displayName="GitHub"
                     provider="github"
                     size="md"
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <CardTitle className="text-xl">GitHub</CardTitle>
-                      <WorkspaceStatus tone="disconnected">
-                        Not configured
-                      </WorkspaceStatus>
-                    </div>
-                    <CardDescription className="mt-2 line-clamp-2">
-                      Bring allowlisted GitHub repositories, code, issues, and
-                      pull requests into your context layer.
-                    </CardDescription>
-                  </div>
+                  <CardTitle
+                    className="min-w-0 truncate text-xl"
+                    title="GitHub"
+                  >
+                    GitHub
+                  </CardTitle>
+                  <WorkspaceStatus
+                    className="shrink-0 whitespace-nowrap"
+                    tone="disconnected"
+                  >
+                    Not configured
+                  </WorkspaceStatus>
                 </div>
+                <CardDescription className="mt-3">
+                  Bring allowlisted GitHub repositories, code, issues, and pull
+                  requests into your context layer.
+                </CardDescription>
               </CardHeader>
 
               <CardContent className="flex flex-1 flex-col">
@@ -256,7 +262,7 @@ export default async function IntegrationsPage() {
                   <PipelineStep complete={false} label="MCP tools" />
                 </div>
 
-                <div className="mt-6 flex items-center justify-between gap-4">
+                <div className="mt-auto flex items-center justify-between gap-4 pt-6">
                   <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground uppercase">
                     GitHub App credentials required
                   </span>

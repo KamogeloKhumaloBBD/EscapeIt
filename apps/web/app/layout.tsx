@@ -17,10 +17,12 @@ const metadataBase = new URL(
 );
 
 export const metadata: Metadata = {
-  description: "A universal context layer for coding agents.",
+  description:
+    "Give coding agents secure, permission-aware access to the issues, code, and documentation behind the work.",
   metadataBase,
   openGraph: {
-    description: "A universal context layer for coding agents.",
+    description:
+      "Give coding agents secure access to the issues, code, and documentation behind the work.",
     images: [
       {
         alt: "Context Layer connecting coding agents to work context",
@@ -31,14 +33,15 @@ export const metadata: Metadata = {
     ],
     locale: "en_US",
     siteName: "Context Layer",
-    title: "Context Layer | Bring Context to Where The Work Happens",
+    title: "Context Layer | The Context Behind the Code",
     type: "website",
     url: "/",
   },
-  title: "Context Layer | Bring Context to Where The Work Happens",
+  title: "Context Layer | The Context Behind the Code",
   twitter: {
     card: "summary_large_image",
-    description: "A universal context layer for coding agents.",
+    description:
+      "Give coding agents secure access to the issues, code, and documentation behind the work.",
     images: [
       {
         alt: "Context Layer connecting coding agents to work context",
@@ -47,7 +50,7 @@ export const metadata: Metadata = {
         width: 1200,
       },
     ],
-    title: "Context Layer | Bring Context to Where The Work Happens",
+    title: "Context Layer | The Context Behind the Code",
   },
 };
 

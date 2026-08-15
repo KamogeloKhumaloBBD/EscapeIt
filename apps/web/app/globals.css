@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@xyflow/react/dist/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -80,10 +81,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-* {
-  border-color: var(--border);
 }
 
 .dark {
@@ -190,96 +187,174 @@
   pointer-events: none;
 }
 
-.context-orbit {
+.landing-orbit-ring {
   position: absolute;
-  inset: 66px 39px 58px 40px;
-  border: 1px solid rgb(73 48 221 / 9%);
+  inset: 65px 40px 58px;
+  border: 1px solid rgb(73 48 221 / 10%);
   border-radius: 50%;
   transform: rotate(-8deg);
 }
 
-.context-path {
+.landing-orbit-path,
+.landing-bundle-route {
   fill: none;
-  stroke: rgb(73 48 221 / 34%);
+  stroke: rgb(73 48 221 / 38%);
   stroke-dasharray: 0.025 0.035;
   stroke-linecap: round;
-  stroke-width: 1.35;
-  animation: context-flow 2.8s linear infinite;
+  stroke-width: 1.4;
+  animation: landing-route 2.8s linear infinite;
 }
 
-.context-path--one {
-  animation-delay: -0.3s;
+.landing-orbit-path--agent {
+  stroke: rgb(23 21 27 / 52%);
 }
 
-.context-path--two {
-  animation-delay: -1.1s;
+.landing-orbit-path--jira {
+  animation-delay: -0.4s;
 }
 
-.context-path--three {
-  animation-delay: -1.7s;
+.landing-orbit-path--github {
+  animation-delay: -1.2s;
 }
 
-.context-path--four {
-  animation-delay: -2.2s;
+.landing-orbit-path--confluence {
+  animation-delay: -2s;
 }
 
-.context-path--in,
-.context-path--out {
-  stroke: rgb(23 21 27 / 50%);
-}
-
-.context-agent {
-  animation: context-float 5.6s ease-in-out infinite;
-}
-
-.context-source {
-  animation: context-float 6s ease-in-out infinite;
+.landing-orbit-agent,
+.landing-orbit-source {
+  animation: landing-float 5.8s ease-in-out infinite;
   white-space: nowrap;
 }
 
-.context-source--jira {
-  right: 2%;
-  top: 8%;
-  animation-delay: -1.4s;
+.landing-orbit-source--jira {
+  right: 1%;
+  top: 7%;
 }
 
-.context-source--github {
+.landing-orbit-source--github {
   right: -1%;
-  top: 43%;
-  animation-delay: -3.2s;
+  top: 45%;
 }
 
-.context-source--confluence {
-  bottom: 4%;
-  right: 5%;
-  animation-delay: -4.4s;
-}
-
-.context-source--teams {
-  bottom: 18%;
+.landing-orbit-source--confluence {
+  bottom: 17%;
   left: 1%;
-  animation-delay: -2.1s;
 }
 
-.context-core {
-  animation: context-breathe 5s ease-in-out infinite;
+.landing-orbit-source--bitbucket {
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
 }
 
-.context-response {
-  animation: context-response 5.6s ease-in-out infinite;
+.landing-orbit-core {
+  animation: landing-core-breathe 4.8s ease-in-out infinite;
 }
 
-.context-pulse {
-  animation: context-pulse 1.8s ease-out infinite;
+.landing-feature-scene {
+  background-image:
+    radial-gradient(circle at 50% 46%, rgb(90 65 232 / 10%), transparent 15rem),
+    linear-gradient(to right, rgb(44 37 63 / 4%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(44 37 63 / 4%) 1px, transparent 1px);
+  background-size:
+    auto,
+    32px 32px,
+    32px 32px;
 }
 
-@keyframes context-flow {
+.landing-connect-bus,
+.landing-connect-stem,
+.landing-activity-line {
+  background: linear-gradient(
+    90deg,
+    rgb(90 65 232 / 12%),
+    rgb(90 65 232 / 85%),
+    rgb(90 65 232 / 12%)
+  );
+  background-size: 200% 100%;
+  animation: landing-signal 2.4s linear infinite;
+}
+
+.landing-connect-stem,
+.landing-activity-line {
+  background: linear-gradient(
+    to bottom,
+    rgb(90 65 232 / 12%),
+    rgb(90 65 232 / 85%),
+    rgb(90 65 232 / 12%)
+  );
+  background-size: 100% 200%;
+}
+
+.landing-connect-provider {
+  animation: landing-float 5.2s ease-in-out infinite;
+}
+
+.landing-connect-core {
+  animation: landing-core-breathe 4.8s ease-in-out infinite;
+}
+
+.landing-connect-step {
+  animation: landing-step-ready 5.2s ease-in-out infinite;
+}
+
+.landing-connect-ready {
+  animation: landing-ready-glow 5.2s ease-in-out infinite;
+}
+
+.landing-boundary {
+  animation: landing-boundary-glow 5s ease-in-out infinite;
+}
+
+.landing-boundary-ring {
+  animation: landing-ring 4s ease-in-out infinite;
+}
+
+.landing-bundle-route {
+  stroke-width: 1.7;
+}
+
+.landing-bundle-core {
+  animation: landing-bundle-breathe 4.2s ease-in-out infinite;
+}
+
+.landing-bundle-node {
+  animation: landing-node-ready 4.8s ease-in-out infinite;
+}
+
+.landing-operations-scene {
+  background-image:
+    radial-gradient(circle at 78% 18%, rgb(90 65 232 / 24%), transparent 16rem),
+    linear-gradient(to right, rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 4%) 1px, transparent 1px);
+}
+
+.landing-signal-bar {
+  animation: landing-bar 3.2s ease-in-out infinite alternate;
+  transform-origin: bottom;
+}
+
+.landing-activity-item {
+  animation: landing-activity 5.2s ease-in-out infinite;
+}
+
+.landing-digest {
+  animation: landing-digest 5.2s ease-in-out infinite;
+}
+
+.landing-status-pulse {
+  box-shadow: 0 0 0 0 rgb(140 255 189 / 45%);
+  animation: landing-pulse 1.8s ease-out infinite;
+}
+
+@keyframes landing-route {
   to {
     stroke-dashoffset: -0.3;
   }
 }
 
-@keyframes context-float {
+@keyframes landing-float {
   0%,
   100% {
     transform: translateY(0);
@@ -289,30 +364,138 @@
   }
 }
 
-@keyframes context-breathe {
+@keyframes landing-core-breathe {
   0%,
   100% {
-    box-shadow: 0 28px 70px rgb(42 32 76 / 24%);
+    box-shadow: 0 18px 45px rgb(42 32 76 / 20%);
   }
   50% {
-    box-shadow: 0 32px 85px rgb(73 48 221 / 30%);
+    box-shadow: 0 24px 65px rgb(73 48 221 / 32%);
   }
 }
 
-@keyframes context-response {
+@keyframes landing-signal {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes landing-step-ready {
+  0%,
+  10%,
+  100% {
+    border-color: rgb(222 217 207);
+    opacity: 0.62;
+    transform: translateY(2px);
+  }
+  24%,
+  82% {
+    border-color: rgb(157 140 255 / 75%);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-ready-glow {
+  0%,
+  30% {
+    color: rgb(119 112 103);
+  }
+  50%,
+  85% {
+    color: rgb(90 65 232);
+  }
+}
+
+@keyframes landing-boundary-glow {
   0%,
   100% {
-    opacity: 0.72;
-    transform: translate(-50%, 4px);
+    border-color: rgb(157 140 255 / 50%);
+    background-color: rgb(241 238 255 / 30%);
   }
-  45%,
-  70% {
-    opacity: 1;
-    transform: translate(-50%, -2px);
+  50% {
+    border-color: rgb(90 65 232 / 82%);
+    background-color: rgb(241 238 255 / 58%);
   }
 }
 
-@keyframes context-pulse {
+@keyframes landing-ring {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+@keyframes landing-bundle-breathe {
+  0%,
+  100% {
+    box-shadow: 0 20px 55px rgb(73 48 221 / 24%);
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+  50% {
+    box-shadow: 0 26px 75px rgb(73 48 221 / 40%);
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+}
+
+@keyframes landing-node-ready {
+  0%,
+  100% {
+    border-color: rgb(222 217 207);
+    transform: translateY(0);
+  }
+  45% {
+    border-color: rgb(157 140 255 / 72%);
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes landing-bar {
+  0% {
+    opacity: 0.48;
+    transform: scaleY(0.45);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes landing-activity {
+  0%,
+  12%,
+  100% {
+    border-color: rgb(255 255 255 / 10%);
+    transform: translateX(-3px);
+  }
+  28%,
+  78% {
+    border-color: rgb(157 140 255 / 45%);
+    transform: translateX(0);
+  }
+}
+
+@keyframes landing-digest {
+  0%,
+  55% {
+    border-color: rgb(157 140 255 / 32%);
+    opacity: 0.68;
+    transform: translateY(4px);
+  }
+  72%,
+  92% {
+    border-color: rgb(157 140 255 / 75%);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-pulse {
   0% {
     box-shadow: 0 0 0 0 rgb(140 255 189 / 45%);
   }
@@ -323,37 +506,85 @@
 }
 
 @media (max-width: 639px) {
-  .context-visual-shell {
-    height: 338px;
+  .landing-orbit-shell {
+    height: 410px;
+    max-width: calc(100vw - 3rem);
   }
 
-  .context-visual {
-    transform: scale(0.65);
-    transform-origin: top center;
+  .landing-orbit {
+    left: 50%;
+    margin-left: -228.75px;
+    transform: scale(0.75);
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 479px) {
+  .landing-orbit-shell {
+    height: 290px;
+  }
+
+  .landing-orbit {
+    margin-left: -152.5px;
+    transform: scale(0.5);
   }
 }
 
 @media (max-width: 359px) {
-  .context-visual-shell {
-    height: 286px;
+  .landing-orbit-shell {
+    height: 255px;
   }
 
-  .context-visual {
-    transform: scale(0.55);
+  .landing-orbit {
+    margin-left: -134.2px;
+    transform: scale(0.44);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .context-path,
-  .context-agent,
-  .context-source,
-  .context-core,
-  .context-response,
-  .context-pulse {
+  .landing-orbit-path,
+  .landing-orbit-agent,
+  .landing-orbit-source,
+  .landing-orbit-core,
+  .landing-connect-bus,
+  .landing-connect-stem,
+  .landing-connect-provider,
+  .landing-connect-core,
+  .landing-connect-step,
+  .landing-connect-ready,
+  .landing-boundary,
+  .landing-boundary-ring,
+  .landing-bundle-route,
+  .landing-bundle-core,
+  .landing-bundle-node,
+  .landing-signal-bar,
+  .landing-activity-line,
+  .landing-activity-item,
+  .landing-digest,
+  .landing-status-pulse {
     animation: none;
   }
 
   .status-pulse {
     animation: none;
   }
+
+  .mcp-inspector-canvas .react-flow__edge.animated path {
+    animation: none;
+  }
+}
+
+.mcp-inspector-canvas {
+  background-image:
+    radial-gradient(circle at 50% 44%, rgb(91 65 225 / 8%), transparent 26rem),
+    radial-gradient(circle at 18% 18%, rgb(255 184 77 / 5%), transparent 18rem);
+}
+
+.mcp-inspector-canvas .react-flow__node:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.mcp-inspector-canvas .react-flow__attribution {
+  display: none;
 }

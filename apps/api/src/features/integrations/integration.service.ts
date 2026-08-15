@@ -484,6 +484,7 @@ function buildSummary(
       canManageMcpTools: hasMcpTools && isOwner && isInstallationConnected,
       canManageNotifications:
         definition.capabilities.includes("notifications") && isOwner,
+      canManageNotificationChannels: hasNotificationChannels && isOwner,
       canManageScopes:
         hasScopes &&
         isOwner &&

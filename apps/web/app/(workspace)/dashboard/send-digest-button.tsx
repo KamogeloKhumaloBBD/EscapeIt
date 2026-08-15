@@ -53,7 +53,7 @@ export function SendDigestButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="secondary">
           <EnvelopeSimpleIcon aria-hidden="true" />
           Send digest
         </Button>

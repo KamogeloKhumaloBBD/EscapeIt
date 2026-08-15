@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Context Layer connecting coding agents to work context";
+export const alt =
+  "Context Layer giving coding agents secure access to the context behind the code";
 export const contentType = "image/png";
 export const size = {
   height: 630,
@@ -8,10 +9,9 @@ export const size = {
 };
 
 const sourceCards = [
-  { label: "Jira", left: 22, top: 86 },
-  { label: "GitHub", left: 352, top: 60 },
-  { label: "Confluence", left: 310, top: 344 },
-  { label: "Teams", left: 4, top: 380 },
+  { detail: "In review", label: "Jira · ENG-184" },
+  { detail: "Checks passed", label: "GitHub · PR #482" },
+  { detail: "Rollout plan", label: "Confluence" },
 ] as const;
 
 export default function OpenGraphImage() {
@@ -25,7 +25,7 @@ export default function OpenGraphImage() {
         fontFamily: "Arial, sans-serif",
         height: "100%",
         overflow: "hidden",
-        padding: "64px 68px",
+        padding: "58px 64px",
         position: "relative",
         width: "100%",
       }}
@@ -33,14 +33,14 @@ export default function OpenGraphImage() {
       <div
         style={{
           background:
-            "radial-gradient(circle, rgba(90,65,232,0.18) 0%, rgba(90,65,232,0) 70%)",
+            "radial-gradient(circle, rgba(90,65,232,0.17) 0%, rgba(90,65,232,0) 70%)",
           borderRadius: 999,
           display: "flex",
-          height: 620,
+          height: 680,
           position: "absolute",
-          right: -130,
-          top: -180,
-          width: 620,
+          right: -120,
+          top: -210,
+          width: 680,
         }}
       />
 
@@ -48,25 +48,25 @@ export default function OpenGraphImage() {
         style={{
           display: "flex",
           flexDirection: "column",
-          width: 590,
+          width: 560,
         }}
       >
         <div
           style={{
             alignItems: "center",
             display: "flex",
-            fontSize: 24,
+            fontSize: 23,
             fontWeight: 700,
             letterSpacing: "-0.03em",
           }}
         >
           <svg
-            height="38"
-            style={{ marginRight: 14 }}
+            height="36"
+            style={{ marginRight: 13 }}
             viewBox="0 0 32 32"
-            width="38"
+            width="36"
           >
-            <rect width="32" height="32" rx="8" fill="#17151b" />
+            <rect width="32" height="32" fill="#17151b" />
             <path
               d="M8 8l5 5M24 8l-5 5M8 24l5-5M24 24l-5-5"
               fill="none"
@@ -85,11 +85,11 @@ export default function OpenGraphImage() {
               y="11"
               width="10"
               height="10"
-              rx="3"
+              rx="2"
               fill="#0b0a0d"
               stroke="#8a77f2"
             />
-            <rect x="14" y="14" width="4" height="4" rx="1" fill="#8a77f2" />
+            <rect x="14" y="14" width="4" height="4" fill="#8a77f2" />
           </svg>
           Context Layer
         </div>
@@ -98,182 +98,181 @@ export default function OpenGraphImage() {
           style={{
             display: "flex",
             flexDirection: "column",
-            fontSize: 64,
+            fontSize: 65,
             fontWeight: 700,
             letterSpacing: "-0.065em",
             lineHeight: 0.98,
-            marginTop: 64,
+            marginTop: 72,
           }}
         >
-          <span>Bring Context to</span>
-          <span>Where The Work</span>
-          <span>Happens</span>
+          <span>Give agents the</span>
+          <span>context behind</span>
+          <span>the code.</span>
         </div>
 
         <div
           style={{
             color: "#68635a",
             display: "flex",
-            fontSize: 26,
-            lineHeight: 1.35,
-            marginTop: 30,
+            fontSize: 23,
+            lineHeight: 1.4,
+            marginTop: 28,
+            maxWidth: 510,
           }}
         >
-          A universal context layer for coding agents.
-        </div>
-
-        <div
-          style={{
-            alignItems: "center",
-            color: "#5a41e8",
-            display: "flex",
-            fontSize: 17,
-            fontWeight: 700,
-            marginTop: 44,
-          }}
-        >
-          <div
-            style={{
-              background: "#5a41e8",
-              borderRadius: 999,
-              display: "flex",
-              height: 8,
-              marginRight: 12,
-              width: 38,
-            }}
-          />
-          Evidence connected
+          Permission-aware access to issues, code, and documentation through one
+          MCP endpoint.
         </div>
       </div>
 
       <div
         style={{
+          background: "rgba(255,255,255,0.9)",
+          border: "1px solid #dcd7cc",
+          boxShadow: "0 26px 70px rgba(44,37,63,0.14)",
           display: "flex",
-          height: 500,
-          marginLeft: 28,
-          position: "relative",
-          width: 480,
+          flexDirection: "column",
+          marginLeft: 44,
+          padding: 19,
+          width: 470,
         }}
       >
-        <svg
-          height="500"
-          style={{ left: 0, position: "absolute", top: 0 }}
-          viewBox="0 0 480 500"
-          width="480"
+        <div
+          style={{
+            alignItems: "center",
+            borderBottom: "1px solid #e5e1d8",
+            display: "flex",
+            fontSize: 11,
+            fontWeight: 700,
+            justifyContent: "space-between",
+            letterSpacing: "0.1em",
+            paddingBottom: 13,
+            textTransform: "uppercase",
+          }}
         >
-          <circle
-            cx="240"
-            cy="250"
-            fill="none"
-            r="157"
-            stroke="#e6e1fa"
-            strokeDasharray="7 11"
-            strokeWidth="2"
-          />
-          <g fill="none" stroke="#8a77f2" strokeWidth="3">
-            <path d="M91 119 C148 130 146 211 184 231" />
-            <path d="M393 91 C337 116 343 204 298 228" />
-            <path d="M424 377 C348 361 348 296 297 275" />
-            <path d="M73 412 C143 381 139 300 183 272" />
-          </g>
-          <g fill="#5a41e8">
-            <circle cx="91" cy="119" r="5" />
-            <circle cx="393" cy="91" r="5" />
-            <circle cx="424" cy="377" r="5" />
-            <circle cx="73" cy="412" r="5" />
-          </g>
-        </svg>
+          <span>Illustrative workflow</span>
+          <span style={{ color: "#777067" }}>MCP</span>
+        </div>
 
-        {sourceCards.map(({ label, left, top }) => (
-          <div
-            key={label}
+        <div
+          style={{
+            alignSelf: "flex-end",
+            background: "#fbfaf7",
+            border: "1px solid #dcd7cc",
+            display: "flex",
+            flexDirection: "column",
+            marginTop: 16,
+            padding: "13px 16px",
+            width: 285,
+          }}
+        >
+          <span
             style={{
-              alignItems: "center",
-              background: "#ffffff",
-              border: "1px solid #eeeaf8",
-              borderRadius: 14,
-              boxShadow: "0 12px 30px rgba(30,25,50,0.10)",
-              display: "flex",
-              fontSize: 16,
+              color: "#777067",
+              fontSize: 10,
               fontWeight: 700,
-              left,
-              padding: "13px 17px",
-              position: "absolute",
-              top,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
             }}
           >
-            <div
-              style={{
-                background: "#806cf2",
-                borderRadius: 999,
-                display: "flex",
-                height: 9,
-                marginRight: 10,
-                width: 9,
-              }}
-            />
-            {label}
-          </div>
-        ))}
+            Coding agent
+          </span>
+          <span style={{ fontSize: 17, fontWeight: 700, marginTop: 5 }}>
+            Can ENG-184 ship?
+          </span>
+        </div>
 
         <div
           style={{
             background: "#17151b",
-            borderRadius: 24,
-            boxShadow: "0 28px 65px rgba(42,32,76,0.25)",
             color: "white",
             display: "flex",
             flexDirection: "column",
-            height: 166,
-            left: 152,
-            padding: "25px 24px",
-            position: "absolute",
-            top: 166,
-            width: 205,
+            marginTop: 16,
+            padding: "17px 18px",
           }}
         >
           <div
             style={{
               alignItems: "center",
               display: "flex",
-              fontSize: 17,
+              fontSize: 16,
               fontWeight: 700,
               justifyContent: "space-between",
             }}
           >
-            Context Layer
+            <span>Context Layer</span>
+            <span style={{ color: "#8cffbd", fontSize: 10 }}>
+              ACCESS CHECKED
+            </span>
+          </div>
+          <div
+            style={{
+              color: "#cfc9da",
+              display: "flex",
+              fontSize: 11,
+              justifyContent: "space-between",
+              marginTop: 15,
+            }}
+          >
+            <span>Identity OK</span>
+            <span>Bundle OK</span>
+            <span>Scopes OK</span>
+            <span>Tools OK</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 7, marginTop: 12 }}>
+          {sourceCards.map((source) => (
             <div
+              key={source.label}
               style={{
-                background: "#8cffbd",
-                borderRadius: 999,
+                border: "1px solid #ded9cf",
                 display: "flex",
-                height: 8,
-                width: 8,
+                flexDirection: "column",
+                minWidth: 0,
+                padding: "10px 9px",
+                width: 139,
               }}
-            />
+            >
+              <span style={{ fontSize: 11, fontWeight: 700 }}>
+                {source.label}
+              </span>
+              <span style={{ color: "#777067", fontSize: 9, marginTop: 4 }}>
+                {source.detail}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            alignItems: "center",
+            background: "#ffffff",
+            border: "1px solid #ded9cf",
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 12,
+            padding: "13px 15px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span
+              style={{
+                color: "#15130f",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              Bitbucket · release/2.4
+            </span>
+            <span style={{ color: "#777067", fontSize: 9, marginTop: 4 }}>
+              12 commits
+            </span>
           </div>
-          <div
-            style={{
-              color: "#938ca0",
-              display: "flex",
-              fontFamily: "monospace",
-              fontSize: 12,
-              letterSpacing: "0.08em",
-              marginTop: 31,
-            }}
-          >
-            GET_WORK_CONTEXT
-          </div>
-          <div
-            style={{
-              display: "flex",
-              fontSize: 18,
-              fontWeight: 600,
-              marginTop: 11,
-            }}
-          >
-            Evidence connected.
-          </div>
+          <span style={{ color: "#5a41e8", fontSize: 9, fontWeight: 700 }}>
+            CONNECTED
+          </span>
         </div>
       </div>
     </div>,

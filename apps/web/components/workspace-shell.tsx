@@ -2,6 +2,7 @@
 
 import {
   BuildingsIcon,
+  GraphIcon,
   HouseIcon,
   KeyIcon,
   PackageIcon,
@@ -48,6 +49,7 @@ const navigation = [
   },
   { href: "/members", icon: UsersThreeIcon, label: "Members" },
   { href: "/agent-setup", icon: KeyIcon, label: "Agent Setup" },
+  { href: "/mcp-inspector", icon: GraphIcon, label: "MCP Inspector" },
   { href: "/bundles", icon: PackageIcon, label: "Bundles" },
 ] as const;
 
@@ -101,11 +103,13 @@ function WorkspaceBreadcrumbs() {
               ? "Integrations"
               : pathname.startsWith("/agent-setup")
                 ? "Agent Setup"
-                : pathname.startsWith("/bundles")
-                  ? "Bundles"
-                  : pathname.startsWith("/members")
-                    ? "Members"
-                    : "Overview"}
+                : pathname.startsWith("/mcp-inspector")
+                  ? "MCP Inspector"
+                  : pathname.startsWith("/bundles")
+                    ? "Bundles"
+                    : pathname.startsWith("/members")
+                      ? "Members"
+                      : "Overview"}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>

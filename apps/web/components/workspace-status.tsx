@@ -30,18 +30,13 @@ export function WorkspaceStatus({
   return (
     <Badge
       className={cn(
-        tone === "ready" &&
-          "border-emerald-600/20 bg-emerald-600/8 text-emerald-700",
-        tone === "setup" && "border-amber-600/20 bg-amber-500/8 text-amber-700",
+        tone === "ready" && "bg-emerald-600/8 text-emerald-700",
+        tone === "setup" && "bg-amber-500/8 text-amber-700",
+        tone === "attention" && "bg-destructive/8 text-destructive",
+        tone === "disconnected" && "bg-muted/70 text-muted-foreground",
         className,
       )}
-      variant={
-        tone === "attention"
-          ? "destructive"
-          : tone === "disconnected"
-            ? "secondary"
-            : "outline"
-      }
+      variant="status"
     >
       <Icon aria-hidden="true" weight={tone === "ready" ? "fill" : "regular"} />
       {children}

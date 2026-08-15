@@ -188,14 +188,6 @@ export default async function IntegrationDetailPage({
     ...(hasMcpTools
       ? [["Enabled MCP tools", String(enabledMcpTools.length)]]
       : []),
-    ...(hasNotifications
-      ? [
-          [
-            "Notifications",
-            `${String(enabledNotificationEvents.length)} of ${String(integration.notificationEvents.length)}`,
-          ],
-        ]
-      : []),
     ...(hasNotificationChannels
       ? [
           ["Connected channels", String(notificationChannels.length)],
@@ -308,13 +300,6 @@ export default async function IntegrationDetailPage({
                   </a>
                 </Button>
               ) : null
-            ) : null}
-            {hasNotificationChannels &&
-            integration.permissions.canManageNotifications &&
-            notificationChannels.length === 0 ? (
-              <Button asChild>
-                <a href="#notification-channels">Add a channel</a>
-              </Button>
             ) : null}
           </div>
         </div>
@@ -710,12 +695,12 @@ export default async function IntegrationDetailPage({
         {hasNotificationChannels ? (
           <div className="scroll-mt-36 space-y-6" id="notification-channels">
             <NotificationChannelsSection
-              canManage={integration.permissions.canManageNotifications}
+              canManage={integration.permissions.canManageNotificationChannels}
               channels={notificationChannels}
               providerDisplayName={integration.displayName}
             />
             <NotificationRoutingSection
-              canManage={integration.permissions.canManageNotifications}
+              canManage={integration.permissions.canManageNotificationChannels}
               channels={notificationChannels}
               sourceOptions={notificationSourceOptions}
             />

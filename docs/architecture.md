@@ -190,7 +190,9 @@ flowchart TB
 
 Either credential type can point at the same bundle. A request authenticated with either one
 only ever sees `github_*` and `jira_*` tools&mdash;Confluence is invisible, not just
-unauthorized.
+unauthorized. Bundles are visible and usable across the workspace, but the membership that
+created a bundle is its only editor. Workspace owners can delete any bundle for
+administration, while other members can delete only their own.
 
 ## 6. Platform auth
 
@@ -199,10 +201,11 @@ One identity provider for the whole system: better-auth, mounted inside the API.
 Humans sign in passwordless, with a six-digit code emailed via Resend&mdash;password
 authentication is explicitly disabled. A signed-in user has at most one workspace
 membership, and that membership's role gates what they can do: an `owner` installs
-providers, manages members, and creates bundles; any `member` can connect their own provider
-accounts and mint their own personal access tokens. `apps/web` never talks to Postgres or
-resolves a session itself&mdash;it forwards the incoming cookie to `apps/api` on every
-request and trusts whatever that returns.
+providers, manages members, and can administratively delete any bundle; every member can
+create and manage their own bundles, connect their own provider accounts, and mint their own
+personal access tokens. `apps/web` never talks to Postgres or resolves a session
+itself&mdash;it forwards the incoming cookie to `apps/api` on every request and trusts
+whatever that returns.
 
 ## 7. MCP access &mdash; two credential paths
 

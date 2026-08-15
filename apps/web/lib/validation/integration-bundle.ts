@@ -10,10 +10,18 @@ export const bundleProviderSchema = z.object({
 
 export const bundleSchema = z.object({
   createdAt: z.iso.datetime(),
+  creator: z.object({
+    email: z.string(),
+    membershipId: z.string(),
+    name: z.string(),
+  }),
   description: z.string().nullable(),
   id: z.string(),
   name: z.string(),
-  permissions: z.object({ canManage: z.boolean() }),
+  permissions: z.object({
+    canDelete: z.boolean(),
+    canEdit: z.boolean(),
+  }),
   providers: z.array(bundleProviderSchema),
   updatedAt: z.iso.datetime(),
 });

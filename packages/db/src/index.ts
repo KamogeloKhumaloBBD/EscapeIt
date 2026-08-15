@@ -122,6 +122,7 @@ export {
   updateIntegrationBundle,
   type BundleProviderSummary,
   type CreateIntegrationBundleInput,
+  type IntegrationBundleCreatorSummary,
   type IntegrationBundleDetail,
   type UpdateIntegrationBundleInput,
 } from "./integration-bundle-repository";

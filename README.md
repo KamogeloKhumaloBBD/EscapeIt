@@ -23,6 +23,7 @@ pnpm dev:full
 On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `.env` before starting.
 
 - Web: <http://localhost:3000>
+- Pricing: <http://localhost:3000/pricing>
 - API health: <http://localhost:4000/api/health>
 - Proxied health: <http://localhost:3000/api/health>
 - Onboarding: <http://localhost:3000/onboarding>
@@ -80,7 +81,7 @@ MCP requests always run as the membership that created the token. Better Auth co
 
 OAuth clients should send the MCP resource indicator shown by protected-resource discovery during authorization and token exchange. For compatibility with clients that omit it from the token request, the authorization server defaults an omitted token-request resource to its single code-defined MCP audience. It still rejects every explicitly supplied resource that does not exactly match `<PUBLIC_APP_URL>/api/mcp`.
 
-Workspace owners can group the workspace's provider installations into named bundles from `/bundles`. A member can optionally scope a personal access token to one bundle when creating it from `/agent-setup`; that token's tools are then limited to the bundle's providers, intersected with the member's own connection and the workspace's existing tool allowlists. A token created without a bundle keeps today's behavior: every tool enabled across every provider the member has connected. A bundle cannot be deleted while a non-revoked token or MCP connection still references it.
+Every workspace member can group the workspace's provider installations into a named bundle from `/bundles`. The member who creates a bundle owns and edits it, while every workspace member can view and use it; workspace owners may also delete any bundle for administration. A member can optionally scope a personal access token to one bundle when creating it from `/agent-setup`; that token's tools are then limited to the bundle's providers, intersected with the member's own connection and the workspace's existing tool allowlists. A token created without a bundle keeps today's behavior: every tool enabled across every provider the member has connected. A bundle cannot be deleted while a non-revoked token or MCP connection still references it.
 
 OAuth-connected MCP clients (approved from `/oauth/consent`, e.g. `claude mcp add --transport http`) can be scoped to a bundle too, chosen on the consent screen alongside Allow/Deny. Unlike personal tokens, an OAuth connection's bundle can be changed afterward from `/agent-setup`, which lists every connected client with a bundle switcher and a Revoke button. The change takes effect on the client's next request because the gateway re-resolves the connection's bundle live on every call. No client reconfiguration or reconnect is required to switch.
 

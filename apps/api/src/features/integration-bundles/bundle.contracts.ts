@@ -6,11 +6,17 @@ export interface IntegrationBundleProviderContract {
 
 export interface IntegrationBundleContract {
   createdAt: string;
+  creator: {
+    email: string;
+    membershipId: string;
+    name: string;
+  };
   description: string | null;
   id: string;
   name: string;
   permissions: {
-    canManage: boolean;
+    canDelete: boolean;
+    canEdit: boolean;
   };
   providers: readonly IntegrationBundleProviderContract[];
   updatedAt: string;

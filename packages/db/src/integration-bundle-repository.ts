@@ -9,7 +9,6 @@ import { RepositoryError } from "./repository-errors";
 import {
   createProductId,
   requireMembership,
-  requireOwner,
   requireReturnedRow,
 } from "./repository-helpers";
 
@@ -31,8 +30,20 @@ export interface BundleProviderSummary {
   status: ConnectionStatus;
 }
 
+export interface IntegrationBundleCreatorSummary {
+  email: string;
+  membershipId: string;
+  name: string;
+}
+
 export interface IntegrationBundleDetail extends IntegrationBundle {
+  creator: IntegrationBundleCreatorSummary;
   providers: BundleProviderSummary[];
+}
+
+interface IntegrationBundleWithCreator extends IntegrationBundle {
+  creatorEmail: string;
+  creatorName: string;
 }
 
 function validateName(name: string): string {
@@ -68,7 +79,7 @@ function validateDescription(description: string | null): string | null {
 async function attachProviders(
   database: DatabaseClient,
   workspaceId: string,
-  bundles: readonly IntegrationBundle[],
+  bundles: readonly IntegrationBundleWithCreator[],
 ): Promise<IntegrationBundleDetail[]> {
   if (bundles.length === 0) {
     return [];
@@ -102,8 +113,13 @@ async function attachProviders(
     providersByBundle.set(row.bundleId, providers);
   }
 
-  return bundles.map((bundle) => ({
+  return bundles.map(({ creatorEmail, creatorName, ...bundle }) => ({
     ...bundle,
+    creator: {
+      email: creatorEmail,
+      membershipId: bundle.createdByMembershipId,
+      name: creatorName,
+    },
     providers: providersByBundle.get(bundle.id) ?? [],
   }));
 }
@@ -116,7 +132,7 @@ export async function createIntegrationBundle(
   const description = validateDescription(input.description);
 
   return withTransaction(database, async (transaction) => {
-    await requireOwner(
+    await requireMembership(
       transaction,
       input.workspaceId,
       input.createdByMembershipId,
@@ -147,7 +163,7 @@ export async function updateIntegrationBundle(
   database: DatabaseClient,
   workspaceId: string,
   bundleId: string,
-  ownerMembershipId: string,
+  actingMembershipId: string,
   input: UpdateIntegrationBundleInput,
 ): Promise<IntegrationBundle> {
   const name = input.name === undefined ? null : validateName(input.name);
@@ -157,7 +173,28 @@ export async function updateIntegrationBundle(
       : validateDescription(input.description);
 
   return withTransaction(database, async (transaction) => {
-    await requireOwner(transaction, workspaceId, ownerMembershipId);
+    await requireMembership(transaction, workspaceId, actingMembershipId);
+    const existingBundles = await transaction<
+      { createdByMembershipId: string }[]
+    >`
+      select "createdByMembershipId"
+      from integration_bundles
+      where id = ${bundleId} and "workspaceId" = ${workspaceId}
+      for update
+    `;
+    const existingBundle = existingBundles[0];
+
+    if (existingBundle === undefined) {
+      throw new RepositoryError("not_found", "Bundle not found.");
+    }
+
+    if (existingBundle.createdByMembershipId !== actingMembershipId) {
+      throw new RepositoryError(
+        "forbidden",
+        "Only the bundle owner can edit this bundle.",
+      );
+    }
+
     const rows = await transaction<IntegrationBundle[]>`
       update integration_bundles
       set
@@ -184,12 +221,18 @@ export async function deleteIntegrationBundle(
   database: DatabaseClient,
   workspaceId: string,
   bundleId: string,
-  ownerMembershipId: string,
+  actingMembershipId: string,
 ): Promise<void> {
   return withTransaction(database, async (transaction) => {
-    await requireOwner(transaction, workspaceId, ownerMembershipId);
-    const bundles = await transaction<{ id: string }[]>`
-      select id
+    const membership = await requireMembership(
+      transaction,
+      workspaceId,
+      actingMembershipId,
+    );
+    const bundles = await transaction<
+      { createdByMembershipId: string; id: string }[]
+    >`
+      select id, "createdByMembershipId"
       from integration_bundles
       where id = ${bundleId} and "workspaceId" = ${workspaceId}
       for update
@@ -197,6 +240,16 @@ export async function deleteIntegrationBundle(
 
     if (bundles[0] === undefined) {
       throw new RepositoryError("not_found", "Bundle not found.");
+    }
+
+    if (
+      bundles[0].createdByMembershipId !== actingMembershipId &&
+      membership.role !== "owner"
+    ) {
+      throw new RepositoryError(
+        "forbidden",
+        "Only the bundle owner or workspace owner can delete this bundle.",
+      );
     }
 
     const activeTokens = await transaction<{ id: string }[]>`
@@ -253,11 +306,18 @@ export async function listIntegrationBundles(
   membershipId: string,
 ): Promise<IntegrationBundleDetail[]> {
   await requireMembership(database, workspaceId, membershipId);
-  const bundles = await database<IntegrationBundle[]>`
-    select *
-    from integration_bundles
-    where "workspaceId" = ${workspaceId}
-    order by name, id
+  const bundles = await database<IntegrationBundleWithCreator[]>`
+    select
+      bundle.*,
+      creator.name as "creatorName",
+      creator.email as "creatorEmail"
+    from integration_bundles bundle
+    join workspace_memberships creatorMembership
+      on creatorMembership.id = bundle."createdByMembershipId"
+      and creatorMembership."workspaceId" = bundle."workspaceId"
+    join users creator on creator.id = creatorMembership."userId"
+    where bundle."workspaceId" = ${workspaceId}
+    order by bundle.name, bundle.id
   `;
 
   return attachProviders(database, workspaceId, bundles);
@@ -270,10 +330,17 @@ export async function findIntegrationBundle(
   membershipId: string,
 ): Promise<IntegrationBundleDetail | null> {
   await requireMembership(database, workspaceId, membershipId);
-  const bundles = await database<IntegrationBundle[]>`
-    select *
-    from integration_bundles
-    where id = ${bundleId} and "workspaceId" = ${workspaceId}
+  const bundles = await database<IntegrationBundleWithCreator[]>`
+    select
+      bundle.*,
+      creator.name as "creatorName",
+      creator.email as "creatorEmail"
+    from integration_bundles bundle
+    join workspace_memberships creatorMembership
+      on creatorMembership.id = bundle."createdByMembershipId"
+      and creatorMembership."workspaceId" = bundle."workspaceId"
+    join users creator on creator.id = creatorMembership."userId"
+    where bundle.id = ${bundleId} and bundle."workspaceId" = ${workspaceId}
   `;
   const bundle = bundles[0];
 
@@ -322,7 +389,7 @@ export async function replaceIntegrationBundleProviders(
   database: DatabaseClient,
   workspaceId: string,
   bundleId: string,
-  ownerMembershipId: string,
+  actingMembershipId: string,
   providers: readonly ProviderKey[],
 ): Promise<BundleProviderSummary[]> {
   if (new Set(providers).size !== providers.length) {
@@ -330,9 +397,11 @@ export async function replaceIntegrationBundleProviders(
   }
 
   return withTransaction(database, async (transaction) => {
-    await requireOwner(transaction, workspaceId, ownerMembershipId);
-    const bundles = await transaction<{ id: string }[]>`
-      select id
+    await requireMembership(transaction, workspaceId, actingMembershipId);
+    const bundles = await transaction<
+      { createdByMembershipId: string; id: string }[]
+    >`
+      select id, "createdByMembershipId"
       from integration_bundles
       where id = ${bundleId} and "workspaceId" = ${workspaceId}
       for update
@@ -340,6 +409,13 @@ export async function replaceIntegrationBundleProviders(
 
     if (bundles[0] === undefined) {
       throw new RepositoryError("not_found", "Bundle not found.");
+    }
+
+    if (bundles[0].createdByMembershipId !== actingMembershipId) {
+      throw new RepositoryError(
+        "forbidden",
+        "Only the bundle owner can edit this bundle.",
+      );
     }
 
     let integrationIds: string[] = [];
@@ -384,7 +460,7 @@ export async function replaceIntegrationBundleProviders(
           ${workspaceId},
           ${bundleId},
           ${integrationId},
-          ${ownerMembershipId}
+          ${actingMembershipId}
         )
       `;
     }

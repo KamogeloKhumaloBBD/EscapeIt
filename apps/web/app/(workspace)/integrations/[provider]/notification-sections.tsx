@@ -74,8 +74,9 @@ export function NotificationChannelsSection({
               </EmptyMedia>
               <EmptyTitle>No channels connected</EmptyTitle>
               <EmptyDescription>
-                Connect a {providerDisplayName} channel to start receiving
-                workspace notifications.
+                {canManage
+                  ? `Connect a ${providerDisplayName} channel to start receiving workspace notifications.`
+                  : `Ask a workspace owner to connect a ${providerDisplayName} channel.`}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

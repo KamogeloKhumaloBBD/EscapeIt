@@ -73,7 +73,7 @@ export function DashboardFilters({
       >
         <SelectTrigger
           aria-label="Filter by integration"
-          className="w-full border px-3 sm:w-auto sm:min-w-44"
+          className="w-full border-input/70! px-3 focus-visible:border-ring! sm:w-auto sm:min-w-44"
         >
           <SelectValue placeholder="All integrations" />
         </SelectTrigger>
@@ -96,7 +96,7 @@ export function DashboardFilters({
         >
           <SelectTrigger
             aria-label="Filter by member"
-            className="w-full border px-3 sm:w-auto sm:min-w-52"
+            className="w-full border-input/70! px-3 focus-visible:border-ring! sm:w-auto sm:min-w-52"
           >
             <SelectValue placeholder="All members" />
           </SelectTrigger>

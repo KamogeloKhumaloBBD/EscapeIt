@@ -23,7 +23,7 @@ interface IntegrationBundleRepository {
   delete(
     workspaceId: string,
     bundleId: string,
-    ownerMembershipId: string,
+    actingMembershipId: string,
   ): Promise<void>;
   findCurrentWorkspace(userId: string): Promise<CurrentWorkspace | null>;
   get(
@@ -38,13 +38,13 @@ interface IntegrationBundleRepository {
   replaceProviders(
     workspaceId: string,
     bundleId: string,
-    ownerMembershipId: string,
+    actingMembershipId: string,
     providers: readonly ProviderKey[],
   ): Promise<BundleProviderSummary[]>;
   update(
     workspaceId: string,
     bundleId: string,
-    ownerMembershipId: string,
+    actingMembershipId: string,
     input: {
       description?: string | null | undefined;
       name?: string | undefined;
@@ -73,27 +73,52 @@ export interface IntegrationBundleServiceDependencies {
   repository: IntegrationBundleRepository;
 }
 
-function requireOwner(workspace: CurrentWorkspace): void {
-  if (workspace.membership.role !== "owner") {
+function requireEditor(
+  workspace: CurrentWorkspace,
+  bundle: IntegrationBundleDetail,
+): void {
+  if (bundle.createdByMembershipId !== workspace.membership.id) {
     throw new HttpError(
       403,
       "FORBIDDEN",
-      "Workspace owner access is required.",
+      "Only the bundle owner can edit this bundle.",
+    );
+  }
+}
+
+function requireDeleter(
+  workspace: CurrentWorkspace,
+  bundle: IntegrationBundleDetail,
+): void {
+  if (
+    bundle.createdByMembershipId !== workspace.membership.id &&
+    workspace.membership.role !== "owner"
+  ) {
+    throw new HttpError(
+      403,
+      "FORBIDDEN",
+      "Only the bundle owner or workspace owner can delete this bundle.",
     );
   }
 }
 
 function toContract(
   bundle: IntegrationBundleDetail,
-  isOwner: boolean,
+  workspace: CurrentWorkspace,
   providerRegistry: ProviderRegistry,
 ): IntegrationBundleContract {
+  const isCreator = bundle.createdByMembershipId === workspace.membership.id;
+
   return {
     createdAt: bundle.createdAt.toISOString(),
+    creator: bundle.creator,
     description: bundle.description,
     id: bundle.id,
     name: bundle.name,
-    permissions: { canManage: isOwner },
+    permissions: {
+      canDelete: isCreator || workspace.membership.role === "owner",
+      canEdit: isCreator,
+    },
     providers: bundle.providers.map((provider) => ({
       displayName:
         providerRegistry.get(provider.provider)?.displayName ??
@@ -134,20 +159,31 @@ export function createIntegrationBundleService({
       input: { description: string | null; name: string },
     ): Promise<IntegrationBundleContract> {
       const workspace = await current(userId);
-      requireOwner(workspace);
       const bundle = await repository.create({
         createdByMembershipId: workspace.membership.id,
         description: input.description,
         name: input.name,
         workspaceId: workspace.workspace.id,
       });
+      const detail = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundle.id,
+        workspace.membership.id,
+      );
 
-      return toContract({ ...bundle, providers: [] }, true, providerRegistry);
+      return toContract(detail, workspace, providerRegistry);
     },
 
     async delete(userId: string, bundleId: string): Promise<void> {
       const workspace = await current(userId);
-      requireOwner(workspace);
+      const bundle = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+      );
+      requireDeleter(workspace, bundle);
       await repository.delete(
         workspace.workspace.id,
         bundleId,
@@ -167,11 +203,7 @@ export function createIntegrationBundleService({
         workspace.membership.id,
       );
 
-      return toContract(
-        bundle,
-        workspace.membership.role === "owner",
-        providerRegistry,
-      );
+      return toContract(bundle, workspace, providerRegistry);
     },
 
     async list(userId: string): Promise<readonly IntegrationBundleContract[]> {
@@ -180,10 +212,8 @@ export function createIntegrationBundleService({
         workspace.workspace.id,
         workspace.membership.id,
       );
-      const isOwner = workspace.membership.role === "owner";
-
       return bundles.map((bundle) =>
-        toContract(bundle, isOwner, providerRegistry),
+        toContract(bundle, workspace, providerRegistry),
       );
     },
 
@@ -193,7 +223,13 @@ export function createIntegrationBundleService({
       providers: readonly string[],
     ): Promise<IntegrationBundleContract> {
       const workspace = await current(userId);
-      requireOwner(workspace);
+      const existingBundle = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+      );
+      requireEditor(workspace, existingBundle);
       await repository.replaceProviders(
         workspace.workspace.id,
         bundleId,
@@ -207,7 +243,7 @@ export function createIntegrationBundleService({
         workspace.membership.id,
       );
 
-      return toContract(bundle, true, providerRegistry);
+      return toContract(bundle, workspace, providerRegistry);
     },
 
     async update(
@@ -219,7 +255,13 @@ export function createIntegrationBundleService({
       },
     ): Promise<IntegrationBundleContract> {
       const workspace = await current(userId);
-      requireOwner(workspace);
+      const existingBundle = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+      );
+      requireEditor(workspace, existingBundle);
       await repository.update(
         workspace.workspace.id,
         bundleId,
@@ -233,7 +275,7 @@ export function createIntegrationBundleService({
         workspace.membership.id,
       );
 
-      return toContract(bundle, true, providerRegistry);
+      return toContract(bundle, workspace, providerRegistry);
     },
   };
 }

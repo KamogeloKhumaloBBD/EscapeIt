@@ -43,15 +43,11 @@ export default async function BundlesPage() {
   if (state.status === "anonymous") redirect("/sign-in");
   if (workspaceState.status === "without-workspace") redirect("/onboarding");
 
-  const isOwner =
-    workspaceState.status === "available" &&
-    workspaceState.workspace.role === "owner";
-
   return (
     <WorkspacePage>
       <WorkspacePageHeader
         action={
-          isOwner && state.status === "available" && state.data.length > 0 ? (
+          state.status === "available" && state.data.length > 0 ? (
             <CreateBundleDialog />
           ) : undefined
         }
@@ -81,16 +77,13 @@ export default async function BundlesPage() {
                   </EmptyMedia>
                   <EmptyTitle>No bundles yet</EmptyTitle>
                   <EmptyDescription>
-                    {isOwner
-                      ? "Create a bundle to scope a personal access token to a subset of connected providers."
-                      : "The workspace owner has not created any bundles yet."}
+                    Create a bundle to scope a personal access token to a subset
+                    of connected providers.
                   </EmptyDescription>
                 </EmptyHeader>
-                {isOwner ? (
-                  <EmptyContent>
-                    <CreateBundleDialog triggerLabel="Create your first bundle" />
-                  </EmptyContent>
-                ) : null}
+                <EmptyContent>
+                  <CreateBundleDialog triggerLabel="Create your first bundle" />
+                </EmptyContent>
               </Empty>
             ) : (
               state.data.map((bundle) => (
@@ -102,6 +95,11 @@ export default async function BundlesPage() {
                     <CardTitle>{bundle.name}</CardTitle>
                     <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {bundle.description ?? "No description."}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {bundle.permissions.canEdit
+                        ? "Owned by you"
+                        : `Owned by ${bundle.creator.name} · ${bundle.creator.email}`}
                     </p>
                     <CardAction>
                       <WorkspaceStatus
@@ -148,14 +146,14 @@ export default async function BundlesPage() {
                     <div className="mt-6 flex items-center justify-between gap-4">
                       <Button asChild variant="outline">
                         <Link href={`/bundles/${bundle.id}`}>
-                          {bundle.permissions.canManage ? "Manage" : "View"}
+                          {bundle.permissions.canEdit ? "Edit" : "View"}
                           <ArrowRightIcon
                             aria-hidden="true"
                             data-icon="inline-end"
                           />
                         </Link>
                       </Button>
-                      {bundle.permissions.canManage ? (
+                      {bundle.permissions.canDelete ? (
                         <DeleteBundleButton
                           bundleId={bundle.id}
                           menu

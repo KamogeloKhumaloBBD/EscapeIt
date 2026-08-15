@@ -72,14 +72,14 @@ export default async function BundleDetailPage({
           </Button>
         }
         description={
-          bundle.permissions.canManage
-            ? "Manage this bundle's name, description, and providers."
-            : "Personal access tokens can be scoped to this bundle from Agent Setup."
+          bundle.permissions.canEdit
+            ? "Owned by you. Manage this bundle's name, description, and providers."
+            : `Owned by ${bundle.creator.name} (${bundle.creator.email}). Personal access tokens can be scoped to this bundle from Agent Setup.`
         }
         title={bundle.name}
       />
 
-      {bundle.permissions.canManage ? (
+      {bundle.permissions.canEdit ? (
         <>
           <Card className="mt-10">
             <CardHeader>
@@ -126,23 +126,6 @@ export default async function BundleDetailPage({
               )}
             </CardContent>
           </Card>
-
-          <section className="mt-10 border border-destructive/25 bg-destructive/5 p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
-            <div>
-              <h2 className="text-sm font-semibold">Delete bundle</h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Tokens assigned to this bundle must be revoked or reassigned
-                first.
-              </p>
-            </div>
-            <div className="mt-4 shrink-0 sm:mt-0">
-              <DeleteBundleButton
-                bundleId={bundle.id}
-                name={bundle.name}
-                redirectTo="/bundles"
-              />
-            </div>
-          </section>
         </>
       ) : (
         <Card className="mt-10">
@@ -155,8 +138,7 @@ export default async function BundleDetailPage({
           <CardContent>
             {bundle.providers.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                The workspace owner has not added any providers to this bundle
-                yet.
+                The bundle owner has not added any providers yet.
               </p>
             ) : (
               <ItemGroup>
@@ -181,6 +163,29 @@ export default async function BundleDetailPage({
           </CardContent>
         </Card>
       )}
+
+      {bundle.permissions.canDelete ? (
+        <section className="mt-10 border border-destructive/25 bg-destructive/5 p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+          <div>
+            <h2 className="text-sm font-semibold">
+              {bundle.permissions.canEdit
+                ? "Delete bundle"
+                : "Administrative deletion"}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Tokens and MCP connections assigned to this bundle must be revoked
+              or reassigned first.
+            </p>
+          </div>
+          <div className="mt-4 shrink-0 sm:mt-0">
+            <DeleteBundleButton
+              bundleId={bundle.id}
+              name={bundle.name}
+              redirectTo="/bundles"
+            />
+          </div>
+        </section>
+      ) : null}
     </WorkspacePage>
   );
 }
