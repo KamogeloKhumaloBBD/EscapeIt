@@ -228,6 +228,10 @@ API:
   people.
 - `CREDENTIAL_ENCRYPTION_KEY`
 - `PUBLIC_APP_URL`
+- `SLM_BASE_URL`, `SLM_API_KEY` — optional together; enable authenticated digest
+  summarization over the private network when configured
+- `DIGEST_RUN_SECRET` — optional bearer secret for the scheduled digest route
+- `DIGEST_SEND_HOUR_UTC` — digest period boundary; defaults to `16`
 - Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
 - Optional pair: `BITBUCKET_OAUTH_CLIENT_ID`, `BITBUCKET_OAUTH_CLIENT_SECRET`
 
@@ -235,7 +239,7 @@ Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTG
 
 ## Railway
 
-Railway runs `web`, `api`, `flyway`, and `Postgres` in one project. The service manifests are `railway.web.json`, `railway.api.json`, and `railway.flyway.json`.
+Railway runs `web`, `api`, `flyway`, `slm`, `digest-cron`, and `Postgres` in one project. The application service manifests are `railway.web.json`, `railway.api.json`, `railway.flyway.json`, `railway.slm.json`, and `railway.digest-cron.json`.
 
 Use these service configuration paths in Railway and keep the repository root as each build context. Configure:
 
@@ -250,6 +254,10 @@ api
   DATABASE_SSL_MODE=disable
   BETTER_AUTH_URL=https://<web-domain>
   PUBLIC_APP_URL=https://<web-domain>
+  SLM_BASE_URL=http://${{slm.RAILWAY_PRIVATE_DOMAIN}}:${{slm.PORT}}
+  SLM_API_KEY=${{slm.LLAMA_API_KEY}}
+  DIGEST_RUN_SECRET=<random-secret-at-least-32-characters>
+  DIGEST_SEND_HOUR_UTC=16
   ATLASSIAN_OAUTH_CLIENT_ID=<secret>
   ATLASSIAN_OAUTH_CLIENT_SECRET=<secret>
   PORT=4000
@@ -261,9 +269,17 @@ flyway
   FLYWAY_CONNECT_RETRIES=60
   RAILWAY_DOCKERFILE_PATH=packages/db/Dockerfile.flyway
 
+slm
+  PORT=8080
+  LLAMA_API_KEY=<random-secret>
+
+digest-cron
+  DIGEST_RUN_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}/api/digests/run
+  DIGEST_RUN_SECRET=${{api.DIGEST_RUN_SECRET}}
+
 ```
 
-The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. Keep GitHub autodeploy disabled for `flyway`, `api`, and `web`; the production GitHub Actions workflow deploys them in order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Flyway is deployed only when its SQL, image, or Railway manifest changed since the last successful production API revision.
+The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. The `slm` and `digest-cron` services also have no public domains; the latter runs at `0 16 * * *` and exits after one authenticated request. Keep GitHub autodeploy disabled for all five application services; the production GitHub Actions workflow deploys Flyway, SLM, API, web, and digest cron in that order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Each service is deployed only when its own inputs changed since its latest successful production revision.
 
 Configure the private GitHub repository with:
 
@@ -275,7 +291,7 @@ Configure the private GitHub repository with:
 
 Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build Docker images or test Flyway against a temporary database; Railway performs deployment builds, and developers must run `pnpm db:migrate` and `pnpm db:validate` locally whenever migrations change.
 
-For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, API, and web in that order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, SLM, API, web, and digest cron in dependency order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
 
 For an exceptional manual migration fallback, run:
 

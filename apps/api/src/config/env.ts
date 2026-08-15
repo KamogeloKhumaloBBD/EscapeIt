@@ -40,6 +40,7 @@ const apiEnvironmentSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.url().optional(),
   ),
+  SLM_API_KEY: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
   BITBUCKET_OAUTH_CLIENT_ID: optionalCredential,
@@ -93,6 +94,7 @@ export interface ApiConfig {
   publicAppUrl: string;
   resendApiKey: string;
   summarizerBaseUrl: string | null;
+  summarizerApiKey: string | null;
   webhookPublicUrl: string;
 }
 
@@ -202,6 +204,7 @@ export function parseApiConfig(
     publicAppUrl: parsed.PUBLIC_APP_URL,
     resendApiKey: parsed.RESEND_API_KEY,
     summarizerBaseUrl: parsed.SLM_BASE_URL ?? null,
+    summarizerApiKey: parsed.SLM_API_KEY ?? null,
     webhookPublicUrl: parsed.WEBHOOK_PUBLIC_URL ?? parsed.PUBLIC_APP_URL,
   };
 }

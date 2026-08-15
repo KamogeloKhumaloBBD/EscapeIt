@@ -240,13 +240,15 @@ running it twice against two ports.
 ## Deploying it
 
 1. Create a Railway service from `railway.slm.json`. Give it **no public
-   domain** — `llama-server` has no authentication of its own, and Railway's
-   private network is the only thing keeping it reachable by the API alone.
-   Serverless is already set in that file.
-2. Set `SLM_BASE_URL` on the API service to the SLM service's private address.
-3. Set `DIGEST_RUN_SECRET` on the API service.
-4. Point a scheduler at `POST /api/digests/run` with that bearer token, on
-   `0 16 * * *`, and keep the hour equal to `DIGEST_SEND_HOUR_UTC`.
+   domain**. Set `PORT=8080` and a random `LLAMA_API_KEY`; Serverless and the
+   resource ceiling are already set in the manifest.
+2. Set `SLM_BASE_URL` on the API service to the SLM service's private address,
+   and reference the SLM's `LLAMA_API_KEY` as `SLM_API_KEY`.
+3. Set a separate `DIGEST_RUN_SECRET` on the API service.
+4. Create the private `digest-cron` service from
+   `railway.digest-cron.json`. Give it the API's private digest URL and a
+   reference to the API's `DIGEST_RUN_SECRET`. It runs at `0 16 * * *`, equal
+   to `DIGEST_SEND_HOUR_UTC`, and exits after one authenticated request.
 
 Expect the first request after a sleep to return 502 while the service wakes.
 The summarizer retries once for exactly this reason; without it the digest would

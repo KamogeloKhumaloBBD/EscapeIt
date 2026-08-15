@@ -84,11 +84,13 @@ function isUsable(line: string, prompt: string): boolean {
 }
 
 export interface LlamaServerSummarizerConfig {
+  apiKey?: string | null;
   baseUrl: string;
   logger: Pick<Logger, "warn">;
 }
 
 export function createLlamaServerSummarizer({
+  apiKey,
   baseUrl,
   logger,
 }: LlamaServerSummarizerConfig): DigestSummarizer {
@@ -111,7 +113,12 @@ export function createLlamaServerSummarizer({
         // failure mode being guarded against.
         temperature: 0.1,
       }),
-      headers: { "content-type": "application/json" },
+      headers: {
+        ...(apiKey === null || apiKey === undefined
+          ? {}
+          : { authorization: `Bearer ${apiKey}` }),
+        "content-type": "application/json",
+      },
       method: "POST",
       signal: AbortSignal.timeout(requestTimeoutMs),
     });

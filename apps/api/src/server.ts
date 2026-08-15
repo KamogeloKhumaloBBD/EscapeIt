@@ -775,6 +775,7 @@ const digestService = createDigestService({
     config.summarizerBaseUrl === null
       ? null
       : createLlamaServerSummarizer({
+          apiKey: config.summarizerApiKey,
           baseUrl: config.summarizerBaseUrl,
           logger,
         }),

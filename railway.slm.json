@@ -8,6 +8,12 @@
     "drainingSeconds": 15,
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
+    "limitOverride": {
+      "containers": {
+        "cpu": 4,
+        "memoryBytes": 6442450944
+      }
+    },
     "multiRegionConfig": {
       "europe-west4-drams3a": {
         "numReplicas": 1
