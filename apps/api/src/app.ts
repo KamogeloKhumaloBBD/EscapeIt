@@ -19,6 +19,7 @@ export interface AppDependencies {
   authorizationServerMetadataHandler: RequestHandler;
   authHandler: RequestHandler;
   checkDatabase: () => Promise<boolean>;
+  customMcpClientMetadataHandler?: RequestHandler;
   logger?: Logger;
   webhookHandler: RequestHandler;
 }
@@ -29,6 +30,7 @@ export function createApp({
   authorizationServerMetadataHandler,
   authHandler,
   checkDatabase,
+  customMcpClientMetadataHandler,
   logger = createLogger(),
   webhookHandler,
 }: AppDependencies) {
@@ -69,6 +71,9 @@ export function createApp({
     ],
     authorizationServerMetadataHandler,
   );
+  if (customMcpClientMetadataHandler !== undefined) {
+    app.get("/oauth/custom-mcp-client.json", customMcpClientMetadataHandler);
+  }
   app.all("/api/auth/*splat", authHandler);
   // A GitHub App has one webhook for every installation, so its deliveries
   // arrive without a per-integration token in the path.

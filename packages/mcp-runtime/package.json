@@ -14,20 +14,25 @@
   ],
   "scripts": {
     "build": "tsup",
+    "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@context-layer/db": "workspace:*",
     "@context-layer/integrations": "workspace:*",
+    "@context-layer/security": "workspace:*",
+    "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.0.0",
     "express": "5.2.1",
-    "pino": "10.3.1"
+    "pino": "10.3.1",
+    "undici": "7.16.0"
   },
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/node": "24.13.3",
     "tsup": "8.5.1",
+    "tsx": "4.23.12",
     "typescript": "6.0.3"
   }
 }

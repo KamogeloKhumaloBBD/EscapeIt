@@ -18,6 +18,11 @@ export interface IntegrationBundleContract {
     canDelete: boolean;
     canEdit: boolean;
   };
+  customMcpServers: readonly {
+    id: string;
+    name: string;
+    status: "connected" | "disconnected" | "error";
+  }[];
   providers: readonly IntegrationBundleProviderContract[];
   updatedAt: string;
 }

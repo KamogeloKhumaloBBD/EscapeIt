@@ -4,7 +4,10 @@ import {
   createDatabaseConnection,
   findIntegrationAccountForMember,
   findIntegrationBundleProviderKeys,
+  findIntegrationBundleCustomMcpServerIds,
   findMemberIntegrationAccess,
+  listReadyCustomMcpAccess,
+  replaceCustomMcpAccountCredentials,
   replaceIntegrationAccountCredentials,
   resolveMcpToken,
   resolveOAuthAccessToken,
@@ -20,6 +23,7 @@ import {
 } from "@context-layer/integrations";
 import {
   createMcpGateway,
+  createCustomMcpGatewayToolProvider,
   createProtectedResourceMetadataHandler,
 } from "@context-layer/mcp-runtime";
 import { createCredentialEncryption } from "@context-layer/security";
@@ -97,16 +101,41 @@ const toolProviders = providerModules.flatMap((providerModule) => {
   ];
 });
 
+const customToolProvider = createCustomMcpGatewayToolProvider({
+  credentialEncryption,
+  repository: {
+    appendActivity: (input) => appendActivityEvent(connection.client, input),
+    listReady: (workspaceId, membershipId, allowedServerIds) =>
+      listReadyCustomMcpAccess(
+        connection.client,
+        workspaceId,
+        membershipId,
+        allowedServerIds,
+      ),
+    replaceCredentials: (input) =>
+      replaceCustomMcpAccountCredentials(connection.client, input),
+  },
+});
+
 const app = createMcpApp({
   allowedOrigin: config.publicAppUrl,
   checkDatabase: () => checkDatabaseReadiness(connection),
   logger,
   mcpHandler: createMcpGateway({
+    customToolProvider,
     logger,
     publicAppUrl: config.publicAppUrl,
     resolveBundleProviderKeys: async (workspaceId, bundleId) =>
       new Set(
         await findIntegrationBundleProviderKeys(
+          connection.client,
+          workspaceId,
+          bundleId,
+        ),
+      ),
+    resolveBundleCustomMcpServerIds: async (workspaceId, bundleId) =>
+      new Set(
+        await findIntegrationBundleCustomMcpServerIds(
           connection.client,
           workspaceId,
           bundleId,

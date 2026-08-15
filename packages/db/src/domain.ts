@@ -202,6 +202,59 @@ export interface IntegrationBundleProvider {
   workspaceId: string;
 }
 
+export type CustomMcpAuthenticationKind = "bearer" | "none" | "oauth";
+export type CustomMcpAccountAuthMethod = "bearer" | "oauth";
+
+export interface CustomMcpServer {
+  archivedAt: Date | null;
+  authenticationKind: CustomMcpAuthenticationKind;
+  configuredByMembershipId: string;
+  createdAt: Date;
+  endpointUrl: string;
+  id: string;
+  lastErrorCode: string | null;
+  lastValidatedAt: Date | null;
+  name: string;
+  slug: string;
+  status: ConnectionStatus;
+  updatedAt: Date;
+  workspaceId: string;
+}
+
+export interface CustomMcpAccount {
+  authMethod: CustomMcpAccountAuthMethod;
+  createdAt: Date;
+  credentialEnvelope: EncryptedCredentialEnvelope | null;
+  id: string;
+  lastErrorCode: string | null;
+  lastValidatedAt: Date | null;
+  membershipId: string;
+  serverId: string;
+  status: ConnectionStatus;
+  updatedAt: Date;
+  workspaceId: string;
+}
+
+export interface CustomMcpTool {
+  annotations: JsonObject;
+  available: boolean;
+  catalogHash: Uint8Array;
+  description: string;
+  discoveredAt: Date;
+  enabled: boolean;
+  enabledAt: Date | null;
+  enabledByMembershipId: string | null;
+  exposedName: string;
+  id: string;
+  inputSchema: JsonObject;
+  outputSchema: JsonObject | null;
+  serverId: string;
+  title: string | null;
+  updatedAt: Date;
+  upstreamName: string;
+  workspaceId: string;
+}
+
 export interface NotificationChannel {
   configuration: JsonObject;
   createdAt: Date;

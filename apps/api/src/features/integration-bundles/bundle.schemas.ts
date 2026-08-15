@@ -19,3 +19,7 @@ const providerKeySchema = z.string().min(1).max(63);
 export const replaceBundleProvidersSchema = z.object({
   providers: z.array(providerKeySchema).max(50),
 });
+
+export const replaceBundleCustomMcpServersSchema = z.object({
+  serverIds: z.array(z.uuid()).max(10),
+});

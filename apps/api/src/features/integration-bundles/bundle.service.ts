@@ -41,6 +41,12 @@ interface IntegrationBundleRepository {
     actingMembershipId: string,
     providers: readonly ProviderKey[],
   ): Promise<BundleProviderSummary[]>;
+  replaceCustomMcpServers(
+    workspaceId: string,
+    bundleId: string,
+    actingMembershipId: string,
+    serverIds: readonly string[],
+  ): Promise<unknown>;
   update(
     workspaceId: string,
     bundleId: string,
@@ -119,6 +125,11 @@ function toContract(
       canDelete: isCreator || workspace.membership.role === "owner",
       canEdit: isCreator,
     },
+    customMcpServers: bundle.customMcpServers.map((server) => ({
+      id: server.id,
+      name: server.name,
+      status: server.status,
+    })),
     providers: bundle.providers.map((provider) => ({
       displayName:
         providerRegistry.get(provider.provider)?.displayName ??
@@ -243,6 +254,34 @@ export function createIntegrationBundleService({
         workspace.membership.id,
       );
 
+      return toContract(bundle, workspace, providerRegistry);
+    },
+
+    async replaceCustomMcpServers(
+      userId: string,
+      bundleId: string,
+      serverIds: readonly string[],
+    ): Promise<IntegrationBundleContract> {
+      const workspace = await current(userId);
+      const existingBundle = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+      );
+      requireEditor(workspace, existingBundle);
+      await repository.replaceCustomMcpServers(
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+        serverIds,
+      );
+      const bundle = await requireBundle(
+        repository,
+        workspace.workspace.id,
+        bundleId,
+        workspace.membership.id,
+      );
       return toContract(bundle, workspace, providerRegistry);
     },
 

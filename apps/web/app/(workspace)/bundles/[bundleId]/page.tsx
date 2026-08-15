@@ -7,6 +7,7 @@ import {
   UpdateBundleForm,
 } from "@/app/(workspace)/bundles/bundle-actions";
 import { ProviderSelector } from "@/app/(workspace)/bundles/[bundleId]/provider-selector";
+import { CustomMcpSelector } from "@/app/(workspace)/bundles/[bundleId]/custom-mcp-selector";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { WorkspacePage } from "@/components/workspace-page";
 import { getIntegrationsState } from "@/lib/server/integration";
 import { getBundleState } from "@/lib/server/integration-bundle";
+import { getCustomMcpServersState } from "@/lib/server/custom-mcp";
 
 export default async function BundleDetailPage({
   params,
@@ -29,9 +31,10 @@ export default async function BundleDetailPage({
   params: Promise<{ bundleId: string }>;
 }) {
   const { bundleId } = await params;
-  const [state, integrationsState] = await Promise.all([
+  const [state, integrationsState, customMcpState] = await Promise.all([
     getBundleState(bundleId),
     getIntegrationsState(),
+    getCustomMcpServersState(),
   ]);
 
   if (state.status === "anonymous") redirect("/sign-in");
@@ -60,6 +63,8 @@ export default async function BundleDetailPage({
             provider: integration.provider,
           }))
       : [];
+  const availableCustomMcpServers =
+    customMcpState.status === "available" ? customMcpState.data : [];
 
   return (
     <WorkspacePage width="focused">
@@ -120,6 +125,35 @@ export default async function BundleDetailPage({
                   selectedProviders={bundle.providers.map(
                     (provider) => provider.provider,
                   )}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>Custom MCP servers</CardTitle>
+              <CardDescription>
+                Select separately from native providers. Members still use their
+                own credentials for protected servers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {availableCustomMcpServers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No Custom MCP servers are installed. Add one from{" "}
+                  <Link className="underline" href="/integrations">
+                    Integrations
+                  </Link>{" "}
+                  first.
+                </p>
+              ) : (
+                <CustomMcpSelector
+                  bundleId={bundle.id}
+                  selectedIds={bundle.customMcpServers.map(
+                    (server) => server.id,
+                  )}
+                  servers={availableCustomMcpServers}
                 />
               )}
             </CardContent>

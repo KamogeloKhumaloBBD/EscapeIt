@@ -18,6 +18,7 @@ import type {
   McpPrincipal,
   McpToolProvider,
 } from "@context-layer/integrations";
+import type { CustomMcpGatewayToolProvider } from "./custom-mcp-tool-provider";
 
 const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
 const oauthAccessTokenPattern = /^ctx_oauth_at_[A-Za-z0-9_-]{32,256}$/;
@@ -28,12 +29,17 @@ export interface McpGatewayToolProvider {
 }
 
 export interface McpGatewayDependencies {
+  customToolProvider?: CustomMcpGatewayToolProvider;
   logger: Logger;
   publicAppUrl: string;
   resolveBundleProviderKeys: (
     workspaceId: string,
     bundleId: string,
   ) => Promise<ReadonlySet<ProviderKey>>;
+  resolveBundleCustomMcpServerIds?: (
+    workspaceId: string,
+    bundleId: string,
+  ) => Promise<ReadonlySet<string>>;
   resolveOAuthToken: (token: string) => Promise<ResolvedOAuthAccess | null>;
   resolveToken: (tokenHash: Uint8Array) => Promise<ResolvedMcpPrincipal | null>;
   toolProviders?: readonly McpGatewayToolProvider[];
@@ -92,9 +98,11 @@ function isMcpPrincipal(value: unknown): value is McpPrincipal {
 }
 
 export function createMcpGateway({
+  customToolProvider,
   logger,
   publicAppUrl,
   resolveBundleProviderKeys,
+  resolveBundleCustomMcpServerIds = () => Promise.resolve(new Set<string>()),
   resolveOAuthToken,
   resolveToken,
   toolProviders = [],
@@ -126,6 +134,13 @@ export function createMcpGateway({
               principal.workspaceId,
               principal.bundleId,
             );
+      const allowedCustomMcpServers =
+        principal.bundleId === null
+          ? null
+          : await resolveBundleCustomMcpServerIds(
+              principal.workspaceId,
+              principal.bundleId,
+            );
 
       for (const { provider, toolProvider } of toolProviders) {
         if (allowedProviders !== null && !allowedProviders.has(provider)) {
@@ -134,6 +149,12 @@ export function createMcpGateway({
 
         await toolProvider.registerTools(server, principal);
       }
+
+      await customToolProvider?.registerTools(
+        server,
+        principal,
+        allowedCustomMcpServers,
+      );
 
       return server;
     },

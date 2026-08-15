@@ -1,6 +1,7 @@
 import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
+  archiveCustomMcpServer,
   checkDatabaseReadiness,
   claimDigestRun,
   clearNotificationPreferenceOverride,
@@ -8,6 +9,8 @@ import {
   connectIntegrationAccountWithResource,
   configureIntegration,
   createDatabaseConnection,
+  createCustomMcpOAuthAttempt,
+  createCustomMcpServer,
   createIntegrationBundle,
   createMcpToken,
   createNotificationChannel,
@@ -15,10 +18,13 @@ import {
   createWorkspaceInvitation,
   deleteIntegrationBundle,
   deleteNotificationChannel,
+  disconnectCustomMcpAccount,
   disconnectIntegrationAccount,
   disconnectWorkspaceIntegration,
   ensureIntegrationAccount,
+  ensureCustomMcpAccount,
   findIntegrationAccountForMember,
+  findCustomMcpServer,
   findIntegrationBundle,
   findIntegrationBundleSummary,
   findIntegrationByWebhookToken,
@@ -32,6 +38,7 @@ import {
   getWorkspaceUsageAnalytics,
   hasLiveMcpOAuthConsent,
   listIntegrationBundles,
+  listCustomMcpServers,
   listIntegrationsByResourceExternalId,
   listIntegrationResourceUrls,
   listIntegrationScopeExternalIds,
@@ -58,8 +65,13 @@ import {
   parseNotificationEventKey,
   parseProviderKey,
   recordDigestRunDelivery,
+  renameCustomMcpServer,
   replaceIntegrationAccountCredentials,
+  replaceCustomMcpCatalog,
+  replaceCustomMcpAccountCredentials,
+  replaceEnabledCustomMcpTools,
   replaceIntegrationBundleProviders,
+  replaceIntegrationBundleCustomMcpServers,
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   replaceNotificationChannelSources,
@@ -67,6 +79,8 @@ import {
   revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
   saveIntegrationAccount,
+  saveCustomMcpAccountCredentials,
+  consumeCustomMcpOAuthAttempt,
   setOAuthConnectionBundle,
   updateIntegrationBundle,
   setIntegrationNotificationEventKeys,
@@ -103,6 +117,14 @@ import {
   type IntegrationBundleServiceDependencies,
 } from "./features/integration-bundles/bundle.service";
 import { createIntegrationRouter } from "./features/integrations/integration.routes";
+import {
+  createCustomMcpOAuthRouter,
+  createCustomMcpServerRouter,
+} from "./features/custom-mcp/custom-mcp.routes";
+import {
+  createCustomMcpService,
+  type CustomMcpServiceDependencies,
+} from "./features/custom-mcp/custom-mcp.service";
 import {
   createIntegrationService,
   type IntegrationServiceDependencies,
@@ -612,6 +634,61 @@ const integrationService = createIntegrationService({
   repository: integrationRepository,
   webhookPublicUrl: config.webhookPublicUrl,
 });
+const customMcpRepository: CustomMcpServiceDependencies["repository"] = {
+  appendActivity: (input) => appendActivityEvent(connection.client, input),
+  archive: (workspaceId, serverId, membershipId) =>
+    archiveCustomMcpServer(
+      connection.client,
+      workspaceId,
+      serverId,
+      membershipId,
+    ),
+  consumeOAuthAttempt: (workspaceId, attemptId, membershipId) =>
+    consumeCustomMcpOAuthAttempt(
+      connection.client,
+      workspaceId,
+      attemptId,
+      membershipId,
+    ),
+  create: (input) => createCustomMcpServer(connection.client, input),
+  createOAuthAttempt: (input) =>
+    createCustomMcpOAuthAttempt(connection.client, input),
+  disconnectAccount: (workspaceId, serverId, membershipId) =>
+    disconnectCustomMcpAccount(
+      connection.client,
+      workspaceId,
+      serverId,
+      membershipId,
+    ),
+  ensureAccount: (input) => ensureCustomMcpAccount(connection.client, input),
+  findCurrentWorkspace: (userId) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  get: (workspaceId, serverId, membershipId) =>
+    findCustomMcpServer(connection.client, workspaceId, serverId, membershipId),
+  list: (workspaceId, membershipId) =>
+    listCustomMcpServers(connection.client, workspaceId, membershipId),
+  rename: (workspaceId, serverId, membershipId, name) =>
+    renameCustomMcpServer(
+      connection.client,
+      workspaceId,
+      serverId,
+      membershipId,
+      name,
+    ),
+  replaceAccount: (input) =>
+    replaceCustomMcpAccountCredentials(connection.client, input),
+  replaceCatalog: (input) => replaceCustomMcpCatalog(connection.client, input),
+  replaceTools: (input) =>
+    replaceEnabledCustomMcpTools(connection.client, input),
+  saveAccount: (input) =>
+    saveCustomMcpAccountCredentials(connection.client, input),
+};
+const customMcpService = createCustomMcpService({
+  credentialEncryption,
+  oauthStateSecret: config.betterAuthSecret,
+  publicAppUrl: config.publicAppUrl,
+  repository: customMcpRepository,
+});
 const notificationRepository: NotificationServiceDependencies["repository"] = {
   appendActivity: (input: Parameters<typeof appendActivityEvent>[1]) =>
     appendActivityEvent(connection.client, input),
@@ -699,6 +776,19 @@ const integrationBundleRepository: IntegrationBundleServiceDependencies["reposit
       ),
     list: (workspaceId, membershipId) =>
       listIntegrationBundles(connection.client, workspaceId, membershipId),
+    replaceCustomMcpServers: (
+      workspaceId,
+      bundleId,
+      ownerMembershipId,
+      serverIds,
+    ) =>
+      replaceIntegrationBundleCustomMcpServers(
+        connection.client,
+        workspaceId,
+        bundleId,
+        ownerMembershipId,
+        serverIds,
+      ),
     replaceProviders: (workspaceId, bundleId, ownerMembershipId, providers) =>
       replaceIntegrationBundleProviders(
         connection.client,
@@ -800,6 +890,23 @@ apiRouter.use(
   }),
 );
 apiRouter.use(
+  "/custom-mcp-servers",
+  createCustomMcpServerRouter({
+    nodeEnvironment: config.nodeEnvironment,
+    requireAuthentication,
+    service: customMcpService,
+  }),
+);
+apiRouter.use(
+  "/custom-mcp",
+  createCustomMcpOAuthRouter({
+    nodeEnvironment: config.nodeEnvironment,
+    oauthStateSecret: config.betterAuthSecret,
+    requireAuthentication,
+    service: customMcpService,
+  }),
+);
+apiRouter.use(
   "/integration-bundles",
   createIntegrationBundleRouter({
     requireAuthentication,
@@ -822,6 +929,19 @@ const app = createApp({
   ),
   authHandler: toNodeHandler(authService.auth),
   checkDatabase: () => checkDatabaseReadiness(connection),
+  customMcpClientMetadataHandler: (_request, response) => {
+    const publicAppUrl = config.publicAppUrl.replace(/\/$/, "");
+    response.status(200).json({
+      application_type: "web",
+      client_id: `${publicAppUrl}/oauth/custom-mcp-client.json`,
+      client_name: "Context Layer Custom MCP",
+      client_uri: publicAppUrl,
+      grant_types: ["authorization_code", "refresh_token"],
+      redirect_uris: [`${publicAppUrl}/api/custom-mcp/oauth/callback`],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    });
+  },
   logger,
   webhookHandler,
 });

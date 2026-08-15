@@ -13,7 +13,11 @@ const credentialEnvelopeSchema = z.object({
   version: z.literal(1),
 });
 
-export type CredentialPurpose = "integration-account" | "notification-channel";
+export type CredentialPurpose =
+  | "custom-mcp-account"
+  | "custom-mcp-oauth-attempt"
+  | "integration-account"
+  | "notification-channel";
 
 export class CredentialEncryptionError extends Error {
   constructor(message = "Credential encryption operation failed.") {

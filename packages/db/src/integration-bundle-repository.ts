@@ -30,6 +30,12 @@ export interface BundleProviderSummary {
   status: ConnectionStatus;
 }
 
+export interface BundleCustomMcpServerSummary {
+  id: string;
+  name: string;
+  status: ConnectionStatus;
+}
+
 export interface IntegrationBundleCreatorSummary {
   email: string;
   membershipId: string;
@@ -38,6 +44,7 @@ export interface IntegrationBundleCreatorSummary {
 
 export interface IntegrationBundleDetail extends IntegrationBundle {
   creator: IntegrationBundleCreatorSummary;
+  customMcpServers: BundleCustomMcpServerSummary[];
   providers: BundleProviderSummary[];
 }
 
@@ -102,6 +109,25 @@ async function attachProviders(
     order by integration.provider
   `;
   const providersByBundle = new Map<string, BundleProviderSummary[]>();
+  const customRows = await database<
+    (BundleCustomMcpServerSummary & { bundleId: string })[]
+  >`
+    select
+      bundleServer."bundleId",
+      server.id,
+      server.name,
+      server.status
+    from integration_bundle_custom_mcp_servers bundleServer
+    join custom_mcp_servers server
+      on server.id = bundleServer."serverId"
+      and server."workspaceId" = bundleServer."workspaceId"
+    where
+      bundleServer."workspaceId" = ${workspaceId}
+      and bundleServer."bundleId" in ${database(bundleIds)}
+      and server."archivedAt" is null
+    order by server.name, server.id
+  `;
+  const customByBundle = new Map<string, BundleCustomMcpServerSummary[]>();
 
   for (const row of rows) {
     const providers = providersByBundle.get(row.bundleId) ?? [];
@@ -113,6 +139,12 @@ async function attachProviders(
     providersByBundle.set(row.bundleId, providers);
   }
 
+  for (const row of customRows) {
+    const servers = customByBundle.get(row.bundleId) ?? [];
+    servers.push({ id: row.id, name: row.name, status: row.status });
+    customByBundle.set(row.bundleId, servers);
+  }
+
   return bundles.map(({ creatorEmail, creatorName, ...bundle }) => ({
     ...bundle,
     creator: {
@@ -120,6 +152,7 @@ async function attachProviders(
       membershipId: bundle.createdByMembershipId,
       name: creatorName,
     },
+    customMcpServers: customByBundle.get(bundle.id) ?? [],
     providers: providersByBundle.get(bundle.id) ?? [],
   }));
 }
@@ -383,6 +416,91 @@ export async function findIntegrationBundleProviderKeys(
   `;
 
   return rows.map((row) => row.provider);
+}
+
+export async function findIntegrationBundleCustomMcpServerIds(
+  database: DatabaseClient,
+  workspaceId: string,
+  bundleId: string,
+): Promise<string[]> {
+  const rows = await database<{ serverId: string }[]>`
+    select bundleServer."serverId"
+    from integration_bundle_custom_mcp_servers bundleServer
+    join custom_mcp_servers server
+      on server.id = bundleServer."serverId"
+      and server."workspaceId" = bundleServer."workspaceId"
+    where
+      bundleServer."workspaceId" = ${workspaceId}
+      and bundleServer."bundleId" = ${bundleId}
+      and server."archivedAt" is null
+  `;
+  return rows.map((row) => row.serverId);
+}
+
+export async function replaceIntegrationBundleCustomMcpServers(
+  database: DatabaseClient,
+  workspaceId: string,
+  bundleId: string,
+  actingMembershipId: string,
+  serverIds: readonly string[],
+): Promise<BundleCustomMcpServerSummary[]> {
+  if (new Set(serverIds).size !== serverIds.length) {
+    throw new RepositoryError(
+      "invalid",
+      "Duplicate Custom MCP server selection.",
+    );
+  }
+  return withTransaction(database, async (transaction) => {
+    await requireMembership(transaction, workspaceId, actingMembershipId);
+    const bundles = await transaction<{ createdByMembershipId: string }[]>`
+      select "createdByMembershipId"
+      from integration_bundles
+      where id = ${bundleId} and "workspaceId" = ${workspaceId}
+      for update
+    `;
+    const bundle = bundles[0];
+    if (bundle === undefined) {
+      throw new RepositoryError("not_found", "Bundle not found.");
+    }
+    if (bundle.createdByMembershipId !== actingMembershipId) {
+      throw new RepositoryError(
+        "forbidden",
+        "Only the bundle owner can edit this bundle.",
+      );
+    }
+    let servers: BundleCustomMcpServerSummary[] = [];
+    if (serverIds.length > 0) {
+      servers = await transaction<BundleCustomMcpServerSummary[]>`
+        select id, name, status
+        from custom_mcp_servers
+        where
+          "workspaceId" = ${workspaceId}
+          and "archivedAt" is null
+          and id in ${transaction([...serverIds])}
+      `;
+      if (servers.length !== serverIds.length) {
+        throw new RepositoryError(
+          "invalid",
+          "One or more Custom MCP servers are unavailable in this workspace.",
+        );
+      }
+    }
+    await transaction`
+      delete from integration_bundle_custom_mcp_servers
+      where "workspaceId" = ${workspaceId} and "bundleId" = ${bundleId}
+    `;
+    for (const serverId of serverIds) {
+      await transaction`
+        insert into integration_bundle_custom_mcp_servers (
+          id, "workspaceId", "bundleId", "serverId", "addedByMembershipId"
+        ) values (
+          ${createProductId()}, ${workspaceId}, ${bundleId}, ${serverId},
+          ${actingMembershipId}
+        )
+      `;
+    }
+    return servers.sort((left, right) => left.name.localeCompare(right.name));
+  });
 }
 
 export async function replaceIntegrationBundleProviders(

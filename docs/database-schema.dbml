@@ -338,9 +338,9 @@ Table integration_bundles {
   }
 
   Note: '''
-    Workspace-defined named group of the workspace's provider installations,
-    used only to scope which providers' MCP tools a personal access token can
-    see. name is 1-120 characters; description, when present, is 1-500.
+    Workspace-defined named group of native provider installations and Custom
+    MCP servers, used to scope which tools an MCP credential can see. name is
+    1-120 characters; description, when present, is 1-500.
   '''
 }
 
@@ -364,6 +364,105 @@ Table integration_bundle_providers {
     membership survives disconnect/reconnect cycles. An empty bundle is valid
     and yields no tools for tokens scoped to it.
   '''
+}
+
+Table custom_mcp_servers {
+  id text [pk]
+  workspaceId text [not null]
+  name text [not null]
+  slug text [not null]
+  endpointUrl text [not null]
+  authenticationKind text [not null]
+  status connection_status [not null, default: 'disconnected']
+  configuredByMembershipId text [not null]
+  lastValidatedAt timestamptz
+  lastErrorCode text
+  archivedAt timestamptz
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (workspaceId, id) [unique]
+    (workspaceId, status)
+  }
+
+  Note: "Owner-governed remote Streamable HTTP installation. endpointUrl and slug are immutable; archived records cannot be restored."
+}
+
+Table custom_mcp_accounts {
+  id text [pk]
+  workspaceId text [not null]
+  serverId text [not null]
+  membershipId text [not null]
+  authMethod text [not null]
+  status connection_status [not null, default: 'disconnected']
+  credentialEnvelope text
+  lastValidatedAt timestamptz
+  lastErrorCode text
+  createdAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (serverId, membershipId) [unique]
+    (workspaceId, id) [unique]
+  }
+
+  Note: "One personal OAuth or bearer credential per member and server. Disconnection clears the encrypted envelope."
+}
+
+Table custom_mcp_tools {
+  id text [pk]
+  workspaceId text [not null]
+  serverId text [not null]
+  upstreamName text [not null]
+  exposedName text [not null]
+  title text
+  description text [not null]
+  inputSchema jsonb [not null]
+  outputSchema jsonb
+  annotations jsonb [not null]
+  catalogHash bytea [not null]
+  available boolean [not null, default: true]
+  enabled boolean [not null, default: false]
+  enabledByMembershipId text
+  enabledAt timestamptz
+  discoveredAt timestamptz [not null, default: `now()`]
+  updatedAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (serverId, upstreamName) [unique]
+    (workspaceId, id) [unique]
+  }
+
+  Note: "Bounded stored catalogue. New, changed, and unavailable tools are deny-by-default until owner approval."
+}
+
+Table integration_bundle_custom_mcp_servers {
+  id text [pk]
+  workspaceId text [not null]
+  bundleId text [not null]
+  serverId text [not null]
+  addedByMembershipId text [not null]
+  createdAt timestamptz [not null, default: `now()`]
+
+  indexes {
+    (bundleId, serverId) [unique]
+    (workspaceId, id) [unique]
+  }
+}
+
+Table custom_mcp_oauth_attempts {
+  id text [pk]
+  workspaceId text [not null]
+  serverId text [not null]
+  accountId text [not null]
+  membershipId text [not null]
+  stateHash bytea [not null, unique]
+  credentialEnvelope text [not null]
+  expiresAt timestamptz [not null]
+  createdAt timestamptz [not null, default: `now()`]
+
+  Note: "Short-lived one-time OAuth state. PKCE and client-registration state are encrypted; state is stored only as SHA-256."
 }
 
 Table mcp_tokens {
@@ -511,6 +610,19 @@ Ref: integration_bundles.(workspaceId, createdByMembershipId) > workspace_member
 Ref: integration_bundle_providers.(workspaceId, bundleId) > integration_bundles.(workspaceId, id) [delete: cascade]
 Ref: integration_bundle_providers.(workspaceId, integrationId) > integrations.(workspaceId, id) [delete: cascade]
 Ref: integration_bundle_providers.(workspaceId, addedByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+
+Ref: custom_mcp_servers.workspaceId > workspaces.id [delete: cascade]
+Ref: custom_mcp_servers.(workspaceId, configuredByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+Ref: custom_mcp_accounts.(workspaceId, serverId) > custom_mcp_servers.(workspaceId, id) [delete: cascade]
+Ref: custom_mcp_accounts.(workspaceId, membershipId) > workspace_memberships.(workspaceId, id) [delete: cascade]
+Ref: custom_mcp_tools.(workspaceId, serverId) > custom_mcp_servers.(workspaceId, id) [delete: cascade]
+Ref: custom_mcp_tools.(workspaceId, enabledByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+Ref: integration_bundle_custom_mcp_servers.(workspaceId, bundleId) > integration_bundles.(workspaceId, id) [delete: cascade]
+Ref: integration_bundle_custom_mcp_servers.(workspaceId, serverId) > custom_mcp_servers.(workspaceId, id) [delete: cascade]
+Ref: integration_bundle_custom_mcp_servers.(workspaceId, addedByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]
+Ref: custom_mcp_oauth_attempts.(workspaceId, serverId) > custom_mcp_servers.(workspaceId, id) [delete: cascade]
+Ref: custom_mcp_oauth_attempts.(workspaceId, accountId) > custom_mcp_accounts.(workspaceId, id) [delete: cascade]
+Ref: custom_mcp_oauth_attempts.(workspaceId, membershipId) > workspace_memberships.(workspaceId, id) [delete: cascade]
 
 Ref: mcp_tokens.workspaceId > workspaces.id [delete: cascade]
 Ref: mcp_tokens.(workspaceId, createdByMembershipId) > workspace_memberships.(workspaceId, id) [delete: no action]

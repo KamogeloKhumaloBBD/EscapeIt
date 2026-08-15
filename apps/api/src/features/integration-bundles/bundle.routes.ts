@@ -6,6 +6,7 @@ import type { AuthenticatedLocals } from "../../http/authentication";
 import {
   bundleIdParameterSchema,
   createBundleSchema,
+  replaceBundleCustomMcpServersSchema,
   replaceBundleProvidersSchema,
   updateBundleSchema,
 } from "./bundle.schemas";
@@ -102,6 +103,18 @@ export function createIntegrationBundleRouter({
       (response.locals as AuthenticatedLocals).authenticatedUser.id,
       bundleId,
       parsed.data.providers,
+    );
+    response.status(200).json({ data: bundle });
+  });
+
+  router.put("/:bundleId/custom-mcp-servers", async (request, response) => {
+    const bundleId = requireBundleId(request.params.bundleId);
+    const parsed = replaceBundleCustomMcpServersSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError(parsed.error);
+    const bundle = await service.replaceCustomMcpServers(
+      (response.locals as AuthenticatedLocals).authenticatedUser.id,
+      bundleId,
+      parsed.data.serverIds,
     );
     response.status(200).json({ data: bundle });
   });

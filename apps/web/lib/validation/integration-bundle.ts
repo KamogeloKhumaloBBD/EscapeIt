@@ -16,6 +16,13 @@ export const bundleSchema = z.object({
     name: z.string(),
   }),
   description: z.string().nullable(),
+  customMcpServers: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      status: connectionStatusSchema,
+    }),
+  ),
   id: z.string(),
   name: z.string(),
   permissions: z.object({

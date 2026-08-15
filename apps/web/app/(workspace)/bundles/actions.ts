@@ -7,6 +7,7 @@ import type {
   CreateBundleActionState,
   DeleteBundleActionState,
   ReplaceBundleProvidersActionState,
+  ReplaceBundleCustomMcpServersActionState,
   UpdateBundleActionState,
 } from "@/app/(workspace)/bundles/action-state";
 import { requestApi } from "@/lib/server/api-client";
@@ -235,4 +236,29 @@ export async function replaceBundleProvidersAction(
   revalidatePath(`/bundles/${bundleId}`);
   revalidatePath("/bundles");
   return { message: "Providers updated.", status: "success" };
+}
+
+export async function replaceBundleCustomMcpServersAction(
+  _previousState: ReplaceBundleCustomMcpServersActionState,
+  formData: FormData,
+): Promise<ReplaceBundleCustomMcpServersActionState> {
+  const bundleId = readString(formData, "bundleId");
+  const serverIds = readStrings(formData, "serverIds");
+  const result = await requestApi(
+    `/api/integration-bundles/${encodeURIComponent(bundleId)}/custom-mcp-servers`,
+    { body: { serverIds }, method: "PUT" },
+  );
+  if (result.status === 401) redirect("/sign-in");
+  if (!result.ok) {
+    return {
+      message: apiErrorMessage(
+        result,
+        "We couldn't update the bundle's Custom MCP servers.",
+      ),
+      status: "error",
+    };
+  }
+  revalidatePath(`/bundles/${bundleId}`);
+  revalidatePath("/agent-setup");
+  return { message: "Custom MCP servers updated.", status: "success" };
 }

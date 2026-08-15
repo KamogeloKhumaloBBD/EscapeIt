@@ -27,6 +27,9 @@ export interface ReplaceBundleProvidersActionState {
   status: "error" | "idle" | "success";
 }
 
+export type ReplaceBundleCustomMcpServersActionState =
+  ReplaceBundleProvidersActionState;
+
 export const initialCreateBundleState: CreateBundleActionState = {
   bundleId: null,
   description: "",
@@ -52,3 +55,6 @@ export const initialReplaceBundleProvidersState: ReplaceBundleProvidersActionSta
     message: null,
     status: "idle",
   };
+
+export const initialReplaceBundleCustomMcpServersState: ReplaceBundleCustomMcpServersActionState =
+  { message: null, status: "idle" };
