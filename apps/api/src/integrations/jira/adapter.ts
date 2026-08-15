@@ -197,10 +197,6 @@ const webhookRegistrationResponseSchema = z.object({
   ),
 });
 
-const webhookListResponseSchema = z.object({
-  values: z.array(z.object({ id: z.number() })),
-});
-
 export type { JiraAttachmentContent, JiraTextValue } from "./content";
 
 export interface JiraIssueSummary {
@@ -707,16 +703,6 @@ export function createJiraAdapter(config: {
       }
 
       const webhookUrl = apiUrl(resource, "webhook");
-      const existing = webhookListResponseSchema.safeParse(
-        await oauth.getJson(webhookUrl, credentials.accessToken),
-      );
-
-      if (existing.success && existing.data.values.length > 0) {
-        await oauth.deleteWithoutResponse(webhookUrl, credentials.accessToken, {
-          webhookIds: existing.data.values.map((webhook) => webhook.id),
-        });
-      }
-
       const jqlFilter =
         projectKeys.length === 1
           ? `project = ${projectKeys.join("")}`
