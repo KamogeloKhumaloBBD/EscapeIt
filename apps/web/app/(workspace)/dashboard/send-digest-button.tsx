@@ -44,7 +44,10 @@ export function SendDigestButton() {
 
   useEffect(() => {
     if (state.status === "success" && state.message !== null) {
-      toast.success(state.message);
+      toast.success(state.message, {
+        description:
+          "Members may need to check their spam or junk folder if the digest doesn’t arrive.",
+      });
     } else if (state.status === "error" && state.message !== null) {
       toast.error(state.message);
     }
@@ -64,7 +67,8 @@ export function SendDigestButton() {
           <AlertDialogDescription>
             Every member who hasn&apos;t turned the digest off will be emailed a
             summary of the last 24 hours. This sends it early rather than
-            changing who receives it.
+            changing who receives it. Members may need to check their spam or
+            junk folder if the digest doesn&apos;t arrive.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

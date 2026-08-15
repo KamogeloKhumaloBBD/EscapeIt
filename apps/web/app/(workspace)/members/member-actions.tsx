@@ -24,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -50,7 +50,7 @@ export function InviteMemberForm() {
     if (state.status === "success") {
       formReference.current?.reset();
       toast.success("Invitation sent", {
-        description: state.message,
+        description: `${state.message ?? "The invitation email is on its way."} Ask them to check their spam or junk folder if it doesn’t arrive.`,
       });
     } else if (state.status === "error" && state.message !== null) {
       toast.error(state.message);
@@ -67,11 +67,7 @@ export function InviteMemberForm() {
       <Field className="flex-1" data-invalid={state.fieldError !== undefined}>
         <FieldLabel htmlFor="invitation-email">Email address</FieldLabel>
         <Input
-          aria-describedby={
-            state.fieldError === undefined
-              ? "invitation-email-description"
-              : "invitation-email-error"
-          }
+          aria-describedby="invitation-email-description"
           aria-invalid={state.fieldError === undefined ? undefined : true}
           autoComplete="email"
           defaultValue={state.email}
@@ -83,6 +79,10 @@ export function InviteMemberForm() {
           required
           type="email"
         />
+        <FieldDescription id="invitation-email-description">
+          Recipients may need to check their spam or junk folder if the
+          invitation doesn’t arrive.
+        </FieldDescription>
       </Field>
       <InviteSubmitButton />
     </form>

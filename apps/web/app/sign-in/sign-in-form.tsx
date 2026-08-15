@@ -44,7 +44,7 @@ export function SignInForm({ returnTo }: { returnTo: string | null }) {
     }
 
     toast.success("Sign-in code sent", {
-      description: state.message,
+      description: `${state.message} Check your spam or junk folder if it doesn’t arrive.`,
     });
   }, [state]);
 
@@ -93,7 +93,8 @@ export function SignInForm({ returnTo }: { returnTo: string | null }) {
 
         <p className="text-sm text-[#68635a]">
           We sent a 6-digit code to{" "}
-          <span className="font-medium text-[#15130f]">{state.email}</span>.
+          <span className="font-medium text-[#15130f]">{state.email}</span>. If
+          it doesn’t arrive, check your spam or junk folder.
         </p>
 
         <div className="space-y-3">
