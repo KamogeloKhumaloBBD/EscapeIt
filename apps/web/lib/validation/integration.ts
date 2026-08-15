@@ -75,6 +75,7 @@ export const integrationListSchema = z.array(integrationSummarySchema);
 export const integrationDetailSchema = integrationSummarySchema.extend({
   mcpTools: z.array(integrationMcpToolSchema),
   notificationEvents: z.array(integrationNotificationEventSchema),
+  notificationSetupUrl: z.url().nullable().default(null),
   selectedScopes: z.array(integrationScopeSchema),
 });
 export const integrationResourcesSchema = z.array(resourceSchema);

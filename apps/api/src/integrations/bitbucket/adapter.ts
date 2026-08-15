@@ -13,6 +13,21 @@ import {
 
 const bitbucketProviderKey = parseProviderKey("bitbucket");
 const bitbucketRepositoryScopeKey = parseScopeKey("bitbucket.repository");
+const hookSchema = z.object({
+  url: z.string().default(""),
+  uuid: z.string().min(1),
+});
+const hookListSchema = z.object({
+  values: z.array(hookSchema).default([]),
+});
+// Kept in step with the keys in bitbucketDefinition.notificationEvents.
+const bitbucketSubscribedEvents = [
+  "issue:created",
+  "pullrequest:comment_created",
+  "pullrequest:created",
+  "pullrequest:fulfilled",
+  "repo:push",
+];
 const maximumDiffBytes = 2_000_000;
 const maximumDiffCharacters = 20_000;
 const maximumFileBytes = 2_000_000;
@@ -700,6 +715,111 @@ export function createBitbucketAdapter(config: {
     },
     provider: bitbucketProviderKey,
     refreshCredentials: (credentials) => oauth.refreshCredentials(credentials),
+    async unregisterWebhooks(credentials, _resource, registrationId) {
+      // registerWebhooks stores entries as `workspace/repo:{uuid}`, joined by
+      // commas. The uuid itself contains no comma, and the colon separates the
+      // repository from it.
+      const hooks = registrationId.split(",").flatMap((entry) => {
+        const separator = entry.lastIndexOf(":");
+        const fullName = entry.slice(0, separator).trim();
+        const uuid = entry.slice(separator + 1).trim();
+
+        return separator === -1 || fullName.length === 0 || uuid.length === 0
+          ? []
+          : [{ fullName, uuid }];
+      });
+
+      await Promise.all(
+        hooks.map(async ({ fullName, uuid }) => {
+          try {
+            await oauth.deleteWithoutResponse(
+              apiUrl(
+                `repositories/${fullName}/hooks/${encodeURIComponent(uuid)}`,
+              ),
+              credentials.accessToken,
+            );
+          } catch {
+            // Already gone, or no longer administrable — either way there is
+            // nothing left to clean up for this repository.
+          }
+        }),
+      );
+    },
+    async registerWebhooks(
+      credentials,
+      _resource,
+      callbackUrl,
+      selectedScopes,
+    ) {
+      const fullNames = selectedScopes
+        .filter((scope) => scope.scopeKey === bitbucketRepositoryScopeKey)
+        .map((scope) => scope.externalKey)
+        .filter((key) => key !== null);
+
+      if (fullNames.length === 0) {
+        return null;
+      }
+
+      // Bitbucket hooks are per repository, so each is reconciled on its own:
+      // drop any hook already aimed at this workspace's callback, then create
+      // a replacement. One inaccessible repository does not sink the rest, but
+      // if every repository fails the cause is configuration (the OAuth
+      // consumer missing the `webhook` scope), so the error is surfaced.
+      const outcomes = await Promise.all(
+        fullNames.map(async (fullName) => {
+          const hooksUrl = apiUrl(`repositories/${fullName}/hooks`);
+
+          try {
+            const existing = hookListSchema.safeParse(
+              await oauth.getJson(hooksUrl, credentials.accessToken),
+            );
+
+            if (existing.success) {
+              await Promise.all(
+                existing.data.values
+                  .filter((hook) => hook.url === callbackUrl)
+                  .map((hook) =>
+                    oauth.deleteWithoutResponse(
+                      `${hooksUrl}/${encodeURIComponent(hook.uuid)}`,
+                      credentials.accessToken,
+                    ),
+                  ),
+              );
+            }
+
+            const parsed = hookSchema.safeParse(
+              await oauth.postJson(hooksUrl, credentials.accessToken, {
+                active: true,
+                description: "Context Layer notifications",
+                events: bitbucketSubscribedEvents,
+                url: callbackUrl,
+              }),
+            );
+
+            return parsed.success
+              ? { id: `${fullName}:${parsed.data.uuid}` }
+              : {};
+          } catch (error) {
+            return { error };
+          }
+        }),
+      );
+      const registered = outcomes.flatMap((outcome) =>
+        "id" in outcome ? [outcome.id] : [],
+      );
+
+      if (registered.length === 0) {
+        const failed = outcomes.find((outcome) => "error" in outcome);
+
+        if (failed !== undefined && "error" in failed) {
+          throw failed.error;
+        }
+
+        return null;
+      }
+
+      return registered.join(",");
+    },
     async resolveScopes(credentials, resource, externalIds) {
       const pending = new Set(externalIds);
       const resolved: DiscoveredScope[] = [];

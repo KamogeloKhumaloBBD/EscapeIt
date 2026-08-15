@@ -62,6 +62,13 @@ export interface ProviderDefinition {
   notificationChannelConfigurationSchema?: ProviderConfigurationSchema;
   notificationEvents: readonly ProviderNotificationEventDefinition[];
   presentation: ProviderPresentationDefinition;
+  /**
+   * Set when connecting the account is not enough to receive events, and the
+   * member must authorise delivery somewhere else as well. Confluence Cloud
+   * offers OAuth apps no way to subscribe to events, so its events come
+   * through a Forge app a site admin approves once.
+   */
+  requiresNotificationSetup?: boolean;
   resourceSelection?: "application" | "authorization";
   scopeKinds: readonly ProviderScopeDefinition[];
 }

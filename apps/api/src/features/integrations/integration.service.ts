@@ -157,6 +157,11 @@ export interface IntegrationServiceDependencies {
   listNotificationChannels: (
     workspaceId: string,
   ) => Promise<NotificationChannel[]>;
+  /**
+   * Where members are sent to authorise event delivery for providers that
+   * need more than OAuth. Null leaves the prompt hidden.
+   */
+  notificationSetupUrl: string | null;
   oauthStateSecret: string;
   providerRegistry: ProviderRegistry;
   repository: IntegrationRepository;
@@ -283,6 +288,28 @@ function adapterFor(
   }
 
   return adapter;
+}
+
+/**
+ * Best effort webhook cleanup. A provider that has already dropped the
+ * webhook, or a member who can no longer administer it, must not block the
+ * action the user actually asked for.
+ */
+async function removeWebhooks(
+  adapter: IntegrationAdapter,
+  credentials: OAuthCredentials,
+  resource: ProviderResource,
+  registrationId: string | null,
+): Promise<void> {
+  if (adapter.unregisterWebhooks === undefined || registrationId === null) {
+    return;
+  }
+
+  try {
+    await adapter.unregisterWebhooks(credentials, resource, registrationId);
+  } catch {
+    // Leaving a stale webhook behind is preferable to failing the request.
+  }
 }
 
 function readResource(integration: Integration): ProviderResource | null {
@@ -476,6 +503,7 @@ export function createIntegrationService({
   adapters,
   credentialEncryption,
   listNotificationChannels,
+  notificationSetupUrl,
   oauthStateSecret,
   providerRegistry,
   repository,
@@ -594,6 +622,10 @@ export function createIntegrationService({
       ),
       mcpTools: toMcpToolContracts(definition, selectedMcpTools),
       notificationEvents: toNotificationEventContracts(definition, integration),
+      notificationSetupUrl:
+        definition.requiresNotificationSetup === true
+          ? notificationSetupUrl
+          : null,
       selectedScopes: scopes.map(toScopeContract),
     };
   }
@@ -894,6 +926,46 @@ export function createIntegrationService({
         );
       }
 
+      // Remove the provider-side webhooks before the installation goes away,
+      // while the credentials needed to delete them are still readable.
+      const resource = readResource(integration);
+
+      if (
+        resource !== null &&
+        integration.webhookRegistrationId !== null &&
+        providerRegistry
+          .require(provider)
+          .capabilities.includes("notifications")
+      ) {
+        const adapter = adapterFor(provider, adapters);
+        const account = await repository.findAccount(
+          workspace.workspace.id,
+          integration.id,
+          workspace.membership.id,
+        );
+
+        if (account !== null) {
+          try {
+            await withCredentials(
+              workspace,
+              integration,
+              account,
+              adapter,
+              (credentials) =>
+                removeWebhooks(
+                  adapter,
+                  credentials,
+                  resource,
+                  integration.webhookRegistrationId,
+                ),
+            );
+          } catch {
+            // Credentials may already be expired or revoked; the disconnect
+            // itself must still go through.
+          }
+        }
+      }
+
       const disconnected = await repository.disconnectInstallation(
         workspace.workspace.id,
         integration.id,
@@ -1120,6 +1192,16 @@ export function createIntegrationService({
             );
 
             if (adapter.registerWebhooks !== undefined) {
+              // Deselecting a scope must stop its deliveries. Providers whose
+              // webhooks are per scope cannot tell which ones to drop, so the
+              // previous registration is removed before the new one is made.
+              await removeWebhooks(
+                adapter,
+                credentials,
+                resource,
+                integration.webhookRegistrationId,
+              );
+
               const webhookToken =
                 integration.webhookToken ?? crypto.randomUUID();
               const callbackUrl = new URL(

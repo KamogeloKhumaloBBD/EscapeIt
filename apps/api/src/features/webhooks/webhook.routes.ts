@@ -38,17 +38,10 @@ export function createWebhookHandler({
         throw new WebhookReceiverError("unknown_provider");
       }
 
-      const token = String(request.params.token ?? "");
       const receiver = receivers.get(provider);
 
       if (receiver === undefined) {
         throw new WebhookReceiverError("unknown_provider");
-      }
-
-      const verified = await receiver.verify(token);
-
-      if (!verified) {
-        throw new WebhookReceiverError("invalid_token");
       }
 
       const rawBody: unknown = request.body;
@@ -57,7 +50,15 @@ export function createWebhookHandler({
         throw new WebhookReceiverError("invalid_payload");
       }
 
-      await receiver.handle(token, rawBody);
+      // Absent for providers that deliver to one shared endpoint (GitHub Apps);
+      // those receivers authenticate by signature instead.
+      const tokenParameter = request.params.token;
+      const token =
+        typeof tokenParameter === "string" && tokenParameter.length > 0
+          ? tokenParameter
+          : null;
+
+      await receiver.handle(rawBody, request.headers, token);
       response.status(202).json({ data: { received: true } });
     } catch (error) {
       next(toHttpError(error));

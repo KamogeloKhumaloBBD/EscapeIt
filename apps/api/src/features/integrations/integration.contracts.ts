@@ -60,6 +60,13 @@ export interface IntegrationNotificationEventContract {
 export interface IntegrationDetailContract extends IntegrationSummaryContract {
   mcpTools: readonly IntegrationMcpToolContract[];
   notificationEvents: readonly IntegrationNotificationEventContract[];
+  /**
+   * Where the member goes to authorise event delivery, for providers that
+   * cannot be set up through OAuth alone. Confluence Cloud has no way for an
+   * OAuth app to subscribe to events, so its events arrive through a separate
+   * Forge app the site admin approves once. Null when nothing extra is needed.
+   */
+  notificationSetupUrl: string | null;
   selectedScopes: readonly IntegrationScopeContract[];
 }
 

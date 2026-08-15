@@ -57,6 +57,20 @@ export interface IntegrationAdapter {
     resource: ProviderResource,
     externalIds: readonly string[],
   ): Promise<readonly DiscoveredScope[]>;
+  /**
+   * Removes webhooks previously created by `registerWebhooks`, given the
+   * registration id it returned. Called before re-registering and on
+   * disconnect, so that deselecting a scope stops its deliveries rather than
+   * leaving a webhook posting to a token that still resolves.
+   *
+   * Cleanup is best effort: a webhook already deleted at the provider, or one
+   * the member can no longer administer, must not prevent the disconnect.
+   */
+  unregisterWebhooks?(
+    credentials: OAuthCredentials,
+    resource: ProviderResource,
+    registrationId: string,
+  ): Promise<void>;
 }
 
 export class ProviderAdapterError extends Error {
