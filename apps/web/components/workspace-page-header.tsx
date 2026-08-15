@@ -1,17 +1,14 @@
 import type { ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function WorkspacePageHeader({
   action,
-  eyebrow,
   description,
   title,
   className,
 }: {
   action?: ReactNode;
-  eyebrow: string;
   description: ReactNode;
   title: ReactNode;
   className?: string;
@@ -19,20 +16,21 @@ export function WorkspacePageHeader({
   return (
     <header
       className={cn(
-        "flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between",
+        "flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between",
         className,
       )}
     >
       <div className="max-w-3xl">
-        <Badge variant="default">{eyebrow}</Badge>
-        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.055em] text-balance sm:text-5xl">
+        <h1 className="text-3xl font-semibold tracking-[-0.05em] text-balance sm:text-4xl">
           {title}
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
+        <p className="mt-2.5 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
           {description}
         </p>
       </div>
-      {action === undefined ? null : <div className="shrink-0">{action}</div>}
+      {action === undefined ? null : (
+        <div className="flex shrink-0 flex-wrap gap-2 sm:pt-1">{action}</div>
+      )}
     </header>
   );
 }

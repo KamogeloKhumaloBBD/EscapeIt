@@ -1,8 +1,14 @@
 "use client";
 
 import { PlugsConnectedIcon, WarningIcon } from "@phosphor-icons/react";
-import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+} from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -67,7 +73,7 @@ function DialogSubmitButton({ label }: { label: string }) {
   return (
     <Button disabled={pending} type="submit" variant="destructive">
       {pending ? <Spinner data-icon="inline-start" /> : null}
-      {pending ? "Disconnecting..." : label}
+      {pending ? "Disconnecting…" : label}
     </Button>
   );
 }
@@ -246,23 +252,37 @@ export function ResourceSelector({
     integrationAction,
     initialIntegrationActionState,
   );
+  const [selectedResource, setOptimisticResource] = useOptimistic<
+    string | null,
+    string
+  >(null, (_current, next) => next);
+  const [pending, startTransition] = useTransition();
   useActionToast(state);
-  const defaultResource = resources.at(0);
 
-  if (defaultResource === undefined) {
+  if (resources.length === 0) {
     return null;
   }
 
+  function saveResource(externalId: string) {
+    const formData = new FormData();
+    formData.set("intent", "select-resource");
+    formData.set("provider", provider);
+    formData.set("externalId", externalId);
+
+    startTransition(() => {
+      setOptimisticResource(externalId);
+      formAction(formData);
+    });
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
-      <input name="intent" type="hidden" value="select-resource" />
-      <input name="provider" type="hidden" value={provider} />
+    <div aria-busy={pending} className="space-y-6">
       <FieldSet>
         <FieldLegend>Select {resourceLabel}</FieldLegend>
         <RadioGroup
-          defaultValue={defaultResource.externalId}
-          name="externalId"
-          required
+          disabled={pending}
+          onValueChange={saveResource}
+          value={selectedResource ?? ""}
         >
           {resources.map((resource) => (
             <Field key={resource.externalId} orientation="horizontal">
@@ -280,10 +300,7 @@ export function ResourceSelector({
           ))}
         </RadioGroup>
       </FieldSet>
-      <SubmitButton pendingLabel="Saving resource...">
-        Use selected {resourceLabel}
-      </SubmitButton>
-    </form>
+    </div>
   );
 }
 
@@ -298,33 +315,41 @@ export function McpToolSelector({
   providerDisplayName: string;
   tools: readonly IntegrationMcpTool[];
 }) {
-  const router = useRouter();
   const [state, formAction] = useActionState(
     integrationAction,
     initialIntegrationActionState,
   );
-  const [selected, setSelected] = useState(
+  const serverSelected = useMemo(
     () =>
       new Set(tools.filter((tool) => tool.enabled).map((tool) => tool.name)),
+    [tools],
   );
+  const [selected, setOptimisticSelected] = useOptimistic(
+    serverSelected,
+    (_current, next: ReadonlySet<string>) => new Set(next),
+  );
+  const [pending, startTransition] = useTransition();
   const allSelected = tools.length > 0 && selected.size === tools.length;
   const noneSelected = selected.size === 0;
   useActionToast(state);
 
-  useEffect(() => {
-    if (state.status === "success") {
-      router.refresh();
-    }
-  }, [router, state.status]);
+  function saveTools(next: ReadonlySet<string>) {
+    const formData = new FormData();
+    formData.set("intent", "save-mcp-tools");
+    formData.set("provider", provider);
+    next.forEach((name) => {
+      formData.append("toolNames", name);
+    });
+
+    startTransition(() => {
+      setOptimisticSelected(next);
+      formAction(formData);
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-6">
-      <input name="intent" type="hidden" value="save-mcp-tools" />
-      <input name="provider" type="hidden" value={provider} />
-      {[...selected].map((name) => (
-        <input key={name} name="toolNames" type="hidden" value={name} />
-      ))}
-      <FieldSet disabled={disabled}>
+    <div aria-busy={pending} className="space-y-6">
+      <FieldSet disabled={disabled || pending}>
         <FieldLegend>Available MCP tools</FieldLegend>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
@@ -332,9 +357,9 @@ export function McpToolSelector({
           </p>
           <div className="flex gap-2">
             <Button
-              disabled={disabled || allSelected}
+              disabled={disabled || pending || allSelected}
               onClick={() => {
-                setSelected(new Set(tools.map((tool) => tool.name)));
+                saveTools(new Set(tools.map((tool) => tool.name)));
               }}
               size="sm"
               type="button"
@@ -343,9 +368,9 @@ export function McpToolSelector({
               Select all
             </Button>
             <Button
-              disabled={disabled || noneSelected}
+              disabled={disabled || pending || noneSelected}
               onClick={() => {
-                setSelected(new Set());
+                saveTools(new Set());
               }}
               size="sm"
               type="button"
@@ -364,20 +389,18 @@ export function McpToolSelector({
               <Field className="py-4" key={tool.name} orientation="horizontal">
                 <Checkbox
                   checked={checked}
-                  disabled={disabled}
+                  disabled={disabled || pending}
                   id={id}
                   onCheckedChange={(nextChecked) => {
-                    setSelected((current) => {
-                      const next = new Set(current);
+                    const next = new Set(selected);
 
-                      if (nextChecked === true) {
-                        next.add(tool.name);
-                      } else {
-                        next.delete(tool.name);
-                      }
+                    if (nextChecked === true) {
+                      next.add(tool.name);
+                    } else {
+                      next.delete(tool.name);
+                    }
 
-                      return next;
-                    });
+                    saveTools(next);
                   }}
                 />
                 <FieldContent>
@@ -394,10 +417,7 @@ export function McpToolSelector({
           })}
         </div>
       </FieldSet>
-      <SubmitButton disabled={disabled} pendingLabel="Saving tools...">
-        Save MCP tools
-      </SubmitButton>
-    </form>
+    </div>
   );
 }
 
@@ -414,8 +434,33 @@ export function NotificationEventsChecklist({
     integrationAction,
     initialIntegrationActionState,
   );
+  const serverEnabled = useMemo(
+    () =>
+      new Set(
+        events.filter((event) => event.enabled).map((event) => event.key),
+      ),
+    [events],
+  );
+  const [enabledKeys, setOptimisticEnabledKeys] = useOptimistic(
+    serverEnabled,
+    (_current, next: ReadonlySet<string>) => new Set(next),
+  );
   const [isPending, startTransition] = useTransition();
   useActionToast(state);
+
+  function saveEvents(next: ReadonlySet<string>) {
+    const formData = new FormData();
+    formData.set("intent", "set-notification-event-keys");
+    formData.set("provider", provider);
+    next.forEach((key) => {
+      formData.append("eventKeys", key);
+    });
+
+    startTransition(() => {
+      setOptimisticEnabledKeys(next);
+      formAction(formData);
+    });
+  }
 
   return (
     <div className="divide-y divide-border border-y border-border">
@@ -425,28 +470,17 @@ export function NotificationEventsChecklist({
         return (
           <Field className="py-4" key={event.key} orientation="horizontal">
             <Checkbox
-              checked={event.enabled}
+              checked={enabledKeys.has(event.key)}
               disabled={disabled || isPending}
               id={id}
               onCheckedChange={(checked) => {
-                const nextKeys =
-                  checked === true
-                    ? [
-                        ...events.filter((e) => e.enabled).map((e) => e.key),
-                        event.key,
-                      ]
-                    : events
-                        .filter((e) => e.enabled && e.key !== event.key)
-                        .map((e) => e.key);
-                const formData = new FormData();
-                formData.set("intent", "set-notification-event-keys");
-                formData.set("provider", provider);
-                nextKeys.forEach((key) => {
-                  formData.append("eventKeys", key);
-                });
-                startTransition(() => {
-                  formAction(formData);
-                });
+                const next = new Set(enabledKeys);
+                if (checked === true) {
+                  next.add(event.key);
+                } else {
+                  next.delete(event.key);
+                }
+                saveEvents(next);
               }}
             />
             <FieldContent>

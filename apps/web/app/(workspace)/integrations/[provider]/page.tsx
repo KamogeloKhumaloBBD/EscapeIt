@@ -1,12 +1,10 @@
 import {
-  ArrowLeftIcon,
   ArrowSquareOutIcon,
   CheckCircleIcon,
   LinkIcon,
   ShieldCheckIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ProviderMark } from "@/components/integrations/provider-mark";
@@ -38,6 +36,8 @@ import {
   ItemSeparator,
   ItemTitle,
 } from "@/components/ui/item";
+import { WorkspacePage } from "@/components/workspace-page";
+import { WorkspaceStatus } from "@/components/workspace-status";
 import {
   getIntegrationResourcesState,
   getIntegrationsState,
@@ -74,13 +74,13 @@ export default async function IntegrationDetailPage({
 
   if (state.status !== "available") {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-16 lg:px-10">
+      <WorkspacePage width="focused">
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Integration unavailable</AlertTitle>
           <AlertDescription>Refresh the page to try again.</AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
@@ -203,22 +203,27 @@ export default async function IntegrationDetailPage({
         ]
       : []),
   ];
-  let nextSectionNumber = 0;
-  const accountSectionNumber = hasAccount ? (nextSectionNumber += 1) : null;
-  const resourceSectionNumber = hasApplicationResourceSelection
-    ? (nextSectionNumber += 1)
-    : null;
-  const scopeSectionNumber = hasScopes ? (nextSectionNumber += 1) : null;
-  const toolSectionNumber = hasMcpTools ? (nextSectionNumber += 1) : null;
-  const notificationSectionNumber = hasNotifications
-    ? (nextSectionNumber += 1)
-    : null;
-  const notificationChannelSectionNumber = hasNotificationChannels
-    ? (nextSectionNumber += 1)
-    : null;
+  const sections = [
+    ...(hasAccount
+      ? [{ href: "#personal-account", label: "Your account" }]
+      : []),
+    ...(hasApplicationResourceSelection
+      ? [{ href: "#workspace-resource", label: `Workspace ${resourceLabel}` }]
+      : []),
+    ...(hasScopes
+      ? [{ href: "#allowed-scopes", label: `Allowed ${scopeLabels.plural}` }]
+      : []),
+    ...(hasMcpTools ? [{ href: "#mcp-tools", label: "MCP tools" }] : []),
+    ...(hasNotifications
+      ? [{ href: "#notifications", label: "Notifications" }]
+      : []),
+    ...(hasNotificationChannels
+      ? [{ href: "#notification-channels", label: "Channels and routing" }]
+      : []),
+  ];
   const summaryGridColumns =
     summaryMetrics.length >= 4
-      ? "sm:grid-cols-4"
+      ? "sm:grid-cols-2 lg:grid-cols-4"
       : summaryMetrics.length === 3
         ? "sm:grid-cols-3"
         : summaryMetrics.length === 2
@@ -226,18 +231,11 @@ export default async function IntegrationDetailPage({
           : "sm:grid-cols-1";
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8 sm:px-7 lg:px-10 lg:pt-10">
+    <WorkspacePage width="focused">
       {hasAccount ? (
         <OAuthNotice accountLabel={accountLabel} result={query.oauth} />
       ) : null}
-      <Button asChild size="sm" variant="ghost">
-        <Link href="/integrations">
-          <ArrowLeftIcon aria-hidden="true" data-icon="inline-start" />
-          Integrations
-        </Link>
-      </Button>
-
-      <section className="relative mt-6 overflow-hidden border border-border bg-card p-6 sm:p-8">
+      <section className="relative overflow-hidden border border-border bg-card p-6 sm:p-8">
         <div className="absolute -right-24 -top-32 size-80 rounded-full bg-primary/8 blur-3xl" />
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-5">
@@ -248,18 +246,28 @@ export default async function IntegrationDetailPage({
             />
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-4xl font-semibold tracking-[-0.055em]">
+                <h1 className="text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
                   {integration.displayName}
                 </h1>
-                <Badge
-                  variant={
-                    integration.attention === null ? "secondary" : "destructive"
+                <WorkspaceStatus
+                  tone={
+                    integration.attention !== null
+                      ? "attention"
+                      : integration.nextStep === "ready"
+                        ? "ready"
+                        : integration.installation === null
+                          ? "disconnected"
+                          : "setup"
                   }
                 >
-                  {integration.nextStep === "ready"
-                    ? "Ready"
-                    : "Setup required"}
-                </Badge>
+                  {integration.attention !== null
+                    ? "Needs attention"
+                    : integration.nextStep === "ready"
+                      ? "Ready"
+                      : integration.installation === null
+                        ? "Not connected"
+                        : "Setup required"}
+                </WorkspaceStatus>
               </div>
               <p className="mt-3 max-w-2xl leading-6 text-muted-foreground">
                 {integration.description}
@@ -271,18 +279,12 @@ export default async function IntegrationDetailPage({
               <SimpleIntegrationAction
                 intent="validate"
                 label="Validate connection"
-                pendingLabel="Validating..."
+                pendingLabel="Validating…"
                 provider={provider}
               />
             ) : null}
             {integration.permissions.canManageInstallation ? (
-              hasConfiguredInstallation ? (
-                <DisconnectInstallation
-                  presentation={integration.presentation}
-                  provider={provider}
-                  providerDisplayName={integration.displayName}
-                />
-              ) : hasAccount && !isAccountConnected ? (
+              hasAccount && !isAccountConnected ? (
                 <Button asChild>
                   <a href={`/api/integrations/${provider}/oauth/start`}>
                     <LinkIcon aria-hidden="true" data-icon="inline-start" />
@@ -307,17 +309,21 @@ export default async function IntegrationDetailPage({
                 </Button>
               ) : null
             ) : null}
+            {hasNotificationChannels &&
+            integration.permissions.canManageNotifications &&
+            notificationChannels.length === 0 ? (
+              <Button asChild>
+                <a href="#notification-channels">Add a channel</a>
+              </Button>
+            ) : null}
           </div>
         </div>
         {summaryMetrics.length > 0 ? (
           <dl
-            className={`relative mt-8 grid overflow-hidden border border-border bg-muted/28 ${summaryGridColumns}`}
+            className={`relative mt-8 grid gap-px overflow-hidden border border-border bg-border ${summaryGridColumns}`}
           >
-            {summaryMetrics.map(([label, value], index) => (
-              <div
-                className={`min-w-0 px-4 py-3.5 ${index > 0 ? "border-t sm:border-l sm:border-t-0" : ""}`}
-                key={label}
-              >
+            {summaryMetrics.map(([label, value]) => (
+              <div className="min-w-0 bg-card px-4 py-3.5" key={label}>
                 <dt className="text-[0.6875rem] font-medium text-muted-foreground">
                   {label}
                 </dt>
@@ -336,13 +342,24 @@ export default async function IntegrationDetailPage({
         </Alert>
       ) : null}
 
-      <div className="relative mt-10 space-y-6 md:pl-14">
-        <div className="flow-rail absolute bottom-16 left-5 top-12 hidden w-px md:block" />
+      {sections.length > 1 ? (
+        <nav
+          aria-label="Integration settings"
+          className="sticky top-16 z-10 mt-8 flex gap-1 overflow-x-auto border border-border bg-background/95 p-1.5 backdrop-blur"
+        >
+          {sections.map((section) => (
+            <Button asChild key={section.href} size="sm" variant="ghost">
+              <a className="shrink-0" href={section.href}>
+                {section.label}
+              </a>
+            </Button>
+          ))}
+        </nav>
+      ) : null}
+
+      <div className="mt-8 space-y-6">
         {accountLabel !== undefined ? (
-          <Card className="relative overflow-visible">
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(accountSectionNumber).padStart(2, "0")}
-            </span>
+          <Card className="scroll-mt-36" id="personal-account">
             <CardHeader>
               <CardTitle>Your {accountLabel}</CardTitle>
               <CardDescription>
@@ -378,7 +395,7 @@ export default async function IntegrationDetailPage({
                       accountLabel={accountLabel}
                       intent="disconnect-account"
                       label="Disconnect my account"
-                      pendingLabel="Disconnecting..."
+                      pendingLabel="Disconnecting…"
                       provider={provider}
                       providerDisplayName={integration.displayName}
                       variant="destructive"
@@ -420,13 +437,7 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasApplicationResourceSelection ? (
-          <Card
-            className="relative scroll-mt-8 overflow-visible"
-            id="workspace-resource"
-          >
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(resourceSectionNumber).padStart(2, "0")}
-            </span>
+          <Card className="scroll-mt-36" id="workspace-resource">
             <CardHeader>
               <CardTitle>Workspace {resourceLabel}</CardTitle>
               <CardDescription>
@@ -493,13 +504,7 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {scopeLabels !== undefined ? (
-          <Card
-            aria-disabled={!isInstallationConnected}
-            className={`relative overflow-visible ${isInstallationConnected ? "" : "opacity-60"}`}
-          >
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(scopeSectionNumber).padStart(2, "0")}
-            </span>
+          <Card className="scroll-mt-36" id="allowed-scopes">
             <CardHeader>
               <CardTitle>Allowed {scopeLabels.plural}</CardTitle>
               <CardDescription>
@@ -581,13 +586,7 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasMcpTools ? (
-          <Card
-            aria-disabled={!isInstallationConnected}
-            className={`relative overflow-visible ${isInstallationConnected ? "" : "opacity-60"}`}
-          >
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(toolSectionNumber).padStart(2, "0")}
-            </span>
+          <Card className="scroll-mt-36" id="mcp-tools">
             <CardHeader>
               <CardTitle>MCP tools</CardTitle>
               <CardDescription>
@@ -602,13 +601,18 @@ export default async function IntegrationDetailPage({
               </CardAction>
             </CardHeader>
             <CardContent>
-              {integration.permissions.canManageMcpTools ||
-              (!isInstallationConnected &&
-                integration.permissions.canManageInstallation &&
-                integration.installation !== null) ? (
+              {!isInstallationConnected ? (
+                <Alert>
+                  <AlertTitle>Integration connection required</AlertTitle>
+                  <AlertDescription>
+                    Connect {integration.displayName} before selecting MCP
+                    tools.
+                  </AlertDescription>
+                </Alert>
+              ) : integration.permissions.canManageMcpTools ? (
                 <McpToolSelector
                   accountLabel={accountLabel}
-                  disabled={!isInstallationConnected}
+                  disabled={false}
                   key={enabledMcpTools.map((tool) => tool.name).join("|")}
                   provider={provider}
                   providerDisplayName={integration.displayName}
@@ -634,14 +638,6 @@ export default async function IntegrationDetailPage({
                     </div>
                   ))}
                 </ItemGroup>
-              ) : integration.installation === null ? (
-                <Alert>
-                  <AlertTitle>Integration required</AlertTitle>
-                  <AlertDescription>
-                    Install {integration.displayName} before selecting MCP
-                    tools.
-                  </AlertDescription>
-                </Alert>
               ) : (
                 <Empty>
                   <EmptyHeader>
@@ -661,10 +657,7 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasNotifications ? (
-          <Card className="relative overflow-visible">
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(notificationSectionNumber).padStart(2, "0")}
-            </span>
+          <Card className="scroll-mt-36" id="notifications">
             <CardHeader>
               <CardTitle>Notifications</CardTitle>
               <CardDescription>
@@ -715,18 +708,39 @@ export default async function IntegrationDetailPage({
         ) : null}
 
         {hasNotificationChannels ? (
-          <div className="relative space-y-6">
-            <span className="absolute -left-12 top-7 z-10 hidden size-9 place-items-center border border-primary/30 bg-card font-mono text-xs font-semibold text-primary md:grid">
-              {String(notificationChannelSectionNumber).padStart(2, "0")}
-            </span>
-            <NotificationChannelsSection channels={notificationChannels} />
+          <div className="scroll-mt-36 space-y-6" id="notification-channels">
+            <NotificationChannelsSection
+              canManage={integration.permissions.canManageNotifications}
+              channels={notificationChannels}
+              providerDisplayName={integration.displayName}
+            />
             <NotificationRoutingSection
+              canManage={integration.permissions.canManageNotifications}
               channels={notificationChannels}
               sourceOptions={notificationSourceOptions}
             />
           </div>
         ) : null}
       </div>
-    </main>
+
+      {hasConfiguredInstallation &&
+      integration.permissions.canManageInstallation ? (
+        <section className="mt-10 border border-destructive/25 bg-destructive/5 p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+          <div>
+            <h2 className="text-sm font-semibold">Disconnect integration</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Remove workspace access while retaining its activity history.
+            </p>
+          </div>
+          <div className="mt-4 shrink-0 sm:mt-0">
+            <DisconnectInstallation
+              presentation={integration.presentation}
+              provider={provider}
+              providerDisplayName={integration.displayName}
+            />
+          </div>
+        </section>
+      ) : null}
+    </WorkspacePage>
   );
 }

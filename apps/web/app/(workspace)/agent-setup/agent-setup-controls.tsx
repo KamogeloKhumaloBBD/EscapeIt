@@ -110,7 +110,7 @@ function CreateTokenSubmitButton() {
       ) : (
         <PlusIcon aria-hidden="true" />
       )}
-      {pending ? "Creating..." : "Create token"}
+      {pending ? "Creating…" : "Create token"}
     </Button>
   );
 }
@@ -241,7 +241,7 @@ function RevokeTokenSubmitButton() {
       ) : (
         <TrashIcon aria-hidden="true" />
       )}
-      {pending ? "Revoking..." : "Revoke token"}
+      {pending ? "Revoking…" : "Revoke token"}
     </Button>
   );
 }
@@ -293,11 +293,17 @@ export function RevokeTokenButton({
   );
 }
 
-function CodeExample({ code }: { code: string }) {
+function CodeExample({
+  code,
+  label = "Configuration",
+}: {
+  code: string;
+  label?: string;
+}) {
   return (
     <div className="relative bg-foreground text-background">
       <div className="absolute right-2 top-2">
-        <CopyButton label="Configuration" value={code} />
+        <CopyButton label={label} value={code} />
       </div>
       <pre className="overflow-x-auto p-5 pr-24 font-mono text-xs leading-6">
         <code>{code}</code>
@@ -306,8 +312,72 @@ function CodeExample({ code }: { code: string }) {
   );
 }
 
-export function ClientSetupTabs({ endpoint }: { endpoint: string }) {
+function TokenEnvironmentSetup() {
+  const commands = {
+    powershell:
+      '$env:CONTEXT_LAYER_TOKEN = Read-Host "Context Layer token" -MaskInput',
+    unix: [
+      'printf "Context Layer token: "',
+      "IFS= read -rs CONTEXT_LAYER_TOKEN",
+      "printf '\\n'",
+      "export CONTEXT_LAYER_TOKEN",
+    ].join("\n"),
+  };
+
+  return (
+    <div className="space-y-3">
+      <Tabs defaultValue="unix">
+        <TabsList variant="line">
+          <TabsTrigger value="unix">macOS / Linux</TabsTrigger>
+          <TabsTrigger value="powershell">PowerShell</TabsTrigger>
+        </TabsList>
+        <TabsContent value="unix">
+          <CodeExample code={commands.unix} label="Shell command" />
+        </TabsContent>
+        <TabsContent value="powershell">
+          <CodeExample code={commands.powershell} label="PowerShell command" />
+        </TabsContent>
+      </Tabs>
+      <p className="text-xs leading-5 text-muted-foreground">
+        Paste the token when prompted. The value is available only to this shell
+        session. Start or restart Kiro and Cursor from an environment that can
+        read it. VS Code prompts for the token itself, so you can skip this step
+        for that client.
+      </p>
+    </div>
+  );
+}
+
+export function TokenClientSetupGuide({ endpoint }: { endpoint: string }) {
   const examples = {
+    cursor: JSON.stringify(
+      {
+        mcpServers: {
+          "context-layer": {
+            headers: {
+              Authorization: "Bearer ${env:CONTEXT_LAYER_TOKEN}",
+            },
+            url: endpoint,
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    kiro: JSON.stringify(
+      {
+        mcpServers: {
+          "context-layer": {
+            headers: {
+              Authorization: "Bearer ${CONTEXT_LAYER_TOKEN}",
+            },
+            url: endpoint,
+          },
+        },
+      },
+      null,
+      2,
+    ),
     claude: JSON.stringify(
       {
         mcpServers: {
@@ -324,7 +394,17 @@ export function ClientSetupTabs({ endpoint }: { endpoint: string }) {
       2,
     ),
     codex: `[mcp_servers.context_layer]\nurl = "${endpoint}"\nbearer_token_env_var = "CONTEXT_LAYER_TOKEN"`,
-    generic: `curl --request POST "${endpoint}" \\\n  --header "Authorization: Bearer $CONTEXT_LAYER_TOKEN" \\\n  --header "Content-Type: application/json" \\\n  --header "Accept: application/json, text/event-stream" \\\n  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"context-layer-check","version":"1.0.0"}}}'`,
+    genericUnix: `curl --request POST "${endpoint}" \\\n  --header "Authorization: Bearer $CONTEXT_LAYER_TOKEN" \\\n  --header "Content-Type: application/json" \\\n  --header "Accept: application/json, text/event-stream" \\\n  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"context-layer-check","version":"1.0.0"}}}'`,
+    genericPowerShell: [
+      "$headers = @{",
+      '  Authorization = "Bearer $env:CONTEXT_LAYER_TOKEN"',
+      '  Accept = "application/json, text/event-stream"',
+      "}",
+      '$body = \'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"context-layer-check","version":"1.0.0"}}}\'',
+      'Invoke-WebRequest -Uri "' +
+        endpoint +
+        '" -Method Post -Headers $headers -ContentType "application/json" -Body $body',
+    ].join("\n"),
     vscode: JSON.stringify(
       {
         inputs: [
@@ -351,26 +431,131 @@ export function ClientSetupTabs({ endpoint }: { endpoint: string }) {
   };
 
   return (
-    <Tabs defaultValue="codex">
-      <TabsList className="max-w-full overflow-x-auto" variant="line">
-        <TabsTrigger value="codex">Codex</TabsTrigger>
-        <TabsTrigger value="claude">Claude</TabsTrigger>
-        <TabsTrigger value="vscode">VS Code</TabsTrigger>
-        <TabsTrigger value="generic">Generic</TabsTrigger>
-      </TabsList>
-      <TabsContent value="codex">
-        <CodeExample code={examples.codex} />
-      </TabsContent>
-      <TabsContent value="claude">
-        <CodeExample code={examples.claude} />
-      </TabsContent>
-      <TabsContent value="vscode">
-        <CodeExample code={examples.vscode} />
-      </TabsContent>
-      <TabsContent value="generic">
-        <CodeExample code={examples.generic} />
-      </TabsContent>
-    </Tabs>
+    <div className="space-y-7">
+      <section aria-labelledby="token-environment-heading">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex size-6 shrink-0 items-center justify-center bg-primary text-xs font-semibold text-primary-foreground">
+            1
+          </span>
+          <div>
+            <h3
+              className="text-sm font-semibold"
+              id="token-environment-heading"
+            >
+              Set the token for your client
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Use the token from the one-time reveal as an environment variable
+              instead of saving it in a configuration file.
+            </p>
+          </div>
+        </div>
+        <TokenEnvironmentSetup />
+      </section>
+
+      <section aria-labelledby="token-client-heading" className="border-t pt-7">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex size-6 shrink-0 items-center justify-center bg-primary text-xs font-semibold text-primary-foreground">
+            2
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold" id="token-client-heading">
+              Configure your client
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Choose a client and copy the configuration for this workspace
+              endpoint.
+            </p>
+          </div>
+        </div>
+
+        <Tabs defaultValue="codex">
+          <TabsList className="max-w-full overflow-x-auto" variant="line">
+            <TabsTrigger value="codex">
+              <McpClientMark clientName="Codex" size="sm" />
+              Codex
+            </TabsTrigger>
+            <TabsTrigger value="claude">
+              <McpClientMark clientName="Claude Code" size="sm" />
+              Claude Code
+            </TabsTrigger>
+            <TabsTrigger value="kiro">
+              <McpClientMark clientName="Kiro" size="sm" />
+              Kiro
+            </TabsTrigger>
+            <TabsTrigger value="cursor">
+              <McpClientMark clientName="Cursor" size="sm" />
+              Cursor
+            </TabsTrigger>
+            <TabsTrigger value="vscode">
+              <McpClientMark clientName="VS Code" size="sm" />
+              VS Code
+            </TabsTrigger>
+            <TabsTrigger value="generic">
+              <McpClientMark clientName="Generic HTTP" size="sm" />
+              Generic HTTP
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent className="space-y-3" value="codex">
+            <CodeExample code={examples.codex} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Add this to <code>~/.codex/config.toml</code>, or to a trusted
+              project&apos;s <code>.codex/config.toml</code>, then restart
+              Codex.
+            </p>
+          </TabsContent>
+          <TabsContent className="space-y-3" value="claude">
+            <CodeExample code={examples.claude} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Add this server to <code>.mcp.json</code>, then run{" "}
+              <code>claude mcp list</code> to confirm it loaded.
+            </p>
+          </TabsContent>
+          <TabsContent className="space-y-3" value="kiro">
+            <CodeExample code={examples.kiro} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Paste this into <code>.kiro/settings/mcp.json</code> for the
+              project, or <code>~/.kiro/settings/mcp.json</code> globally.
+            </p>
+          </TabsContent>
+          <TabsContent className="space-y-3" value="cursor">
+            <CodeExample code={examples.cursor} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Paste this into <code>.cursor/mcp.json</code> for the project, or{" "}
+              <code>~/.cursor/mcp.json</code> globally.
+            </p>
+          </TabsContent>
+          <TabsContent className="space-y-3" value="vscode">
+            <CodeExample code={examples.vscode} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Paste this into <code>.vscode/mcp.json</code>. VS Code asks for
+              the token once and stores the masked input securely.
+            </p>
+          </TabsContent>
+          <TabsContent className="space-y-3" value="generic">
+            <Tabs defaultValue="unix">
+              <TabsList variant="line">
+                <TabsTrigger value="unix">macOS / Linux</TabsTrigger>
+                <TabsTrigger value="powershell">PowerShell</TabsTrigger>
+              </TabsList>
+              <TabsContent value="unix">
+                <CodeExample code={examples.genericUnix} label="Request" />
+              </TabsContent>
+              <TabsContent value="powershell">
+                <CodeExample
+                  code={examples.genericPowerShell}
+                  label="Request"
+                />
+              </TabsContent>
+            </Tabs>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Generic clients must send the token as an{" "}
+              <code>Authorization: Bearer</code> header on every MCP request.
+            </p>
+          </TabsContent>
+        </Tabs>
+      </section>
+    </div>
   );
 }
 
@@ -378,7 +563,41 @@ export function OAuthClientSetupTabs({ endpoint }: { endpoint: string }) {
   const commands = {
     claude: `claude mcp add --transport http --scope local context-layer "${endpoint}"`,
     codex: `codex mcp add context-layer --url "${endpoint}"`,
+    cursor: JSON.stringify(
+      {
+        mcpServers: {
+          "context-layer": {
+            url: endpoint,
+          },
+        },
+      },
+      null,
+      2,
+    ),
     generic: endpoint,
+    kiro: JSON.stringify(
+      {
+        mcpServers: {
+          "context-layer": {
+            url: endpoint,
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    vscode: JSON.stringify(
+      {
+        servers: {
+          contextLayer: {
+            type: "http",
+            url: endpoint,
+          },
+        },
+      },
+      null,
+      2,
+    ),
   };
 
   return (
@@ -391,6 +610,18 @@ export function OAuthClientSetupTabs({ endpoint }: { endpoint: string }) {
         <TabsTrigger value="claude">
           <McpClientMark clientName="Claude Code" size="sm" />
           Claude Code
+        </TabsTrigger>
+        <TabsTrigger value="kiro">
+          <McpClientMark clientName="Kiro" size="sm" />
+          Kiro
+        </TabsTrigger>
+        <TabsTrigger value="cursor">
+          <McpClientMark clientName="Cursor" size="sm" />
+          Cursor
+        </TabsTrigger>
+        <TabsTrigger value="vscode">
+          <McpClientMark clientName="VS Code" size="sm" />
+          VS Code
         </TabsTrigger>
         <TabsTrigger value="generic">
           <McpClientMark clientName="Generic HTTP" size="sm" />
@@ -411,6 +642,30 @@ export function OAuthClientSetupTabs({ endpoint }: { endpoint: string }) {
           If authentication does not start, run{" "}
           <code>claude mcp login context-layer</code> or open <code>/mcp</code>.
           Verify with <code>claude mcp list</code>.
+        </p>
+      </TabsContent>
+      <TabsContent className="space-y-4" value="kiro">
+        <CodeExample code={commands.kiro} />
+        <p className="text-xs leading-5 text-muted-foreground">
+          Paste this into <code>.kiro/settings/mcp.json</code> for this project,
+          or <code>~/.kiro/settings/mcp.json</code> for all projects. Save the
+          file, then complete the browser authorization prompt in Kiro.
+        </p>
+      </TabsContent>
+      <TabsContent className="space-y-4" value="cursor">
+        <CodeExample code={commands.cursor} />
+        <p className="text-xs leading-5 text-muted-foreground">
+          Paste this into <code>.cursor/mcp.json</code> for this project, or{" "}
+          <code>~/.cursor/mcp.json</code> for all projects. Open Customize →
+          MCP, start Context Layer, and complete authorization in your browser.
+        </p>
+      </TabsContent>
+      <TabsContent className="space-y-4" value="vscode">
+        <CodeExample code={commands.vscode} />
+        <p className="text-xs leading-5 text-muted-foreground">
+          Paste this into <code>.vscode/mcp.json</code>, or run{" "}
+          <strong>MCP: Open User Configuration</strong> for a global setup.
+          Start Context Layer and complete authorization in your browser.
         </p>
       </TabsContent>
       <TabsContent className="space-y-4" value="generic">

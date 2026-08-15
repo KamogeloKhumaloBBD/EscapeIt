@@ -33,7 +33,7 @@ import {
 import type { NotificationChannel } from "@/lib/validation/notification";
 import { AddChannelDialog } from "./add-channel-dialog";
 import {
-  ChannelSourceToggle,
+  ChannelSourceSelector,
   DeleteChannelButton,
   TestChannelButton,
 } from "./notification-forms";
@@ -44,9 +44,13 @@ export interface NotificationSourceOption {
 }
 
 export function NotificationChannelsSection({
+  canManage,
   channels,
+  providerDisplayName,
 }: {
+  canManage: boolean;
   channels: NotificationChannel[];
+  providerDisplayName: string;
 }) {
   return (
     <Card className="relative overflow-visible">
@@ -55,9 +59,11 @@ export function NotificationChannelsSection({
         <CardDescription>
           Configure which integrations each channel hears from in Routing below.
         </CardDescription>
-        <CardAction>
-          <AddChannelDialog />
-        </CardAction>
+        {canManage ? (
+          <CardAction>
+            <AddChannelDialog providerDisplayName={providerDisplayName} />
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent>
         {channels.length === 0 ? (
@@ -66,10 +72,10 @@ export function NotificationChannelsSection({
               <EmptyMedia variant="icon">
                 <BellRingingIcon aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>No Teams channels connected</EmptyTitle>
+              <EmptyTitle>No channels connected</EmptyTitle>
               <EmptyDescription>
-                Connect a Microsoft Teams channel to start receiving workspace
-                notifications.
+                Connect a {providerDisplayName} channel to start receiving
+                workspace notifications.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -99,13 +105,16 @@ export function NotificationChannelsSection({
                       )}
                     </ItemDescription>
                   </ItemContent>
-                  <ItemActions className="gap-2">
-                    <TestChannelButton channelId={channel.id} />
-                    <DeleteChannelButton
-                      channelId={channel.id}
-                      channelName={channel.name}
-                    />
-                  </ItemActions>
+                  {canManage ? (
+                    <ItemActions className="w-full justify-end gap-2 sm:w-auto">
+                      <TestChannelButton channelId={channel.id} />
+                      <DeleteChannelButton
+                        channelId={channel.id}
+                        channelName={channel.name}
+                        providerDisplayName={providerDisplayName}
+                      />
+                    </ItemActions>
+                  ) : null}
                 </Item>
               </div>
             ))}
@@ -117,9 +126,11 @@ export function NotificationChannelsSection({
 }
 
 export function NotificationRoutingSection({
+  canManage,
   channels,
   sourceOptions,
 }: {
+  canManage: boolean;
   channels: NotificationChannel[];
   sourceOptions: NotificationSourceOption[];
 }) {
@@ -141,7 +152,7 @@ export function NotificationRoutingSection({
             <EmptyHeader>
               <EmptyTitle>No channels connected yet</EmptyTitle>
               <EmptyDescription>
-                Connect a Teams channel above to configure its routing.
+                Connect a channel above to configure its routing.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -162,25 +173,12 @@ export function NotificationRoutingSection({
                 {channelIndex > 0 ? <ItemSeparator /> : null}
                 <div className="py-4">
                   <p className="text-sm font-semibold">{channel.name}</p>
-                  <div className="mt-3 divide-y divide-border">
-                    {sourceOptions.map((option) => (
-                      <Item className="px-0" key={option.provider}>
-                        <ItemContent>
-                          <ItemTitle>{option.displayName}</ItemTitle>
-                        </ItemContent>
-                        <ItemActions>
-                          <ChannelSourceToggle
-                            channelId={channel.id}
-                            currentSources={channel.sourceProviders}
-                            enabled={channel.sourceProviders.includes(
-                              option.provider,
-                            )}
-                            provider={option.provider}
-                          />
-                        </ItemActions>
-                      </Item>
-                    ))}
-                  </div>
+                  <ChannelSourceSelector
+                    channelId={channel.id}
+                    currentSources={channel.sourceProviders}
+                    disabled={!canManage}
+                    options={sourceOptions}
+                  />
                 </div>
               </div>
             ))}

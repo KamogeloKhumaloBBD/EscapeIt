@@ -9,7 +9,6 @@ import {
   RevokeInvitationButton,
 } from "@/app/(workspace)/members/member-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { WorkspacePageHeader } from "@/components/workspace-page-header";
+import { WorkspacePage } from "@/components/workspace-page";
 import { getMemberListState } from "@/lib/server/member";
 
 function initials(name: string): string {
@@ -59,7 +60,7 @@ export default async function MembersPage() {
 
   if (state.status === "unavailable") {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-16 lg:px-10">
+      <WorkspacePage>
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Members unavailable</AlertTitle>
@@ -67,7 +68,7 @@ export default async function MembersPage() {
             We couldn&apos;t load the workspace members. Refresh to try again.
           </AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
@@ -78,7 +79,7 @@ export default async function MembersPage() {
   const pendingCount = data.pendingInvitations?.length ?? 0;
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage>
       <WorkspacePageHeader
         description={
           <>
@@ -86,7 +87,6 @@ export default async function MembersPage() {
             bring their own provider identities.
           </>
         }
-        eyebrow="Workspace access"
         title="Members"
       />
 
@@ -135,48 +135,80 @@ export default async function MembersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Joined</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.members.map((member) => (
-                <TableRow key={member.membershipId}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="ring-2 ring-background shadow-sm">
-                        <AvatarFallback>
-                          {initials(member.name || member.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{member.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.email}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={member.role === "owner" ? "default" : "outline"}
-                    >
-                      {member.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                    <time dateTime={member.joinedAt}>
-                      {formatDate(member.joinedAt)}
-                    </time>
-                  </TableCell>
+          <div className="divide-y border md:hidden">
+            {data.members.map((member) => (
+              <article
+                className="flex items-center gap-3 p-4"
+                key={member.membershipId}
+              >
+                <Avatar className="ring-2 ring-background shadow-sm">
+                  <AvatarFallback>
+                    {initials(member.name || member.email)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{member.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {member.email}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Joined {formatDate(member.joinedAt)}
+                  </p>
+                </div>
+                <Badge
+                  variant={member.role === "owner" ? "default" : "outline"}
+                >
+                  {member.role}
+                </Badge>
+              </article>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead className="text-right">Joined</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.members.map((member) => (
+                  <TableRow key={member.membershipId}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="ring-2 ring-background shadow-sm">
+                          <AvatarFallback>
+                            {initials(member.name || member.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{member.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.email}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          member.role === "owner" ? "default" : "outline"
+                        }
+                      >
+                        {member.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      <time dateTime={member.joinedAt}>
+                        {formatDate(member.joinedAt)}
+                      </time>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -202,41 +234,65 @@ export default async function MembersPage() {
                 </EmptyHeader>
               </Empty>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead>
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                <div className="divide-y border md:hidden">
                   {data.pendingInvitations.map((invitation) => (
-                    <TableRow key={invitation.id}>
-                      <TableCell className="font-medium">
-                        {invitation.email}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <time dateTime={invitation.expiresAt}>
-                          {formatDate(invitation.expiresAt)}
-                        </time>
-                      </TableCell>
-                      <TableCell className="text-right">
+                    <article className="space-y-3 p-4" key={invitation.id}>
+                      <div>
+                        <p className="truncate text-sm font-medium">
+                          {invitation.email}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Expires {formatDate(invitation.expiresAt)}
+                        </p>
+                      </div>
+                      <div className="flex justify-end">
                         <RevokeInvitationButton
                           email={invitation.email}
                           invitationId={invitation.id}
                         />
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </article>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.pendingInvitations.map((invitation) => (
+                        <TableRow key={invitation.id}>
+                          <TableCell className="font-medium">
+                            {invitation.email}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <time dateTime={invitation.expiresAt}>
+                              {formatDate(invitation.expiresAt)}
+                            </time>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <RevokeInvitationButton
+                              email={invitation.email}
+                              invitationId={invitation.id}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
       )}
-    </main>
+    </WorkspacePage>
   );
 }

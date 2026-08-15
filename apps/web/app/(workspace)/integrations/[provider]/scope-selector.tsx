@@ -1,7 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 
 import { initialIntegrationActionState } from "@/app/(workspace)/integrations/[provider]/action-state";
@@ -23,16 +30,6 @@ import {
   scopeDiscoverySchema,
   type IntegrationScope,
 } from "@/lib/validation/integration";
-
-function SaveButton({ scopePlural }: { scopePlural: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button disabled={pending} type="submit">
-      {pending ? <Spinner data-icon="inline-start" /> : null}
-      {pending ? "Saving access..." : `Save ${scopePlural} access`}
-    </Button>
-  );
-}
 
 function parseResponse(value: unknown) {
   if (typeof value !== "object" || value === null || !("data" in value)) {
@@ -62,12 +59,18 @@ export function ScopeSelector({
     integrationAction,
     initialIntegrationActionState,
   );
+  const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<readonly IntegrationScope[]>(initialItems);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(
+  const serverSelected = useMemo(
     () => new Map(initialSelected.map((scope) => [scope.externalId, scope])),
+    [initialSelected],
+  );
+  const [selected, setOptimisticSelected] = useOptimistic(
+    serverSelected,
+    (_current, next: ReadonlyMap<string, IntegrationScope>) => new Map(next),
   );
   const firstRender = useRef(true);
 
@@ -170,19 +173,34 @@ export function ScopeSelector({
     }
   }
 
-  return (
-    <form action={formAction}>
-      <input name="intent" type="hidden" value="save-scopes" />
-      <input name="provider" type="hidden" value={provider} />
-      {[...selected.keys()].map((externalId) => (
-        <input
-          key={externalId}
-          name="externalIds"
-          type="hidden"
-          value={externalId}
-        />
-      ))}
+  function saveSelection(next: ReadonlyMap<string, IntegrationScope>) {
+    const formData = new FormData();
+    formData.set("intent", "save-scopes");
+    formData.set("provider", provider);
+    next.forEach((_scope, externalId) => {
+      formData.append("externalIds", externalId);
+    });
 
+    startTransition(() => {
+      setOptimisticSelected(next);
+      formAction(formData);
+    });
+  }
+
+  function toggleScope(scope: IntegrationScope) {
+    if (pending) return;
+
+    const next = new Map(selected);
+    if (next.has(scope.externalId)) {
+      next.delete(scope.externalId);
+    } else {
+      next.set(scope.externalId, scope);
+    }
+    saveSelection(next);
+  }
+
+  return (
+    <div aria-busy={pending}>
       <Command
         aria-busy={loading}
         className="overflow-hidden rounded-none border border-border bg-card"
@@ -214,25 +232,23 @@ export function ScopeSelector({
                     aria-selected={checked}
                     className="rounded-none data-[checked=true]:bg-primary/7 data-[checked=true]:text-foreground"
                     data-checked={checked}
+                    data-disabled={pending}
                     key={scope.externalId}
                     onSelect={() => {
-                      setSelected((current) => {
-                        const next = new Map(current);
-
-                        if (checked) {
-                          next.delete(scope.externalId);
-                        } else {
-                          next.set(scope.externalId, scope);
-                        }
-
-                        return next;
-                      });
+                      toggleScope(scope);
                     }}
                     value={scope.externalId}
                   >
                     <Checkbox
                       aria-label={`Allow ${scope.displayName}`}
                       checked={checked}
+                      disabled={pending}
+                      onCheckedChange={() => {
+                        toggleScope(scope);
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
                       tabIndex={-1}
                     />
                     <span>{scope.displayName}</span>
@@ -253,12 +269,12 @@ export function ScopeSelector({
             variant="outline"
           >
             {loading ? <Spinner data-icon="inline-start" /> : null}
-            {loading ? "Loading..." : "Load more"}
+            {loading ? "Loading…" : "Load more"}
           </Button>
         </ButtonGroup>
       ) : null}
 
-      <div className="mt-5 flex flex-col gap-3 border border-border bg-muted/35 p-3 sm:flex-row sm:items-center sm:justify-between sm:pl-4">
+      <div className="mt-5 border border-border bg-muted/35 p-3 sm:pl-4">
         <p className="text-sm font-medium text-muted-foreground">
           {selected.size === 0
             ? `No ${scopeLabels.plural} selected. ${providerDisplayName} access is denied by default.`
@@ -266,8 +282,7 @@ export function ScopeSelector({
                 selected.size === 1 ? scopeLabels.singular : scopeLabels.plural
               } selected`}
         </p>
-        <SaveButton scopePlural={scopeLabels.plural} />
       </div>
-    </form>
+    </div>
   );
 }

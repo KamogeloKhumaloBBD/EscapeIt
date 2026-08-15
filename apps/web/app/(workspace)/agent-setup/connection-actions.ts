@@ -45,9 +45,7 @@ export async function revokeMcpConnectionAction(
     method: "DELETE",
   });
 
-  if (result.status === 401) {
-    redirect("/sign-in");
-  }
+  if (result.status === 401) redirect("/sign-in");
 
   if (!result.ok) {
     return {
@@ -56,7 +54,6 @@ export async function revokeMcpConnectionAction(
     };
   }
 
-  revalidatePath("/account");
   revalidatePath("/agent-setup");
   return { message: "MCP client disconnected.", status: "success" };
 }
@@ -87,9 +84,7 @@ export async function updateMcpConnectionBundleAction(
     { body: { bundleId }, method: "PUT" },
   );
 
-  if (result.status === 401) {
-    redirect("/sign-in");
-  }
+  if (result.status === 401) redirect("/sign-in");
 
   if (!result.ok) {
     return {
@@ -98,7 +93,6 @@ export async function updateMcpConnectionBundleAction(
     };
   }
 
-  revalidatePath("/account");
   revalidatePath("/agent-setup");
   return { message: "Connection bundle updated.", status: "success" };
 }

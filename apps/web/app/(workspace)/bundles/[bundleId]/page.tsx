@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { ItemGroup, Item, ItemContent, ItemTitle } from "@/components/ui/item";
 import { WorkspacePageHeader } from "@/components/workspace-page-header";
+import { WorkspacePage } from "@/components/workspace-page";
 import { getIntegrationsState } from "@/lib/server/integration";
 import { getBundleState } from "@/lib/server/integration-bundle";
 
@@ -38,7 +39,7 @@ export default async function BundleDetailPage({
 
   if (state.status !== "available") {
     return (
-      <main className="mx-auto w-full max-w-4xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+      <WorkspacePage width="focused">
         <Alert variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Bundle unavailable</AlertTitle>
@@ -46,7 +47,7 @@ export default async function BundleDetailPage({
             We couldn&apos;t load this bundle. Refresh to try again.
           </AlertDescription>
         </Alert>
-      </main>
+      </WorkspacePage>
     );
   }
 
@@ -63,11 +64,11 @@ export default async function BundleDetailPage({
       : [];
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
+    <WorkspacePage width="focused">
       <WorkspacePageHeader
         action={
-          <Button asChild variant="outline">
-            <Link href="/bundles">Back to bundles</Link>
+          <Button asChild>
+            <Link href="/agent-setup">Use this bundle</Link>
           </Button>
         }
         description={
@@ -75,7 +76,6 @@ export default async function BundleDetailPage({
             ? "Manage this bundle's name, description, and providers."
             : "Personal access tokens can be scoped to this bundle from Agent Setup."
         }
-        eyebrow="Bundles"
         title={bundle.name}
       />
 
@@ -127,13 +127,22 @@ export default async function BundleDetailPage({
             </CardContent>
           </Card>
 
-          <div className="mt-8 flex justify-end">
-            <DeleteBundleButton
-              bundleId={bundle.id}
-              name={bundle.name}
-              redirectTo="/bundles"
-            />
-          </div>
+          <section className="mt-10 border border-destructive/25 bg-destructive/5 p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div>
+              <h2 className="text-sm font-semibold">Delete bundle</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Tokens assigned to this bundle must be revoked or reassigned
+                first.
+              </p>
+            </div>
+            <div className="mt-4 shrink-0 sm:mt-0">
+              <DeleteBundleButton
+                bundleId={bundle.id}
+                name={bundle.name}
+                redirectTo="/bundles"
+              />
+            </div>
+          </section>
         </>
       ) : (
         <Card className="mt-10">
@@ -172,12 +181,6 @@ export default async function BundleDetailPage({
           </CardContent>
         </Card>
       )}
-
-      <div className="mt-8">
-        <Button asChild variant="ghost">
-          <Link href="/agent-setup">Create a token scoped to this bundle</Link>
-        </Button>
-      </div>
-    </main>
+    </WorkspacePage>
   );
 }

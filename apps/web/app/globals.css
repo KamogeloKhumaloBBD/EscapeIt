@@ -147,10 +147,6 @@
     40px 40px;
 }
 
-.flow-rail {
-  background: rgb(91 65 225 / 30%);
-}
-
 .status-pulse {
   box-shadow: 0 0 0 0 rgb(32 163 111 / 34%);
   animation: status-pulse 2.4s ease-out infinite;

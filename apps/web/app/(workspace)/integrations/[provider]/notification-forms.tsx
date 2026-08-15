@@ -1,7 +1,13 @@
 "use client";
 
 import { TrashIcon, WarningIcon } from "@phosphor-icons/react";
-import { useActionState, useEffect, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useTransition,
+} from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -19,6 +25,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 
@@ -61,7 +73,7 @@ export function TestChannelButton({ channelId }: { channelId: string }) {
     <form action={formAction}>
       <input name="intent" type="hidden" value="test-channel" />
       <input name="channelId" type="hidden" value={channelId} />
-      <SubmitButton pendingLabel="Sending...">Send test message</SubmitButton>
+      <SubmitButton pendingLabel="Sending…">Send test message</SubmitButton>
     </form>
   );
 }
@@ -69,9 +81,11 @@ export function TestChannelButton({ channelId }: { channelId: string }) {
 export function DeleteChannelButton({
   channelId,
   channelName,
+  providerDisplayName,
 }: {
   channelId: string;
   channelName: string;
+  providerDisplayName: string;
 }) {
   const [state, formAction] = useActionState(
     notificationAction,
@@ -102,13 +116,13 @@ export function DeleteChannelButton({
               Remove &quot;{channelName}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Context Layer will stop sending notifications to this Teams
-              channel. This cannot be undone.
+              Context Layer will stop sending notifications to this{" "}
+              {providerDisplayName} channel. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-6">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <SubmitButton pendingLabel="Removing..." variant="destructive">
+            <SubmitButton pendingLabel="Removing…" variant="destructive">
               Remove channel
             </SubmitButton>
           </AlertDialogFooter>
@@ -118,43 +132,71 @@ export function DeleteChannelButton({
   );
 }
 
-export function ChannelSourceToggle({
+export function ChannelSourceSelector({
   channelId,
   currentSources,
-  enabled,
-  provider,
+  disabled,
+  options,
 }: {
   channelId: string;
   currentSources: readonly string[];
-  enabled: boolean;
-  provider: string;
+  disabled?: boolean;
+  options: readonly { displayName: string; provider: string }[];
 }) {
   const [state, formAction] = useActionState(
     notificationAction,
     initialNotificationActionState,
   );
+  const serverSources = useMemo(
+    () => new Set(currentSources),
+    [currentSources],
+  );
+  const [sources, setOptimisticSources] = useOptimistic(
+    serverSources,
+    (_current, next: ReadonlySet<string>) => new Set(next),
+  );
   const [isPending, startTransition] = useTransition();
   useActionToast(state);
 
+  function saveSources(next: ReadonlySet<string>) {
+    const formData = new FormData();
+    formData.set("intent", "set-channel-sources");
+    formData.set("channelId", channelId);
+    next.forEach((source) => {
+      formData.append("providers", source);
+    });
+
+    startTransition(() => {
+      setOptimisticSources(next);
+      formAction(formData);
+    });
+  }
+
   return (
-    <Switch
-      aria-label={`Toggle ${provider}`}
-      checked={enabled}
-      disabled={isPending}
-      onCheckedChange={(checked) => {
-        const nextSources = checked
-          ? [...currentSources, provider]
-          : currentSources.filter((source) => source !== provider);
-        const formData = new FormData();
-        formData.set("intent", "set-channel-sources");
-        formData.set("channelId", channelId);
-        nextSources.forEach((source) => {
-          formData.append("providers", source);
-        });
-        startTransition(() => {
-          formAction(formData);
-        });
-      }}
-    />
+    <div aria-busy={isPending} className="mt-3 divide-y divide-border">
+      {options.map((option) => (
+        <Item className="px-0" key={option.provider}>
+          <ItemContent>
+            <ItemTitle>{option.displayName}</ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              aria-label={`Toggle ${option.displayName} notifications`}
+              checked={sources.has(option.provider)}
+              disabled={disabled === true || isPending}
+              onCheckedChange={(checked) => {
+                const next = new Set(sources);
+                if (checked) {
+                  next.add(option.provider);
+                } else {
+                  next.delete(option.provider);
+                }
+                saveSources(next);
+              }}
+            />
+          </ItemActions>
+        </Item>
+      ))}
+    </div>
   );
 }

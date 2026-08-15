@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { cn } from "@/lib/utils";
 
 const sizes = {
@@ -5,8 +7,26 @@ const sizes = {
   sm: { glyph: "size-3.5", tile: "size-5" },
 } as const;
 
-function clientKind(clientName: string): "claude" | "codex" | "generic" {
+type ClientKind = "claude" | "codex" | "cursor" | "generic" | "kiro" | "vscode";
+
+const clientLogos: Partial<Record<ClientKind, string>> = {
+  cursor: "/client-logos/cursor.svg",
+  kiro: "/client-logos/kiro.svg",
+  vscode: "/client-logos/vscode.svg",
+};
+
+function clientKind(clientName: string): ClientKind {
   const normalizedName = clientName.toLowerCase();
+
+  if (normalizedName.includes("kiro")) return "kiro";
+  if (normalizedName.includes("cursor")) return "cursor";
+  if (
+    normalizedName.includes("visual studio code") ||
+    normalizedName.includes("vs code") ||
+    normalizedName.includes("vscode")
+  ) {
+    return "vscode";
+  }
 
   if (
     normalizedName.includes("claude") ||
@@ -95,6 +115,7 @@ export function McpClientMark({
 }) {
   const kind = clientKind(clientName);
   const dimensions = sizes[size];
+  const logo = clientLogos[kind];
 
   return (
     <span
@@ -105,10 +126,20 @@ export function McpClientMark({
         kind === "codex" && "bg-[#111111] text-white",
         kind === "claude" && "bg-[#d97757] text-[#fffaf3]",
         kind === "generic" && "border bg-muted text-foreground",
+        logo !== undefined && "bg-transparent",
+        kind === "vscode" && "p-0.5",
         className,
       )}
     >
-      {kind === "codex" ? (
+      {logo !== undefined ? (
+        <Image
+          alt=""
+          className="size-full object-contain"
+          height={40}
+          src={logo}
+          width={40}
+        />
+      ) : kind === "codex" ? (
         <CodexGlyph className={dimensions.glyph} />
       ) : kind === "claude" ? (
         <ClaudeGlyph className={dimensions.glyph} />
