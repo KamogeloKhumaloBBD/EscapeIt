@@ -1,0 +1,53 @@
+# Production twin of forge/confluence-events.
+#
+# A Forge app's remote baseUrl is a single value, so each environment needs its
+# own app. This one points at production; the sibling folder points at ngrok
+# for local development. Both relay the same events to the same route.
+#
+# Setup (run from this folder):
+#   forge register            # overwrites app.id below with the new app's id
+#   forge deploy -e production
+#   forge install             # optional: only to install on a site you admin
+#
+# Then in the developer console for this app, under Distribution:
+#   - fill in the vendor details
+#   - tick Confluence under "Install this app onto"
+#   - copy the installation link
+#
+# Finally set these in the production API environment:
+#   FORGE_APP_ID          the app id written into app.id below
+#   FORGE_APP_INSTALL_URL the installation link from the console
+#
+# Do not reuse the development app's id or link here — installing the dev app
+# would send customers' Confluence events to whoever is running ngrok.
+
+app:
+  id: ari:cloud:ecosystem::app/15aec88f-8d8c-4ecb-8a42-1f6ff9674eca
+  runtime:
+    name: nodejs22.x
+
+remotes:
+  - key: context-layer-api
+    baseUrl: https://web-production-a8cb2.up.railway.app
+
+modules:
+  trigger:
+    - key: confluence-content-events
+      events:
+        - avi:confluence:created:page
+        - avi:confluence:updated:page
+        - avi:confluence:created:comment
+      endpoint: confluence-events-endpoint
+
+  endpoint:
+    - key: confluence-events-endpoint
+      remote: context-layer-api
+      route:
+        path: /api/webhooks/confluence
+
+permissions:
+  scopes:
+    # Required by the page and comment trigger events above. Forge's linter
+    # names the scope each event needs, so add what it asks for rather than
+    # guessing at granular equivalents.
+    - read:confluence-content.summary

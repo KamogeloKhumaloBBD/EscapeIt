@@ -1,11 +1,15 @@
-import { parseProviderKey, parseScopeKey } from "@context-layer/db";
+import {
+  parseNotificationEventKey,
+  parseProviderKey,
+  parseScopeKey,
+} from "@context-layer/db";
 
 import type { ProviderDefinition } from "../provider-registry";
 
 export const bitbucketProvider = parseProviderKey("bitbucket");
 
 export const bitbucketDefinition = {
-  capabilities: ["context", "user-accounts", "scopes"],
+  capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Bitbucket repositories into your context layer.",
   displayName: "Bitbucket",
   key: bitbucketProvider,
@@ -84,7 +88,33 @@ export const bitbucketDefinition = {
       name: "bitbucket_list_pull_request_comments",
     },
   ],
-  notificationEvents: [],
+  notificationEvents: [
+    {
+      defaultEnabled: true,
+      displayName: "Pull request opened",
+      key: parseNotificationEventKey("bitbucket.pull-request-created"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Pull request merged",
+      key: parseNotificationEventKey("bitbucket.pull-request-merged"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Comments",
+      key: parseNotificationEventKey("bitbucket.pull-request-commented"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Issue created",
+      key: parseNotificationEventKey("bitbucket.issue-created"),
+    },
+    {
+      defaultEnabled: false,
+      displayName: "Pushes",
+      key: parseNotificationEventKey("bitbucket.push"),
+    },
+  ],
   presentation: {
     accountLabel: "Atlassian account",
     resourceLabel: "Bitbucket workspace",

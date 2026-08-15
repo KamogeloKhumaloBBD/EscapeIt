@@ -807,6 +807,47 @@ export async function listWorkspaceIntegrations(
   `;
 }
 
+/**
+ * Providers whose webhook is registered per integration are found by the token
+ * in the delivery URL. A GitHub App instead has one webhook for every
+ * installation, so its deliveries identify themselves by installation id,
+ * which is the resource external id stored on the integration.
+ */
+export async function findIntegrationByResourceExternalId(
+  database: DatabaseClient,
+  provider: ProviderKey,
+  externalId: string,
+): Promise<Integration | null> {
+  const rows = await database<Integration[]>`
+    select *
+    from integrations
+    where provider = ${provider}
+      and configuration ->> 'externalId' = ${externalId}
+  `;
+
+  return rows[0] ?? null;
+}
+
+/**
+ * The external keys of an integration's selected scopes, without a membership
+ * check — webhook delivery has no acting member, and the caller has already
+ * been authenticated by signature or token.
+ */
+export async function listIntegrationScopeExternalKeys(
+  database: DatabaseClient,
+  integrationId: string,
+): Promise<readonly string[]> {
+  const rows = await database<{ externalKey: string | null }[]>`
+    select "externalKey"
+    from integration_scopes
+    where "integrationId" = ${integrationId}
+  `;
+
+  return rows.flatMap((row) =>
+    row.externalKey === null ? [] : [row.externalKey],
+  );
+}
+
 export async function setIntegrationWebhookRegistration(
   database: DatabaseClient,
   workspaceId: string,

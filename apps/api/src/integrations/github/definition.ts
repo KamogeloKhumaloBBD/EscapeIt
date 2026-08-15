@@ -1,4 +1,8 @@
-import { parseProviderKey, parseScopeKey } from "@context-layer/db";
+import {
+  parseNotificationEventKey,
+  parseProviderKey,
+  parseScopeKey,
+} from "@context-layer/db";
 
 import type { ProviderDefinition } from "../provider-registry";
 
@@ -118,7 +122,7 @@ const githubMcpToolRows = [
 
 export const githubDefinition = {
   autoSelectSingleResourceAfterAuthorization: true,
-  capabilities: ["context", "user-accounts", "scopes"],
+  capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description:
     "Bring allowlisted GitHub repositories, code, issues, and pull requests into your context layer.",
   displayName: "GitHub",
@@ -129,7 +133,33 @@ export const githubDefinition = {
     kind,
     name,
   })),
-  notificationEvents: [],
+  notificationEvents: [
+    {
+      defaultEnabled: true,
+      displayName: "Pull request opened",
+      key: parseNotificationEventKey("github.pull-request-opened"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Pull request merged",
+      key: parseNotificationEventKey("github.pull-request-merged"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Issue opened",
+      key: parseNotificationEventKey("github.issue-opened"),
+    },
+    {
+      defaultEnabled: true,
+      displayName: "Comments",
+      key: parseNotificationEventKey("github.issue-commented"),
+    },
+    {
+      defaultEnabled: false,
+      displayName: "Pushes",
+      key: parseNotificationEventKey("github.push"),
+    },
+  ],
   presentation: {
     accountLabel: "GitHub account",
     resourceLabel: "GitHub App installation",

@@ -140,6 +140,44 @@ export function createBitbucketOAuthClient(config: BitbucketOAuthClientConfig) {
     }
   }
 
+  async function authenticatedWrite(
+    url: string,
+    accessToken: string,
+    method: "DELETE" | "POST",
+    body?: unknown,
+  ): Promise<unknown> {
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${accessToken}`,
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
+        },
+        method,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new ProviderAdapterError("temporarily_unavailable");
+    }
+
+    if (!response.ok) {
+      throw responseError(response.status);
+    }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    try {
+      return (await response.json()) as unknown;
+    } catch {
+      throw new ProviderAdapterError("invalid_response");
+    }
+  }
+
   async function authenticatedBinaryGet(
     url: string,
     accessToken: string,
@@ -287,8 +325,18 @@ export function createBitbucketOAuthClient(config: BitbucketOAuthClientConfig) {
         externalAccountId: parsed.data.account_id,
       };
     },
+    async deleteWithoutResponse(url: string, accessToken: string) {
+      await authenticatedWrite(url, accessToken, "DELETE");
+    },
     async getJson(url: string, accessToken: string): Promise<unknown> {
       return authenticatedGet(url, accessToken);
+    },
+    async postJson(
+      url: string,
+      accessToken: string,
+      body: unknown,
+    ): Promise<unknown> {
+      return authenticatedWrite(url, accessToken, "POST", body);
     },
     async refreshCredentials(credentials: OAuthCredentials) {
       return requestToken({

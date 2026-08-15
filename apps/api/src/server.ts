@@ -21,6 +21,7 @@ import {
   findIntegrationBundle,
   findIntegrationBundleProviderKeys,
   findIntegrationBundleSummary,
+  findIntegrationByResourceExternalId,
   findIntegrationByWebhookToken,
   findNotificationChannel,
   findMemberIntegrationAccess,
@@ -32,6 +33,7 @@ import {
   getWorkspaceUsageAnalytics,
   hasLiveMcpOAuthConsent,
   listIntegrationBundles,
+  listIntegrationScopeExternalKeys,
   listIntegrationScopes,
   listIntegrationMcpTools,
   listMcpTokens,
@@ -109,6 +111,7 @@ import {
   createNotificationService,
   type NotificationServiceDependencies,
 } from "./features/notifications/notification.service";
+import type { NotificationWebhookReceiverDependencies } from "./features/webhooks/notification-receiver";
 import { createWebhookHandler } from "./features/webhooks/webhook.routes";
 import type { WebhookReceiver } from "./features/webhooks/webhook-receiver";
 import { createRequireAuthentication } from "./http/authentication";
@@ -116,10 +119,17 @@ import { createWebRequestHandler } from "./http/web-request-handler";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createJiraProviderModule } from "./integrations/jira";
+import { jiraProvider } from "./integrations/jira/definition";
 import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
 import { createConfluenceProviderModule } from "./integrations/confluence";
+import { confluenceProvider } from "./integrations/confluence/definition";
+import { createConfluenceWebhookReceiver } from "./integrations/confluence/webhook-receiver";
 import { createBitbucketProviderModule } from "./integrations/bitbucket";
+import { bitbucketProvider } from "./integrations/bitbucket/definition";
+import { createBitbucketWebhookReceiver } from "./integrations/bitbucket/webhook-receiver";
 import { createGitHubProviderModule } from "./integrations/github";
+import { githubProvider } from "./integrations/github/definition";
+import { createGitHubWebhookReceiver } from "./integrations/github/webhook-receiver";
 import { createLogger } from "./logging";
 import {
   isProviderModule,
@@ -226,37 +236,95 @@ const notificationChannelAdapters = new Map<
   NotificationChannelAdapter
 >([[teamsProvider, createTeamsAdapter()]]);
 
-const jiraProvider = parseProviderKey("jira");
-const webhookReceivers = new Map<ProviderKey, WebhookReceiver>([
+// Every notification receiver shares the same channel-delivery dependencies;
+// only how it identifies the workspace differs.
+const notificationDependencies: NotificationWebhookReceiverDependencies = {
+  credentialEncryption,
+  database: connection.client,
+  listNotificationChannels: (workspaceId) =>
+    listNotificationChannelsForWorkspace(connection.client, workspaceId),
+  listNotificationChannelSources: (workspaceId) =>
+    listNotificationChannelSourcesForWorkspace(connection.client, workspaceId),
+  notificationChannelAdapters,
+};
+
+function findIntegrationByToken(provider: ProviderKey) {
+  return async (token: string) => {
+    const integration = await findIntegrationByWebhookToken(
+      connection.client,
+      provider,
+      token,
+    );
+
+    return integration === null
+      ? null
+      : {
+          notificationEventKeys: integration.notificationEventKeys,
+          workspaceId: integration.workspaceId,
+        };
+  };
+}
+
+const webhookReceivers = new Map<ProviderKey, WebhookReceiver>(
   [
-    jiraProvider,
-    createJiraWebhookReceiver({
-      credentialEncryption,
-      database: connection.client,
-      findIntegrationByToken: async (token) => {
-        const integration = await findIntegrationByWebhookToken(
-          connection.client,
-          jiraProvider,
-          token,
-        );
-        return integration === null
-          ? null
-          : {
-              notificationEventKeys: integration.notificationEventKeys,
-              workspaceId: integration.workspaceId,
-            };
-      },
-      listNotificationChannels: (workspaceId) =>
-        listNotificationChannelsForWorkspace(connection.client, workspaceId),
-      listNotificationChannelSources: (workspaceId) =>
-        listNotificationChannelSourcesForWorkspace(
-          connection.client,
-          workspaceId,
-        ),
-      notificationChannelAdapters,
+    createBitbucketWebhookReceiver({
+      ...notificationDependencies,
+      findIntegrationByToken: findIntegrationByToken(bitbucketProvider),
     }),
-  ],
-]);
+    createConfluenceWebhookReceiver({
+      ...notificationDependencies,
+      findIntegrationByCloudId: async (cloudId) => {
+        const integration = await findIntegrationByResourceExternalId(
+          connection.client,
+          confluenceProvider,
+          cloudId,
+        );
+
+        if (integration === null) {
+          return null;
+        }
+
+        return {
+          notificationEventKeys: integration.notificationEventKeys,
+          selectedSpaceKeys: await listIntegrationScopeExternalKeys(
+            connection.client,
+            integration.id,
+          ),
+          workspaceId: integration.workspaceId,
+        };
+      },
+      forgeAppId: config.forgeAppId,
+    }),
+    createGitHubWebhookReceiver({
+      ...notificationDependencies,
+      findIntegrationByInstallationId: async (installationId) => {
+        const integration = await findIntegrationByResourceExternalId(
+          connection.client,
+          githubProvider,
+          installationId,
+        );
+
+        if (integration === null) {
+          return null;
+        }
+
+        return {
+          notificationEventKeys: integration.notificationEventKeys,
+          selectedRepositoryFullNames: await listIntegrationScopeExternalKeys(
+            connection.client,
+            integration.id,
+          ),
+          workspaceId: integration.workspaceId,
+        };
+      },
+      webhookSecret: config.githubApp?.webhookSecret ?? null,
+    }),
+    createJiraWebhookReceiver({
+      ...notificationDependencies,
+      findIntegrationByToken: findIntegrationByToken(jiraProvider),
+    }),
+  ].map((receiver) => [receiver.provider, receiver]),
+);
 const webhookHandler = createWebhookHandler({ receivers: webhookReceivers });
 
 const providerRegistry = createProviderRegistry([
@@ -523,6 +591,7 @@ const integrationService = createIntegrationService({
   credentialEncryption,
   listNotificationChannels: (workspaceId) =>
     listNotificationChannelsForWorkspace(connection.client, workspaceId),
+  notificationSetupUrl: config.forgeAppInstallUrl,
   oauthStateSecret: config.betterAuthSecret,
   providerRegistry,
   repository: integrationRepository,

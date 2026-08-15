@@ -1,0 +1,50 @@
+# Forge app that relays Confluence events to the Context Layer API.
+#
+# No application logic runs on Atlassian: this manifest only declares which
+# events we want and where to send them. Handling happens in
+# apps/api/src/integrations/confluence/webhook-receiver.ts.
+#
+# The remote baseUrl is fixed per app, so each environment needs its own app:
+# a local one pointed at your ngrok URL, and one pointed at production.
+#
+# Setup:
+#   npm i -g @forge/cli
+#   forge login
+#   forge register            # creates the app and fills in app.id below
+#   forge deploy
+#   forge install             # choose Confluence, then your site
+#
+# After `forge register`, copy the app id into the API environment as
+# FORGE_APP_ID — it is the audience of the tokens Forge signs, and the receiver
+# rejects deliveries that do not match it.
+
+app:
+  id: ari:cloud:ecosystem::app/16201c44-c152-4552-8d0f-e6a77901000c
+  runtime:
+    name: nodejs22.x
+
+remotes:
+  - key: context-layer-api
+    baseUrl: https://crummiest-basket-simmering.ngrok-free.dev
+
+modules:
+  trigger:
+    - key: confluence-content-events
+      events:
+        - avi:confluence:created:page
+        - avi:confluence:updated:page
+        - avi:confluence:created:comment
+      endpoint: confluence-events-endpoint
+
+  endpoint:
+    - key: confluence-events-endpoint
+      remote: context-layer-api
+      route:
+        path: /api/webhooks/confluence
+
+permissions:
+  scopes:
+    # Required by the page and comment trigger events below. Forge's linter
+    # names the scope each event needs, so add what it asks for rather than
+    # guessing at granular equivalents.
+    - read:confluence-content.summary
