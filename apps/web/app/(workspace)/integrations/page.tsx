@@ -88,7 +88,6 @@ export default async function IntegrationsPage() {
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
       <WorkspacePageHeader
         description="Connect and manage the tools that provide context to this workspace."
-        eyebrow="Context sources"
         title="Integrations"
       />
 

@@ -48,7 +48,6 @@ export default async function BundlesPage() {
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
       <WorkspacePageHeader
         description="Group connected providers so a personal access token can be scoped to just the tools an agent needs."
-        eyebrow="MCP access"
         title="Bundles"
       />
 

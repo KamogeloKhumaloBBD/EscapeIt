@@ -9,7 +9,6 @@ import {
   RevokeInvitationButton,
 } from "@/app/(workspace)/members/member-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { WorkspacePageHeader } from "@/components/workspace-page-header";
 import { getMemberListState } from "@/lib/server/member";
 
 function initials(name: string): string {
@@ -86,7 +86,6 @@ export default async function MembersPage() {
             bring their own provider identities.
           </>
         }
-        eyebrow="Workspace access"
         title="Members"
       />
 

@@ -75,7 +75,6 @@ export default async function BundleDetailPage({
             ? "Manage this bundle's name, description, and providers."
             : "Personal access tokens can be scoped to this bundle from Agent Setup."
         }
-        eyebrow="Bundles"
         title={bundle.name}
       />
 

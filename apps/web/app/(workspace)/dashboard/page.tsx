@@ -91,7 +91,6 @@ export default async function DashboardPage({
             </Button>
           }
           description="Workspace tool usage, reliability, and recent activity."
-          eyebrow={`${workspaceState.workspace.role} workspace`}
           title={workspaceState.workspace.name}
         />
         <Alert className="mt-9" variant="destructive">
@@ -145,7 +144,6 @@ export default async function DashboardPage({
       <DashboardTimeZone current={timeZone} />
       <WorkspacePageHeader
         description="Workspace tool usage, reliability, and recent activity."
-        eyebrow={`${workspaceState.workspace.role} workspace`}
         title={workspaceState.workspace.name}
       />
 
