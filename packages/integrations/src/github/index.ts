@@ -1,4 +1,4 @@
-import type { GitHubAppConfig } from "../../config/env";
+import type { GitHubAppConfig } from "../config";
 import type { ProviderModule } from "../provider-module";
 import { createGitHubAdapter } from "./adapter";
 import { githubDefinition, githubProvider } from "./definition";

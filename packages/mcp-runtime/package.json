@@ -1,0 +1,33 @@
+{
+  "name": "@context-layer/mcp-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@context-layer/db": "workspace:*",
+    "@context-layer/integrations": "workspace:*",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "express": "5.2.1",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.13.3",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3"
+  }
+}

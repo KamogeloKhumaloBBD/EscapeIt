@@ -9,7 +9,7 @@ import {
 } from "@context-layer/db";
 
 import { HttpError } from "../../errors";
-import type { ProviderRegistry } from "../../integrations/provider-registry";
+import type { ProviderRegistry } from "@context-layer/integrations";
 import { requireWorkspace } from "../shared/require-workspace";
 import type { IntegrationBundleContract } from "./bundle.contracts";
 

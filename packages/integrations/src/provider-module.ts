@@ -5,7 +5,7 @@ import type {
   ProviderKey,
 } from "@context-layer/db";
 
-import type { McpToolProvider } from "../features/mcp-access/mcp-tool-provider";
+import type { McpToolProvider } from "./mcp-tool-provider";
 import type { IntegrationAdapter } from "./integration-adapter";
 import type { ProviderAccountRuntime } from "./provider-account-runtime";
 import type { ProviderDefinition } from "./provider-registry";

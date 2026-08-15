@@ -6,7 +6,7 @@ import {
 } from "@context-layer/db";
 import { z } from "zod";
 
-import { adfToTextValue } from "./content";
+import { adfToTextValue } from "@context-layer/integrations";
 import type { NotificationCard } from "../notification-channel-adapter";
 import {
   createNotificationWebhookReceiver,

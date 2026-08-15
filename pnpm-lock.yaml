@@ -57,12 +57,15 @@ importers:
       '@context-layer/email':
         specifier: workspace:*
         version: link:../../packages/email
-      '@modelcontextprotocol/node':
-        specifier: 2.0.0
-        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.1)
-      '@modelcontextprotocol/server':
-        specifier: 2.0.0
-        version: 2.0.0
+      '@context-layer/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
+      '@context-layer/mcp-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mcp-runtime
+      '@context-layer/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@node-rs/argon2':
         specifier: 2.0.2
         version: 2.0.2
@@ -78,12 +81,6 @@ importers:
       helmet:
         specifier: 8.3.0
         version: 8.3.0
-      mammoth:
-        specifier: ^1.12.1
-        version: 1.12.1
-      pdfjs-dist:
-        specifier: ^6.2.108
-        version: 6.2.108
       pg:
         specifier: 8.16.3
         version: 8.16.3
@@ -112,6 +109,58 @@ importers:
       '@types/pg':
         specifier: 8.16.0
         version: 8.16.0
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  apps/mcp:
+    dependencies:
+      '@context-layer/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@context-layer/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
+      '@context-layer/mcp-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mcp-runtime
+      '@context-layer/security':
+        specifier: workspace:*
+        version: link:../../packages/security
+      cors:
+        specifier: 2.8.6
+        version: 2.8.6
+      express:
+        specifier: 5.2.1
+        version: 5.2.1(supports-color@10.2.2)
+      helmet:
+        specifier: 8.3.0
+        version: 8.3.0
+      pino:
+        specifier: 10.3.1
+        version: 10.3.1
+      pino-http:
+        specifier: 11.0.0
+        version: 11.0.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/cors':
+        specifier: 2.8.19
+        version: 2.8.19
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
       tsup:
         specifier: 8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)
@@ -206,6 +255,9 @@ importers:
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -256,6 +308,90 @@ importers:
       '@types/react-dom':
         specifier: 19.2.4
         version: 19.2.4(@types/react@19.2.18)
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  packages/integrations:
+    dependencies:
+      '@context-layer/db':
+        specifier: workspace:*
+        version: link:../db
+      '@context-layer/security':
+        specifier: workspace:*
+        version: link:../security
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
+      mammoth:
+        specifier: ^1.12.1
+        version: 1.12.1
+      pdfjs-dist:
+        specifier: ^6.2.108
+        version: 6.2.108
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  packages/mcp-runtime:
+    dependencies:
+      '@context-layer/db':
+        specifier: workspace:*
+        version: link:../db
+      '@context-layer/integrations':
+        specifier: workspace:*
+        version: link:../integrations
+      '@modelcontextprotocol/node':
+        specifier: 2.0.0
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.1)
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
+      express:
+        specifier: 5.2.1
+        version: 5.2.1(supports-color@10.2.2)
+      pino:
+        specifier: 10.3.1
+        version: 10.3.1
+    devDependencies:
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  packages/security:
+    dependencies:
+      '@context-layer/db':
+        specifier: workspace:*
+        version: link:../db
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
       tsup:
         specifier: 8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(tsx@4.23.12)(typescript@6.0.3)

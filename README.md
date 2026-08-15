@@ -25,6 +25,7 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Web: <http://localhost:3000>
 - Pricing: <http://localhost:3000/pricing>
 - API health: <http://localhost:4000/api/health>
+- MCP health: <http://localhost:4100/health>
 - Proxied health: <http://localhost:3000/api/health>
 - Onboarding: <http://localhost:3000/onboarding>
 - Dashboard: <http://localhost:3000/dashboard>
@@ -32,15 +33,18 @@ On PowerShell, use `Copy-Item .env.example .env`. Replace every placeholder in `
 - Members: <http://localhost:3000/members>
 - Agent Setup: <http://localhost:3000/agent-setup>
 
-The browser uses relative `/api/*` paths. Next.js proxies them to the Express API, which owns authentication and every application endpoint.
+The browser uses relative `/api/*` paths. Next.js proxies the MCP execution and protected-resource paths to the MCP service and all other application paths to the Express API.
 
 ## Workspace
 
 ```text
 apps/web       Next.js frontend
 apps/api       Express API
+apps/mcp       Stateless MCP execution service
 packages/email Shared React Email templates
 packages/db    PostgreSQL utilities and Flyway SQL migrations
+packages/integrations Shared provider adapters and MCP tools
+packages/security Shared credential-envelope boundary
 ```
 
 ## Data foundation
@@ -203,21 +207,22 @@ Request logs record URL paths without query values. OAuth authorization codes an
 
 | Command                   | Purpose                                         |
 | ------------------------- | ----------------------------------------------- |
-| `pnpm dev:full`           | Start PostgreSQL, Express, and Next.js          |
+| `pnpm dev:full`           | Start PostgreSQL, API, MCP, and Next.js         |
 | `pnpm dev:web`            | Start Next.js                                   |
 | `pnpm dev:api`            | Start Express                                   |
+| `pnpm dev:mcp`            | Start the MCP execution service                 |
 | `pnpm db:up`              | Start local PostgreSQL and wait for health      |
 | `pnpm db:down`            | Stop PostgreSQL and preserve its named volume   |
 | `pnpm db:migrate`         | Run reviewed Flyway migrations locally          |
 | `pnpm db:railway:migrate` | Run Flyway against linked Railway Postgres      |
 | `pnpm db:validate`        | Validate local Flyway migrations                |
 | `pnpm db:info`            | Inspect local Flyway state                      |
-| `pnpm test`               | Run focused API and web behavior tests          |
+| `pnpm test`               | Run focused application behavior tests          |
 | `pnpm verify`             | Check formatting, linting, tests, types, builds |
 | `pnpm docker:build`       | Build all production deployment images          |
 | `pnpm email:dev`          | Preview shared email templates on port 3001     |
 
-Migrations never run during web or API startup. Product data is never seeded.
+Migrations never run during web, API, or MCP startup. Product data is never seeded.
 
 ## Environment
 
@@ -225,6 +230,7 @@ Frontend server:
 
 - `PUBLIC_APP_URL`: public Next.js origin
 - `API_INTERNAL_URL`: server-side Express origin
+- `MCP_INTERNAL_URL`: server-side MCP service origin
 - `PORT`: hosting-platform port; defaults to `3000` in the image
 
 API:
@@ -245,17 +251,25 @@ API:
 - Optional pair: `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
 - Optional pair: `BITBUCKET_OAUTH_CLIENT_ID`, `BITBUCKET_OAUTH_CLIENT_SECRET`
 
+MCP:
+
+- `DATABASE_URL`, `DATABASE_SSL_MODE`
+- `PORT` in hosted environments, or `MCP_PORT` locally
+- `CREDENTIAL_ENCRYPTION_KEY`, `PUBLIC_APP_URL`
+- The same configured Atlassian, Bitbucket, and GitHub client credentials as API, so provider access tokens can be refreshed during tool execution
+
 Local Compose additionally uses `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT`. See `.env.example` for valid formats.
 
 ## Railway
 
-Railway runs `web`, `api`, `flyway`, `slm`, `digest-cron`, and `Postgres` in one project. The application service manifests are `railway.web.json`, `railway.api.json`, `railway.flyway.json`, `railway.slm.json`, and `railway.digest-cron.json`.
+Railway runs `web`, `api`, `mcp`, `flyway`, `slm`, `digest-cron`, and `Postgres` in one project. The application service manifests are `railway.web.json`, `railway.api.json`, `railway.mcp.json`, `railway.flyway.json`, `railway.slm.json`, and `railway.digest-cron.json`.
 
 Use these service configuration paths in Railway and keep the repository root as each build context. Configure:
 
 ```text
 web
   API_INTERNAL_URL=http://api.railway.internal:4000
+  MCP_INTERNAL_URL=http://${{mcp.RAILWAY_PRIVATE_DOMAIN}}:${{mcp.PORT}}
   PUBLIC_APP_URL=https://<web-domain>
   PORT=3000
 
@@ -271,6 +285,20 @@ api
   ATLASSIAN_OAUTH_CLIENT_ID=<secret>
   ATLASSIAN_OAUTH_CLIENT_SECRET=<secret>
   PORT=4000
+
+mcp
+  DATABASE_URL=${{Postgres.DATABASE_URL}}
+  DATABASE_SSL_MODE=disable
+  PUBLIC_APP_URL=https://<web-domain>
+  CREDENTIAL_ENCRYPTION_KEY=${{api.CREDENTIAL_ENCRYPTION_KEY}}
+  ATLASSIAN_OAUTH_CLIENT_ID=${{api.ATLASSIAN_OAUTH_CLIENT_ID}}
+  ATLASSIAN_OAUTH_CLIENT_SECRET=${{api.ATLASSIAN_OAUTH_CLIENT_SECRET}}
+  BITBUCKET_OAUTH_CLIENT_ID=${{api.BITBUCKET_OAUTH_CLIENT_ID}}
+  BITBUCKET_OAUTH_CLIENT_SECRET=${{api.BITBUCKET_OAUTH_CLIENT_SECRET}}
+  GITHUB_APP_CLIENT_ID=${{api.GITHUB_APP_CLIENT_ID}}
+  GITHUB_APP_CLIENT_SECRET=${{api.GITHUB_APP_CLIENT_SECRET}}
+  GITHUB_APP_SLUG=${{api.GITHUB_APP_SLUG}}
+  PORT=4100
 
 flyway
   FLYWAY_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
@@ -289,7 +317,7 @@ digest-cron
 
 ```
 
-The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. The `slm` and `digest-cron` services also have no public domains; the latter runs at `0 16 * * *` and exits after one authenticated request. Keep GitHub autodeploy disabled for all five application services; the production GitHub Actions workflow deploys Flyway, SLM, API, web, and digest cron in that order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Each service is deployed only when its own inputs changed since its latest successful production revision.
+The `mcp` service has no public domain; web reaches it over Railway private networking while clients retain the canonical web origin. The `flyway` service uses `packages/db/Dockerfile.flyway`, has no domain or volume, and exits after applying migrations. The `slm` and `digest-cron` services also have no public domains; the latter runs at `0 16 * * *` and exits after one authenticated request. Keep GitHub autodeploy disabled for all six application services; the production GitHub Actions workflow deploys Flyway, SLM, API, MCP, web, and digest cron in that order. The Railway manifests intentionally omit watch patterns because GitHub Actions owns deployment selection and ordering. Each service is deployed only when its own inputs changed since its latest successful production revision.
 
 Configure the private GitHub repository with:
 
@@ -301,7 +329,9 @@ Configure the private GitHub repository with:
 
 Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build Docker images or test Flyway against a temporary database; Railway performs deployment builds, and developers must run `pnpm db:migrate` and `pnpm db:validate` locally whenever migrations change.
 
-For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, SLM, API, web, and digest cron in dependency order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and require the public web root and proxied `/api/health` endpoint to be healthy. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, SLM, API, MCP, web, and digest cron in dependency order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and validate the public web root, proxied API health, MCP discovery metadata, and the unauthenticated MCP challenge. Deployment logs are bounded on failure and must never contain credentials or connection strings.
+
+The first MCP rollout keeps API's original gateway mounted as a rollback path. Remove that fallback only in a follow-up release after a controlled authenticated tool-list and read-only invocation succeed through the web-routed MCP service.
 
 For an exceptional manual migration fallback, run:
 
@@ -311,7 +341,7 @@ railway run --service Postgres pnpm db:railway:migrate
 
 The fallback requires an active Postgres TCP proxy and a `DATABASE_PUBLIC_URL`. Normal production migrations use Railway private networking and do not require a public database endpoint. Never edit an applied versioned migration, run `flyway repair` automatically, or attempt an automatic database rollback; ship forward-compatible corrective migrations instead.
 
-Railway health checks require the configured `PORT`. If web cannot reach Express, verify `API_INTERNAL_URL`, the lowercase `api` service name, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
+Railway health checks require the configured `PORT`. If web cannot reach a backend, verify `API_INTERNAL_URL`, `MCP_INTERNAL_URL`, the lowercase `api` and `mcp` service names, and private networking. If auth cookies fail, confirm `BETTER_AUTH_URL` and `PUBLIC_APP_URL` exactly match the HTTPS web origin.
 
 ## Database safety
 

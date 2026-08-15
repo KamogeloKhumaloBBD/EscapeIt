@@ -24,10 +24,7 @@ import {
   ProviderAccountRuntimeError,
   type ProviderAccountRuntime,
 } from "../provider-account-runtime";
-import type {
-  McpPrincipal,
-  McpToolProvider,
-} from "../../features/mcp-access/mcp-tool-provider";
+import type { McpPrincipal, McpToolProvider } from "../mcp-tool-provider";
 
 const confluenceProvider = parseProviderKey("confluence");
 const confluenceSpaceScope = parseScopeKey("confluence.space");

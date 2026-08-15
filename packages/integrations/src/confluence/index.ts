@@ -1,4 +1,4 @@
-import type { AtlassianOAuthConfig } from "../../config/env";
+import type { AtlassianOAuthConfig } from "../config";
 import type { ProviderModule } from "../provider-module";
 import { createConfluenceAdapter } from "./adapter";
 import { confluenceDefinition, confluenceProvider } from "./definition";

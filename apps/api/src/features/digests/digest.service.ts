@@ -15,7 +15,7 @@ import {
   renderDigestGroups,
   type DigestSummarizer,
 } from "../../integrations/summarizer/digest-summarizer";
-import type { ProviderRegistry } from "../../integrations/provider-registry";
+import type { ProviderRegistry } from "@context-layer/integrations";
 import { requireWorkspace } from "../shared/require-workspace";
 import type { DigestEmailSender } from "./digest-email";
 

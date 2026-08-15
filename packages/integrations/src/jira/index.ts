@@ -1,5 +1,5 @@
 import { createJiraMcpToolProvider } from "./mcp-tools";
-import type { AtlassianOAuthConfig } from "../../config/env";
+import type { AtlassianOAuthConfig } from "../config";
 import { createJiraAdapter } from "./adapter";
 import type { ProviderModule } from "../provider-module";
 import { jiraDefinition, jiraProvider } from "./definition";

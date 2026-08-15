@@ -6,10 +6,7 @@ import type {
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import type {
-  McpPrincipal,
-  McpToolProvider,
-} from "../../features/mcp-access/mcp-tool-provider";
+import type { McpPrincipal, McpToolProvider } from "../mcp-tool-provider";
 import {
   ProviderAdapterError,
   type OAuthCredentials,

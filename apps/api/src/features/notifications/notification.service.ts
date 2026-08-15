@@ -17,9 +17,11 @@ import {
   type NotificationChannelAdapter,
   type NotificationChannelFailure,
 } from "../../integrations/notification-channel-adapter";
-import type { ProviderRegistry } from "../../integrations/provider-registry";
-import { resolveProviderEventPreference } from "../../integrations/provider-registry";
-import type { CredentialEncryption } from "../../security/credential-encryption";
+import {
+  resolveProviderEventPreference,
+  type ProviderRegistry,
+} from "@context-layer/integrations";
+import type { CredentialEncryption } from "@context-layer/security";
 import type {
   NotificationChannelContract,
   NotificationPreferenceContract,

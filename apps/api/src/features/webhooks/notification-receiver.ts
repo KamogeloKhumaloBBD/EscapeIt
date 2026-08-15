@@ -18,7 +18,7 @@ import {
   classifyNotificationChannelFailure,
   notificationCredentialsFailure,
 } from "../../integrations/notification-channel-adapter";
-import type { CredentialEncryption } from "../../security/credential-encryption";
+import type { CredentialEncryption } from "@context-layer/security";
 import {
   WebhookReceiverError,
   type WebhookHeaders,

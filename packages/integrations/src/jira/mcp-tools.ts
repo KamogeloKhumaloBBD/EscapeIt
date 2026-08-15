@@ -26,10 +26,7 @@ import {
   ProviderAccountRuntimeError,
   type ProviderAccountRuntime,
 } from "../provider-account-runtime";
-import type {
-  McpPrincipal,
-  McpToolProvider,
-} from "../../features/mcp-access/mcp-tool-provider";
+import type { McpPrincipal, McpToolProvider } from "../mcp-tool-provider";
 
 const jiraProvider = parseProviderKey("jira");
 const jiraProjectScope = parseScopeKey("jira.project");

@@ -1,4 +1,4 @@
-import type { BitbucketOAuthConfig } from "../../config/env";
+import type { BitbucketOAuthConfig } from "../config";
 import type { ProviderModule } from "../provider-module";
 import { createBitbucketAdapter } from "./adapter";
 import { bitbucketDefinition, bitbucketProvider } from "./definition";

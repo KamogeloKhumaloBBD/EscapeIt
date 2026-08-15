@@ -7,7 +7,6 @@ export default defineConfig({
   format: ["esm"],
   noExternal: [
     "@context-layer/db",
-    "@context-layer/email",
     "@context-layer/integrations",
     "@context-layer/mcp-runtime",
     "@context-layer/security",

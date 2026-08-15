@@ -6,7 +6,7 @@ import type {
 } from "@context-layer/db";
 import { z } from "zod";
 
-import type { CredentialEncryption } from "../security/credential-encryption";
+import type { CredentialEncryption } from "@context-layer/security";
 import {
   ProviderAdapterError,
   type IntegrationAdapter,

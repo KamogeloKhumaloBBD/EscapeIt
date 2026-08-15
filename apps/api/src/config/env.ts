@@ -1,4 +1,9 @@
 import { parseDatabaseConfig, type DatabaseConfig } from "@context-layer/db";
+import type {
+  AtlassianOAuthConfig,
+  BitbucketOAuthConfig,
+  GitHubAppConfig,
+} from "@context-layer/integrations";
 import { z } from "zod";
 
 const optionalCredential = z.preprocess(
@@ -66,16 +71,6 @@ const apiEnvironmentSchema = z.object({
   ),
 });
 
-export interface AtlassianOAuthConfig {
-  clientId: string;
-  clientSecret: string;
-}
-
-export interface BitbucketOAuthConfig {
-  clientId: string;
-  clientSecret: string;
-}
-
 export interface ApiConfig {
   atlassianOAuth: AtlassianOAuthConfig | null;
   bitbucketOAuth: BitbucketOAuthConfig | null;
@@ -96,13 +91,6 @@ export interface ApiConfig {
   summarizerBaseUrl: string | null;
   summarizerApiKey: string | null;
   webhookPublicUrl: string;
-}
-
-export interface GitHubAppConfig {
-  clientId: string;
-  clientSecret: string;
-  slug: string;
-  webhookSecret: string | null;
 }
 
 function isThirtyTwoByteBase64(value: string): boolean {

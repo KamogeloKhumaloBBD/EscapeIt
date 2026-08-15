@@ -3,9 +3,11 @@
 ## Architecture
 
 - `apps/web` is the Next.js frontend. It must call the backend through `/api` and must never import `@context-layer/db`.
-- `apps/api` is the independently deployable Express backend and owns every HTTP API, authentication handler, MCP endpoint, webhook, and notification operation.
-- `packages/db` owns PostgreSQL connectivity and future Flyway SQL migrations. It must not import either application.
+- `apps/api` is the independently deployable Express control plane and owns authentication, application APIs, MCP token/connection management, webhooks, and notification operations. During the staged MCP cutover it also retains the legacy MCP gateway as a rollback path.
+- `apps/mcp` is the independently deployable Express MCP execution plane. It owns the primary `/api/mcp` and protected-resource discovery handlers and must remain stateless so Railway replicas need no session affinity.
+- `packages/db` owns PostgreSQL connectivity and future Flyway SQL migrations. It must not import any application.
 - `packages/email` owns shared React Email templates. Email senders must compose these templates instead of embedding feature-specific HTML or text bodies.
+- `packages/integrations` owns provider definitions, adapters, account execution, and MCP tools shared by the API and MCP service. `packages/security` owns the shared credential-envelope boundary, and `packages/mcp-runtime` owns shared MCP protocol handling during the staged cutover.
 - Use pnpm for all dependency and script operations. Do not use npm or yarn to modify this repository.
 
 ## Development workflow
@@ -13,11 +15,11 @@
 - Run commands from the repository root unless a command explicitly says otherwise.
 - Use `pnpm dev:full` for the complete local stack, `pnpm verify` before handoff, and `pnpm docker:build` when deployment artifacts change.
 - `pnpm lint` and `pnpm format:check` are read-only checks. Use the explicit `:fix` or `format` commands only when edits are intended.
-- Keep both applications independently buildable and deployable.
+- Keep every application independently buildable and deployable.
 
 ## APIs and dependencies
 
-- Express owns `/api/*`; do not add Next.js route handlers for application APIs.
+- Express owns `/api/*`; do not add Next.js route handlers for application APIs. Next.js rewrites the exact MCP paths to `apps/mcp` and all remaining API paths to `apps/api`.
 - Organize backend behavior by feature with the flow `route -> service/use case -> repository or provider adapter`.
 - Routes translate HTTP only, services orchestrate business use cases, repositories own raw SQL and transaction boundaries, and provider adapters own external-provider behavior.
 - Compose functional factories explicitly in `server.ts`. Do not add a dependency-injection framework or `BaseController`, `BaseService`, or `BaseRepository` abstractions.

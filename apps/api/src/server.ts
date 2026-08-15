@@ -82,6 +82,24 @@ import {
 } from "@context-layer/db";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
+import {
+  bitbucketProvider,
+  confluenceProvider,
+  createBitbucketProviderModule,
+  createConfluenceProviderModule,
+  createGitHubProviderModule,
+  createJiraProviderModule,
+  createProviderAccountRuntime,
+  createProviderRegistry,
+  githubProvider,
+  isProviderModule,
+  jiraProvider,
+  type ProviderModule,
+} from "@context-layer/integrations";
+import {
+  createMcpGateway,
+  createProtectedResourceMetadataHandler,
+} from "@context-layer/mcp-runtime";
 import { Router } from "express";
 
 import { createApp } from "./app";
@@ -110,10 +128,8 @@ import {
   createMcpAccessService,
   type McpAccessServiceDependencies,
 } from "./features/mcp-access/mcp-access.service";
-import { createMcpGateway } from "./features/mcp-access/mcp-gateway";
 import { createMcpConnectionRouter } from "./features/mcp-access/mcp-connection.routes";
 import { createMcpConnectionService } from "./features/mcp-access/mcp-connection.service";
-import { createProtectedResourceMetadataHandler } from "./features/mcp-access/mcp-oauth-metadata";
 import { createInvitationEmailSender } from "./features/members/invitation-email";
 import { createMemberRouter } from "./features/members/member.routes";
 import {
@@ -133,26 +149,12 @@ import { createWebRequestHandler } from "./http/web-request-handler";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
 import { createLlamaServerSummarizer } from "./integrations/summarizer/llama-server-summarizer";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
-import { createJiraProviderModule } from "./integrations/jira";
-import { jiraProvider } from "./integrations/jira/definition";
 import { createJiraWebhookReceiver } from "./integrations/jira/webhook-receiver";
-import { createConfluenceProviderModule } from "./integrations/confluence";
-import { confluenceProvider } from "./integrations/confluence/definition";
 import { createConfluenceWebhookReceiver } from "./integrations/confluence/webhook-receiver";
-import { createBitbucketProviderModule } from "./integrations/bitbucket";
-import { bitbucketProvider } from "./integrations/bitbucket/definition";
 import { createBitbucketWebhookReceiver } from "./integrations/bitbucket/webhook-receiver";
-import { createGitHubProviderModule } from "./integrations/github";
-import { githubProvider } from "./integrations/github/definition";
 import { createGitHubWebhookReceiver } from "./integrations/github/webhook-receiver";
 import { createLogger } from "./logging";
-import {
-  isProviderModule,
-  type ProviderModule,
-} from "./integrations/provider-module";
-import { createProviderRegistry } from "./integrations/provider-registry";
-import { createProviderAccountRuntime } from "./integrations/provider-account-runtime";
-import { createCredentialEncryption } from "./security/credential-encryption";
+import { createCredentialEncryption } from "@context-layer/security";
 
 const config = parseApiConfig(process.env);
 const logger = createLogger(process.env.LOG_LEVEL ?? "info");

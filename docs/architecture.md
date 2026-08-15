@@ -26,14 +26,14 @@ At a glance:
 
 ## 1. System map
 
-Two applications, one database, one auth surface.
+Three applications, one database, one public origin.
 
 `apps/web` is a Next.js app that renders the workspace dashboard. It holds no session logic
-and never talks to Postgres&mdash;every page and server action calls `apps/api` over HTTP,
-forwarding the browser's cookie along with it. `apps/api` is an Express service that owns
-three things: the REST routers behind `/api/*`, the `better-auth` handler mounted at
-`/api/auth/*` (identity, sessions, and the OAuth provider surface MCP clients use), and the
-MCP gateway itself at `/api/mcp`. All three share one Postgres database via `packages/db`.
+and never talks to Postgres. Next.js sends the exact MCP execution and protected-resource
+paths to `apps/mcp`, while every other API path goes to `apps/api`. `apps/api` owns the REST
+routers, `better-auth`, OAuth consent, webhooks, and MCP credential management. `apps/mcp`
+owns stateless tool discovery and invocation. Both backend services share Postgres through
+`packages/db` and provider behavior through `packages/integrations`.
 
 ```mermaid
 flowchart LR
@@ -44,11 +44,15 @@ flowchart LR
 
   subgraph Web["apps/web (Next.js)"]
     Actions["Server actions"]
+    McpProxy["first-party MCP rewrite"]
   end
 
   subgraph Api["apps/api (Express)"]
     AuthH["/api/auth/*<br/>better-auth handler"]
     ApiR["/api/*<br/>REST routers"]
+  end
+
+  subgraph Mcp["apps/mcp (Express)"]
     Gw["/api/mcp<br/>MCP gateway"]
   end
 
@@ -58,7 +62,8 @@ flowchart LR
   Browser -- "cookie" --> Actions
   Actions -- "fetch, cookie forwarded" --> ApiR
   Actions -. "sign-in, consent" .-> AuthH
-  Agent -- "Bearer ctx_mcp_* or ctx_oauth_at_*" --> Gw
+  Agent -- "Bearer ctx_mcp_* or ctx_oauth_at_*" --> McpProxy
+  McpProxy -- "private Railway HTTP" --> Gw
 
   AuthH --> Db
   ApiR --> Db
@@ -67,8 +72,9 @@ flowchart LR
   ApiR -- "connect, sync" --> Providers
 ```
 
-> The dashboard never touches the database directly; it is a client of the same API an agent
-> calls, just authenticated with a cookie instead of a bearer token.
+> The dashboard never touches the database directly. It uses the cookie-authenticated API
+> control plane, while agents use the bearer-authenticated MCP execution plane; both enforce
+> the same workspace and provider policy from Postgres.
 
 ## 2. Core data model
 
@@ -120,7 +126,7 @@ Relationship-level view, not a full schema&mdash;table and column names match
 
 A provider is a self-registering module, not a hardcoded special case.
 
-Each provider lives under `apps/api/src/integrations/<name>/` and exports a
+Each context provider lives under `packages/integrations/src/<name>/` and exports a
 `ProviderModule`: a `ProviderDefinition` (capabilities, display labels, scope kinds, and its
 full MCP tool catalogue, each tool marked `read` or `write`) plus an `IntegrationAdapter`
 (authorization URL, code exchange, resource/scope discovery, credential refresh) and, if it
@@ -288,9 +294,11 @@ unscoped, but it can never leave the user mid-authorization on a bundle-save fai
 
 ## 8. The MCP gateway
 
-Every agent call, on either credential path, lands on one endpoint: `POST /api/mcp`.
+Every agent call, on either credential path, lands on one public endpoint: `POST /api/mcp`.
+Next.js preserves that first-party URL while forwarding execution to the private, independently
+scalable `apps/mcp` Railway service.
 
-`mcp-gateway.ts` is the single place that turns a bearer token into a set of callable tools.
+`packages/mcp-runtime` is the single protocol boundary that turns a bearer token into a set of callable tools.
 It reads the token's shape to pick a resolver (`ctx_mcp_...` vs `ctx_oauth_at_...`), builds a
 fresh, stateless MCP server for the request, and&mdash;before registering a single
 tool&mdash;filters the workspace's provider modules down to the principal's bundle, if it has
@@ -337,11 +345,11 @@ call, whether a surviving tool is allowed to run.
 | **Personal access token** | A `ctx_mcp_...` credential a member mints from the dashboard; stored as a hash, acts as its creator.                                   |
 | **OAuth connection**      | An agent's dynamically-registered OAuth client plus a member's granted consent; produces `ctx_oauth_at_...`/`ctx_oauth_rt_...` tokens. |
 | **Principal**             | The resolved shape&mdash;membership, role, bundle&mdash;that the gateway builds from either credential before doing anything else.     |
-| **Provider module**       | A self-registering package under `apps/api/src/integrations/`: a definition, an adapter, and an optional MCP tool provider.            |
+| **Provider module**       | A self-registering module under `packages/integrations`: a definition, an adapter, and an optional MCP tool provider.                  |
 | **Activity event**        | An immutable audit row appended for actions across the system, correlated per request.                                                 |
 
 ---
 
-High-level architecture reference for Context Layer. Reflects `apps/api`, `apps/web`, and
-`packages/db` as of this codebase snapshot&mdash;read the source under each package for exact
-behavior.
+High-level architecture reference for Context Layer. Reflects `apps/api`, `apps/mcp`,
+`apps/web`, and their shared packages as of this codebase snapshot&mdash;read the source under
+each package for exact behavior.

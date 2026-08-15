@@ -81,7 +81,22 @@ jobs:
             apps/api \
             packages/db \
             packages/email \
+            packages/integrations \
+            packages/mcp-runtime \
+            packages/security \
             railway.api.json \
+            package.json \
+            pnpm-lock.yaml \
+            pnpm-workspace.yaml \
+            tsconfig.base.json \
+            .dockerignore)"
+          mcp_result="$(detect mcp "$TARGET_SHA" \
+            apps/mcp \
+            packages/db \
+            packages/integrations \
+            packages/mcp-runtime \
+            packages/security \
+            railway.mcp.json \
             package.json \
             pnpm-lock.yaml \
             pnpm-workspace.yaml \
@@ -103,10 +118,11 @@ jobs:
           flyway_changed="${flyway_result%%$'\t'*}"
           slm_changed="${slm_result%%$'\t'*}"
           api_changed="${api_result%%$'\t'*}"
+          mcp_changed="${mcp_result%%$'\t'*}"
           web_changed="${web_result%%$'\t'*}"
           digest_cron_changed="${digest_cron_result%%$'\t'*}"
           any_changed=false
-          if [[ "$flyway_changed" == "true" || "$slm_changed" == "true" || "$api_changed" == "true" || "$web_changed" == "true" || "$digest_cron_changed" == "true" ]]; then
+          if [[ "$flyway_changed" == "true" || "$slm_changed" == "true" || "$api_changed" == "true" || "$mcp_changed" == "true" || "$web_changed" == "true" || "$digest_cron_changed" == "true" ]]; then
             any_changed=true
           fi
 
@@ -114,6 +130,7 @@ jobs:
             echo "flyway_changed=$flyway_changed"
             echo "slm_changed=$slm_changed"
             echo "api_changed=$api_changed"
+            echo "mcp_changed=$mcp_changed"
             echo "web_changed=$web_changed"
             echo "digest_cron_changed=$digest_cron_changed"
             echo "any_changed=$any_changed"
@@ -125,6 +142,7 @@ jobs:
             echo "- Flyway: ${flyway_result#*$'\t'}"
             echo "- SLM: ${slm_result#*$'\t'}"
             echo "- API: ${api_result#*$'\t'}"
+            echo "- MCP: ${mcp_result#*$'\t'}"
             echo "- Web: ${web_result#*$'\t'}"
             echo "- Digest cron: ${digest_cron_result#*$'\t'}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -146,6 +164,12 @@ jobs:
         shell: bash
         run: |
           bash scripts/deploy-railway-service.sh api "$TARGET_SHA"
+
+      - name: Deploy MCP
+        if: steps.changes.outputs.mcp_changed == 'true'
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh mcp "$TARGET_SHA"
 
       - name: Deploy web
         if: steps.changes.outputs.web_changed == 'true'
@@ -181,6 +205,58 @@ jobs:
             const health = JSON.parse(process.env.HEALTH_RESPONSE ?? "{}");
             if (health.status !== "ok" || health.database !== "up") {
               console.error("Production API health response is not healthy.");
+              process.exit(1);
+            }
+          '
+
+          metadata="$(curl --fail --silent --show-error \
+            --retry 5 --retry-all-errors --retry-delay 5 \
+            --max-time 30 \
+            "$origin/.well-known/oauth-protected-resource/api/mcp")"
+
+          MCP_METADATA="$metadata" EXPECTED_ORIGIN="$origin" node -e '
+            const metadata = JSON.parse(process.env.MCP_METADATA ?? "{}");
+            const origin = process.env.EXPECTED_ORIGIN;
+            if (
+              metadata.resource !== `${origin}/api/mcp` ||
+              !Array.isArray(metadata.authorization_servers) ||
+              !metadata.authorization_servers.includes(`${origin}/api/auth`) ||
+              !Array.isArray(metadata.scopes_supported) ||
+              !metadata.scopes_supported.includes("mcp:access")
+            ) {
+              console.error("Production MCP discovery metadata is invalid.");
+              process.exit(1);
+            }
+          '
+
+          mcp_headers="$(mktemp)"
+          mcp_body="$(mktemp)"
+          trap 'rm -f "$mcp_headers" "$mcp_body"' EXIT
+          mcp_status="$(curl --silent --show-error \
+            --max-time 30 \
+            --dump-header "$mcp_headers" \
+            --output "$mcp_body" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+            "$origin/api/mcp")"
+
+          test "$mcp_status" = "401" || {
+            echo "Production MCP endpoint returned HTTP $mcp_status without a credential." >&2
+            exit 1
+          }
+          grep --ignore-case --quiet \
+            '^www-authenticate: Bearer .*scope="mcp:access"' \
+            "$mcp_headers" || {
+              echo "Production MCP authentication challenge is missing or invalid." >&2
+              exit 1
+            }
+
+          MCP_ERROR_BODY="$(cat "$mcp_body")" node -e '
+            const body = JSON.parse(process.env.MCP_ERROR_BODY ?? "{}");
+            if (body?.error?.code !== -32001 || body?.jsonrpc !== "2.0") {
+              console.error("Production MCP authentication response is invalid.");
               process.exit(1);
             }
           '

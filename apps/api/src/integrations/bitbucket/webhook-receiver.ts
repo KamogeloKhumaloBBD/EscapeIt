@@ -1,7 +1,7 @@
 import { parseNotificationEventKey, type JsonObject } from "@context-layer/db";
 import { z } from "zod";
 
-import { bitbucketProvider } from "./definition";
+import { bitbucketProvider } from "@context-layer/integrations";
 import type {
   NotificationCard,
   NotificationCardFact,

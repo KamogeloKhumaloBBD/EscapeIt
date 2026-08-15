@@ -24,11 +24,12 @@ import {
   type ActivityEvent,
 } from "@context-layer/db";
 import { dailyDigestEmail, renderEmail } from "@context-layer/email";
-
-import { bitbucketDefinition } from "../src/integrations/bitbucket/definition";
-import { confluenceDefinition } from "../src/integrations/confluence/definition";
-import { githubDefinition } from "../src/integrations/github/definition";
-import { jiraDefinition } from "../src/integrations/jira/definition";
+import {
+  bitbucketDefinition,
+  confluenceDefinition,
+  githubDefinition,
+  jiraDefinition,
+} from "@context-layer/integrations";
 import {
   groupDigestEvents,
   renderDigestGroups,

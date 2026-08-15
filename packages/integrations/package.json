@@ -1,0 +1,32 @@
+{
+  "name": "@context-layer/integrations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@context-layer/db": "workspace:*",
+    "@context-layer/security": "workspace:*",
+    "@modelcontextprotocol/server": "2.0.0",
+    "mammoth": "^1.12.1",
+    "pdfjs-dist": "^6.2.108",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3"
+  }
+}

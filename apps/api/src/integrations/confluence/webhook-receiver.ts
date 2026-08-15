@@ -1,7 +1,7 @@
 import { parseNotificationEventKey, type JsonObject } from "@context-layer/db";
 import { z } from "zod";
 
-import { confluenceProvider } from "./definition";
+import { confluenceProvider } from "@context-layer/integrations";
 import { cloudIdFromInvocationToken } from "./forge-invocation-token";
 import type {
   NotificationCard,

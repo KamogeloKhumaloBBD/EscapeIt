@@ -7,7 +7,7 @@ import {
 } from "@context-layer/db";
 import { z } from "zod";
 
-import { githubProvider } from "./definition";
+import { githubProvider } from "@context-layer/integrations";
 import type {
   NotificationCard,
   NotificationCardFact,

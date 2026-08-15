@@ -88,7 +88,14 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/api/**/*.{ts,tsx}", "packages/db/**/*.{ts,tsx}"],
+    files: [
+      "apps/api/**/*.{ts,tsx}",
+      "apps/mcp/**/*.{ts,tsx}",
+      "packages/db/**/*.{ts,tsx}",
+      "packages/integrations/**/*.{ts,tsx}",
+      "packages/mcp-runtime/**/*.{ts,tsx}",
+      "packages/security/**/*.{ts,tsx}",
+    ],
     languageOptions: { globals: globals.node },
   },
   {
@@ -105,6 +112,13 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/require-await": "off",
     },
   },
   {

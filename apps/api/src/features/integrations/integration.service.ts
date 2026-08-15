@@ -21,19 +21,19 @@ import {
 import { z } from "zod";
 
 import { HttpError } from "../../errors";
-import type { CredentialEncryption } from "../../security/credential-encryption";
+import type { CredentialEncryption } from "@context-layer/security";
 import {
   ProviderAdapterError,
   type IntegrationAdapter,
   type OAuthCredentials,
   type ProviderResource,
-} from "../../integrations/integration-adapter";
+} from "@context-layer/integrations";
 import { createOAuthState } from "../../integrations/oauth-state";
 import {
   ProviderAccountRuntimeError,
   type ProviderAccountRuntime,
-} from "../../integrations/provider-account-runtime";
-import type { ProviderRegistry } from "../../integrations/provider-registry";
+} from "@context-layer/integrations";
+import type { ProviderRegistry } from "@context-layer/integrations";
 import { requireWorkspace } from "../shared/require-workspace";
 import type {
   IntegrationDetailContract,

@@ -14,7 +14,10 @@ import {
 import type { Request, RequestHandler } from "express";
 import type { Logger } from "pino";
 
-import type { McpPrincipal, McpToolProvider } from "./mcp-tool-provider";
+import type {
+  McpPrincipal,
+  McpToolProvider,
+} from "@context-layer/integrations";
 
 const tokenPattern = /^ctx_mcp_[A-Za-z0-9_-]{43}$/;
 const oauthAccessTokenPattern = /^ctx_oauth_at_[A-Za-z0-9_-]{32,256}$/;
@@ -36,7 +39,11 @@ export interface McpGatewayDependencies {
   toolProviders?: readonly McpGatewayToolProvider[];
 }
 
-type AuthenticatedMcpRequest = Request & { auth?: AuthInfo };
+type AuthenticatedMcpRequest = Request & {
+  auth?: AuthInfo;
+  id?: unknown;
+  log: Pick<Logger, "error">;
+};
 
 function writeError(
   response: Parameters<RequestHandler>[1],
@@ -145,6 +152,7 @@ export function createMcpGateway({
   });
 
   return async (request, response) => {
+    const authenticatedRequest = request as AuthenticatedMcpRequest;
     const origin = request.headers.origin;
 
     if (
@@ -180,7 +188,9 @@ export function createMcpGateway({
             ...identity,
             bundleId,
             correlationId:
-              typeof request.id === "string" ? request.id : tokenId,
+              typeof authenticatedRequest.id === "string"
+                ? authenticatedRequest.id
+                : tokenId,
           };
         }
       } else if (oauthAccessTokenPattern.test(rawToken)) {
@@ -195,12 +205,14 @@ export function createMcpGateway({
             ...resolved.identity,
             bundleId: resolved.bundleId,
             correlationId:
-              typeof request.id === "string" ? request.id : resolved.clientId,
+              typeof authenticatedRequest.id === "string"
+                ? authenticatedRequest.id
+                : resolved.clientId,
           };
         }
       }
     } catch {
-      request.log.error("Unable to resolve MCP credential");
+      authenticatedRequest.log.error("Unable to resolve MCP credential");
       writeError(
         response,
         503,
@@ -216,7 +228,6 @@ export function createMcpGateway({
       return;
     }
 
-    const authenticatedRequest = request as AuthenticatedMcpRequest;
     authenticatedRequest.headers.authorization = undefined;
     authenticatedRequest.auth = {
       clientId: credentialClientId,
