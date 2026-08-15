@@ -54,10 +54,15 @@ export function createAuth({
             typeof body === "object" && body !== null && "resource" in body
               ? body.resource
               : undefined;
-          if (resource !== mcpResourceUrl) {
+          // Some MCP clients, including Copilot Studio, discover the protected
+          // resource correctly but omit RFC 8707's optional resource parameter
+          // from the token request. This authorization server issues tokens for
+          // one fixed MCP audience, so an omitted value is unambiguous. Keep
+          // rejecting an explicitly supplied value for any other resource.
+          if (resource !== undefined && resource !== mcpResourceUrl) {
             throw new APIError("BAD_REQUEST", {
               error: "invalid_target",
-              error_description: "The MCP resource indicator is required.",
+              error_description: "The MCP resource indicator is invalid.",
             });
           }
         }),
