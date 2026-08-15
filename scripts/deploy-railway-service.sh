@@ -63,7 +63,7 @@ fi
 
 echo "Watching Railway deployment $deployment_id for $service."
 
-for _ in $(seq 1 180); do
+for _ in $(seq 1 240); do
   deployments="$(list_deployments)"
   status="$(printf '%s' "$deployments" | DEPLOYMENT_ID="$deployment_id" node -e '
     let input = "";
@@ -102,7 +102,7 @@ for _ in $(seq 1 180); do
   sleep 15
 done
 
-echo "$service deployment $deployment_id timed out after 45 minutes." >&2
+echo "$service deployment $deployment_id timed out after 60 minutes." >&2
 railway logs "$deployment_id" \
   --project "$railway_project_id" \
   --environment "$railway_environment" \

@@ -9,6 +9,27 @@ import type { ProviderDefinition } from "../provider-registry";
 export const confluenceProvider = parseProviderKey("confluence");
 
 export const confluenceDefinition = {
+  buildEventLink(metadata, resourceUrl) {
+    const pageId = metadata.pageId;
+    const title = metadata.title;
+
+    // The page lives under the customer's own Atlassian site, so without the
+    // installation's URL there is nothing to link to. The title is what the
+    // digest calls the page, so it is the only usable label.
+    if (
+      typeof pageId !== "string" ||
+      typeof title !== "string" ||
+      title.length === 0 ||
+      resourceUrl === null
+    ) {
+      return null;
+    }
+
+    return {
+      label: title,
+      url: `${resourceUrl.replace(/\/$/, "")}/wiki/pages/viewpage.action?pageId=${pageId}`,
+    };
+  },
   capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Confluence spaces and pages into your context layer.",
   displayName: "Confluence",

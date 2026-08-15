@@ -9,6 +9,19 @@ import type { ProviderDefinition } from "../provider-registry";
 export const bitbucketProvider = parseProviderKey("bitbucket");
 
 export const bitbucketDefinition = {
+  buildEventLink(metadata) {
+    const repository = metadata.repository;
+    const pullRequestId = metadata.pullRequestId;
+
+    if (typeof repository !== "string" || typeof pullRequestId !== "number") {
+      return null;
+    }
+
+    return {
+      label: `#${String(pullRequestId)}`,
+      url: `https://bitbucket.org/${repository}/pull-requests/${String(pullRequestId)}`,
+    };
+  },
   capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Bitbucket repositories into your context layer.",
   displayName: "Bitbucket",

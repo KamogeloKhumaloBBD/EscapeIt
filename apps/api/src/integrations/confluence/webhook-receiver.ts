@@ -128,6 +128,8 @@ function translatePage(payload: unknown): TranslatedWebhookEvent {
       eventType: event.eventType,
       pageId: event.content.id,
       spaceKey,
+      // Kept so a digest can link to the page using the name it calls it by.
+      title: event.content.title,
       updateTrigger: event.updateTrigger ?? null,
       version: version ?? null,
     } satisfies JsonObject,

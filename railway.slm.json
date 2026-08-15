@@ -1,0 +1,26 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/slm/Dockerfile"
+  },
+  "deploy": {
+    "drainingSeconds": 15,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300,
+    "limitOverride": {
+      "containers": {
+        "cpu": 4,
+        "memoryBytes": 6442450944
+      }
+    },
+    "multiRegionConfig": {
+      "europe-west4-drams3a": {
+        "numReplicas": 1
+      }
+    },
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3,
+    "sleepApplication": true
+  }
+}

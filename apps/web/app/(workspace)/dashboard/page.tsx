@@ -24,6 +24,7 @@ import {
   dashboardTimeZoneCookieName,
   parseDashboardTimeZone,
 } from "./time-zone-cookie";
+import { SendDigestButton } from "./send-digest-button";
 
 function queryValue(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -150,6 +151,13 @@ export default async function DashboardPage({
     <WorkspacePage>
       <DashboardTimeZone current={timeZone} />
       <WorkspacePageHeader
+        // Owners only: sending mails the whole workspace. The API enforces this
+        // too, so hiding the control is convenience rather than authorization.
+        action={
+          workspaceState.workspace.role === "owner" ? (
+            <SendDigestButton />
+          ) : undefined
+        }
         description="Workspace tool usage, reliability, and recent activity."
         title={workspaceState.workspace.name}
       />

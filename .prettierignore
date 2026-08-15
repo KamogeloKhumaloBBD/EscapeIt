@@ -4,3 +4,6 @@ dist
 node_modules
 pnpm-lock.yaml
 .github/workflows/*.lock.yml
+# Model weights are gigabytes of binary. Prettier fails outright trying to read
+# one, which takes the whole format check down with it.
+*.gguf

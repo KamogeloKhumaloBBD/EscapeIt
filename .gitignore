@@ -8,6 +8,7 @@ node_modules/
 .pnpm-store/
 *.log
 *.tsbuildinfo
+apps/api/scripts/.digest-preview.html
 .DS_Store
 .idea/
 .vscode/

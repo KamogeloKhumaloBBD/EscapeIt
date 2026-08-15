@@ -27,6 +27,12 @@ export interface AppendActivityEventInput {
   workspaceId: string;
 }
 
+export interface ListWorkspaceDigestEventsInput {
+  periodEnd: Date;
+  periodStart: Date;
+  workspaceId: string;
+}
+
 export interface ListActivityInput {
   cursor?: ActivityCursor | null;
   limit?: number;
@@ -112,6 +118,57 @@ export async function appendActivityEvent(
   }
 
   return event;
+}
+
+/**
+ * Events a digest is built from. Deliberately only the `webhook` category:
+ * every other category records the workspace administering itself — accounts
+ * connected, scopes changed, channels created — which is noise in a digest
+ * about what the team actually did.
+ *
+ * Unlike the other reads here this one takes no membership, because a scheduled
+ * digest has no acting member. Callers must therefore establish the workspace
+ * themselves rather than accepting one from a request.
+ */
+export async function listWorkspaceDigestEvents(
+  database: DatabaseClient,
+  input: ListWorkspaceDigestEventsInput,
+): Promise<ActivityEvent[]> {
+  return database<ActivityEvent[]>`
+    select *
+    from activity_events
+    where
+      "workspaceId" = ${input.workspaceId}
+      and category = 'webhook'
+      and status = 'succeeded'
+      and "occurredAt" >= ${input.periodStart}
+      and "occurredAt" < ${input.periodEnd}
+    order by "occurredAt", id
+  `;
+}
+
+/**
+ * Workspaces with something worth sending in the window. Returning only these
+ * keeps the scheduled run proportional to activity rather than to how many
+ * workspaces exist, which matters because each digest costs real inference time.
+ */
+export async function listWorkspacesWithDigestActivity(
+  database: DatabaseClient,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<string[]> {
+  const rows = await database<{ workspaceId: string }[]>`
+    select distinct "workspaceId"
+    from activity_events
+    where
+      category = 'webhook'
+      and status = 'succeeded'
+      and "occurredAt" >= ${periodStart}
+      and "occurredAt" < ${periodEnd}
+    order by "workspaceId"
+  `;
+
+  return rows.map((row) => row.workspaceId);
 }
 
 export async function listActivityByCorrelationId(

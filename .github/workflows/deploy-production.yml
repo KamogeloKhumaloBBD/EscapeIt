@@ -20,7 +20,7 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     environment: production
     env:
       PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
@@ -73,6 +73,10 @@ jobs:
             packages/db/Dockerfile.flyway \
             railway.flyway.json \
             .dockerignore)"
+          slm_result="$(detect slm "$TARGET_SHA" \
+            apps/slm \
+            railway.slm.json \
+            .dockerignore)"
           api_result="$(detect api "$TARGET_SHA" \
             apps/api \
             packages/db \
@@ -91,19 +95,27 @@ jobs:
             pnpm-workspace.yaml \
             tsconfig.base.json \
             .dockerignore)"
+          digest_cron_result="$(detect digest-cron "$TARGET_SHA" \
+            apps/digest-cron \
+            railway.digest-cron.json \
+            .dockerignore)"
 
           flyway_changed="${flyway_result%%$'\t'*}"
+          slm_changed="${slm_result%%$'\t'*}"
           api_changed="${api_result%%$'\t'*}"
           web_changed="${web_result%%$'\t'*}"
+          digest_cron_changed="${digest_cron_result%%$'\t'*}"
           any_changed=false
-          if [[ "$flyway_changed" == "true" || "$api_changed" == "true" || "$web_changed" == "true" ]]; then
+          if [[ "$flyway_changed" == "true" || "$slm_changed" == "true" || "$api_changed" == "true" || "$web_changed" == "true" || "$digest_cron_changed" == "true" ]]; then
             any_changed=true
           fi
 
           {
             echo "flyway_changed=$flyway_changed"
+            echo "slm_changed=$slm_changed"
             echo "api_changed=$api_changed"
             echo "web_changed=$web_changed"
+            echo "digest_cron_changed=$digest_cron_changed"
             echo "any_changed=$any_changed"
           } >> "$GITHUB_OUTPUT"
 
@@ -111,8 +123,10 @@ jobs:
             echo "### Production deployment selection"
             echo
             echo "- Flyway: ${flyway_result#*$'\t'}"
+            echo "- SLM: ${slm_result#*$'\t'}"
             echo "- API: ${api_result#*$'\t'}"
             echo "- Web: ${web_result#*$'\t'}"
+            echo "- Digest cron: ${digest_cron_result#*$'\t'}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy Flyway
@@ -120,6 +134,12 @@ jobs:
         shell: bash
         run: |
           bash scripts/deploy-railway-service.sh flyway "$TARGET_SHA"
+
+      - name: Deploy SLM
+        if: steps.changes.outputs.slm_changed == 'true'
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh slm "$TARGET_SHA"
 
       - name: Deploy API
         if: steps.changes.outputs.api_changed == 'true'
@@ -132,6 +152,12 @@ jobs:
         shell: bash
         run: |
           bash scripts/deploy-railway-service.sh web "$TARGET_SHA"
+
+      - name: Deploy digest cron
+        if: steps.changes.outputs.digest_cron_changed == 'true'
+        shell: bash
+        run: |
+          bash scripts/deploy-railway-service.sh digest-cron "$TARGET_SHA"
 
       - name: Run smoke checks
         if: steps.changes.outputs.any_changed == 'true'
