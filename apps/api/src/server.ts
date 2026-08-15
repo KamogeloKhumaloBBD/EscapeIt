@@ -20,11 +20,9 @@ import {
   ensureIntegrationAccount,
   findIntegrationAccountForMember,
   findIntegrationBundle,
-  findIntegrationBundleProviderKeys,
   findIntegrationBundleSummary,
   findIntegrationByWebhookToken,
   findNotificationChannel,
-  findMemberIntegrationAccess,
   findMcpOAuthClient,
   findWorkspaceById,
   findWorkspaceInvitationByToken,
@@ -65,8 +63,6 @@ import {
   replaceIntegrationMcpTools,
   replaceIntegrationScopes,
   replaceNotificationChannelSources,
-  resolveMcpToken,
-  resolveOAuthAccessToken,
   revokeMcpToken,
   revokeMcpOAuthConnection,
   revokeWorkspaceInvitation,
@@ -96,10 +92,6 @@ import {
   jiraProvider,
   type ProviderModule,
 } from "@context-layer/integrations";
-import {
-  createMcpGateway,
-  createProtectedResourceMetadataHandler,
-} from "@context-layer/mcp-runtime";
 import { Router } from "express";
 
 import { createApp } from "./app";
@@ -728,31 +720,6 @@ const integrationBundleService = createIntegrationBundleService({
   providerRegistry,
   repository: integrationBundleRepository,
 });
-const mcpToolProviders = providerModules.flatMap((providerModule) => {
-  if (providerModule.createMcpToolProvider === undefined) {
-    return [];
-  }
-
-  return [
-    {
-      provider: providerModule.definition.key,
-      toolProvider: providerModule.createMcpToolProvider({
-        accountRuntime: providerAccountRuntime,
-        repository: {
-          appendActivity: (input) =>
-            appendActivityEvent(connection.client, input),
-          findAccess: (workspaceId, membershipId, provider) =>
-            findMemberIntegrationAccess(
-              connection.client,
-              workspaceId,
-              membershipId,
-              provider,
-            ),
-        },
-      }),
-    },
-  ];
-});
 const digestRepository: DigestServiceDependencies["repository"] = {
   appendActivity: (input) => appendActivityEvent(connection.client, input),
   claimRun: (input) => claimDigestRun(connection.client, input),
@@ -856,25 +823,6 @@ const app = createApp({
   authHandler: toNodeHandler(authService.auth),
   checkDatabase: () => checkDatabaseReadiness(connection),
   logger,
-  mcpHandler: createMcpGateway({
-    logger,
-    publicAppUrl: config.publicAppUrl,
-    resolveBundleProviderKeys: async (workspaceId, bundleId) =>
-      new Set(
-        await findIntegrationBundleProviderKeys(
-          connection.client,
-          workspaceId,
-          bundleId,
-        ),
-      ),
-    resolveOAuthToken: (token) =>
-      resolveOAuthAccessToken(connection.client, token),
-    resolveToken: (tokenHash) => resolveMcpToken(connection.client, tokenHash),
-    toolProviders: mcpToolProviders,
-  }),
-  protectedResourceMetadataHandler: createProtectedResourceMetadataHandler({
-    publicAppUrl: config.publicAppUrl,
-  }),
   webhookHandler,
 });
 

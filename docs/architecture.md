@@ -231,6 +231,7 @@ sequenceDiagram
   actor Member
   participant Web as Dashboard
   participant Api as apps/api
+  participant Mcp as apps/mcp
   participant Db as Postgres
   actor Agent as Coding agent
 
@@ -240,10 +241,10 @@ sequenceDiagram
   Api-->>Web: raw ctx_mcp_... token, shown once
   Web-->>Member: copy token into agent config
 
-  Agent->>Api: POST /api/mcp<br/>Authorization: Bearer ctx_mcp_...
-  Api->>Db: look up sha256(token)
-  Db-->>Api: membership + role + bundleId
-  Api-->>Agent: tools, scoped to that bundle
+  Agent->>Mcp: POST /api/mcp<br/>Authorization: Bearer ctx_mcp_...
+  Mcp->>Db: look up sha256(token)
+  Db-->>Mcp: membership + role + bundleId
+  Mcp-->>Agent: tools, scoped to that bundle
 ```
 
 The dashboard is the only place the raw token ever appears. Every subsequent hop sees only

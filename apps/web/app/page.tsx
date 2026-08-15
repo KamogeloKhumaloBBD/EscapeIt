@@ -523,7 +523,7 @@ export default function Home() {
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-8 text-[#68635a] sm:text-xl lg:mx-0">
               A universal context layer that empowers your agents with secure
-              access to the tools you use to get your work done.
+              access to the tools you use.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:px-7">
               <Button asChild size="lg" variant="outline">
@@ -533,10 +533,6 @@ export default function Home() {
                 </Link>
               </Button>
             </div>
-            <p className="mt-5 text-xs text-[#817a71]">
-              Works with Jira, GitHub, Bitbucket, Confluence, and Microsoft
-              Teams.
-            </p>
           </div>
 
           <HeroWorkflow />
@@ -564,9 +560,9 @@ export default function Home() {
                   Connect the tools where work already lives.
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
-                  Bring Jira, GitHub, Bitbucket, and Confluence into one MCP
-                  endpoint. Provider accounts stay personal, while owners choose
-                  the workspace resources and tools agents can use.
+                  Bring your tools into one MCP endpoint. Provider accounts stay
+                  personal, while owners choose the workspace resources and
+                  tools agents can use.
                 </p>
               </div>
               <ConnectionVisual />

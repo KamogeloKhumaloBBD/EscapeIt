@@ -60,9 +60,6 @@ importers:
       '@context-layer/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
-      '@context-layer/mcp-runtime':
-        specifier: workspace:*
-        version: link:../../packages/mcp-runtime
       '@context-layer/security':
         specifier: workspace:*
         version: link:../../packages/security

@@ -15,7 +15,6 @@
     "@context-layer/db": "workspace:*",
     "@context-layer/email": "workspace:*",
     "@context-layer/integrations": "workspace:*",
-    "@context-layer/mcp-runtime": "workspace:*",
     "@context-layer/security": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "better-auth": "1.6.27",

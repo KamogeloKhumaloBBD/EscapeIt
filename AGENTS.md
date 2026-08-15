@@ -3,11 +3,11 @@
 ## Architecture
 
 - `apps/web` is the Next.js frontend. It must call the backend through `/api` and must never import `@context-layer/db`.
-- `apps/api` is the independently deployable Express control plane and owns authentication, application APIs, MCP token/connection management, webhooks, and notification operations. During the staged MCP cutover it also retains the legacy MCP gateway as a rollback path.
+- `apps/api` is the independently deployable Express control plane and owns authentication, application APIs, MCP token/connection management, webhooks, and notification operations. It must not mount MCP execution or protected-resource discovery handlers.
 - `apps/mcp` is the independently deployable Express MCP execution plane. It owns the primary `/api/mcp` and protected-resource discovery handlers and must remain stateless so Railway replicas need no session affinity.
 - `packages/db` owns PostgreSQL connectivity and future Flyway SQL migrations. It must not import any application.
 - `packages/email` owns shared React Email templates. Email senders must compose these templates instead of embedding feature-specific HTML or text bodies.
-- `packages/integrations` owns provider definitions, adapters, account execution, and MCP tools shared by the API and MCP service. `packages/security` owns the shared credential-envelope boundary, and `packages/mcp-runtime` owns shared MCP protocol handling during the staged cutover.
+- `packages/integrations` owns provider definitions, adapters, account execution, and MCP tools shared by the API and MCP service. `packages/security` owns the shared credential-envelope boundary, and `packages/mcp-runtime` owns the MCP protocol boundary used by `apps/mcp`.
 - Use pnpm for all dependency and script operations. Do not use npm or yarn to modify this repository.
 
 ## Development workflow

@@ -20,8 +20,6 @@ export interface AppDependencies {
   authHandler: RequestHandler;
   checkDatabase: () => Promise<boolean>;
   logger?: Logger;
-  mcpHandler: RequestHandler;
-  protectedResourceMetadataHandler: RequestHandler;
   webhookHandler: RequestHandler;
 }
 
@@ -32,8 +30,6 @@ export function createApp({
   authHandler,
   checkDatabase,
   logger = createLogger(),
-  mcpHandler,
-  protectedResourceMetadataHandler,
   webhookHandler,
 }: AppDependencies) {
   const app = express();
@@ -73,17 +69,7 @@ export function createApp({
     ],
     authorizationServerMetadataHandler,
   );
-  app.get(
-    [
-      "/.well-known/oauth-protected-resource",
-      "/.well-known/oauth-protected-resource/api/mcp",
-      "/api/mcp/.well-known/oauth-protected-resource",
-    ],
-    protectedResourceMetadataHandler,
-  );
-
   app.all("/api/auth/*splat", authHandler);
-  app.all("/api/mcp", mcpHandler);
   // A GitHub App has one webhook for every installation, so its deliveries
   // arrive without a per-integration token in the path.
   app.post(

@@ -331,7 +331,7 @@ Pull requests and `main` pushes run `pnpm verify`. GitHub Actions does not build
 
 For releases, GitHub Actions checks the exact CI-verified revision and compares each service with its own latest successful Railway revision. It conditionally deploys Flyway, SLM, API, MCP, web, and digest cron in dependency order, skipping services whose deployment inputs did not change. Unknown or divergent history deploys the affected service defensively. Smoke checks run whenever at least one service deploys and validate the public web root, proxied API health, MCP discovery metadata, and the unauthenticated MCP challenge. Deployment logs are bounded on failure and must never contain credentials or connection strings.
 
-The first MCP rollout keeps API's original gateway mounted as a rollback path. Remove that fallback only in a follow-up release after a controlled authenticated tool-list and read-only invocation succeed through the web-routed MCP service.
+MCP execution and protected-resource discovery are owned exclusively by `apps/mcp`. The API remains the OAuth authorization and integration control plane and does not mount fallback MCP handlers.
 
 For an exceptional manual migration fallback, run:
 
