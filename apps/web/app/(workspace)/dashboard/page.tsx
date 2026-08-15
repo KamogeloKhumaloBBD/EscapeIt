@@ -18,6 +18,7 @@ import {
 import { DashboardAnalytics } from "./dashboard-analytics";
 import { DashboardFilters } from "./dashboard-filters";
 import { DashboardTimeZone } from "./dashboard-time-zone";
+import { SendDigestButton } from "./send-digest-button";
 
 function queryValue(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -144,6 +145,13 @@ export default async function DashboardPage({
     <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-9 sm:px-7 lg:px-10 lg:pt-12">
       <DashboardTimeZone current={timeZone} />
       <WorkspacePageHeader
+        // Owners only: sending mails the whole workspace. The API enforces this
+        // too, so hiding the control is convenience rather than authorization.
+        action={
+          workspaceState.workspace.role === "owner" ? (
+            <SendDigestButton />
+          ) : undefined
+        }
         description="Workspace tool usage, reliability, and recent activity."
         eyebrow={`${workspaceState.workspace.role} workspace`}
         title={workspaceState.workspace.name}

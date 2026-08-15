@@ -24,6 +24,22 @@ const apiEnvironmentSchema = z.object({
   WEBHOOK_PUBLIC_URL: z.url().optional(),
   AUTH_EMAIL_FROM: emailSender,
   RESEND_API_KEY: z.string().min(1),
+  // The bearer token the scheduler presents to run digests. Leave it unset and
+  // the scheduled route is never mounted, so nothing can trigger a run.
+  DIGEST_RUN_SECRET: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  // The UTC hour the digest schedule fires. It defines the 24-hour window each
+  // run covers, so it must match the cron expression on the scheduler.
+  // 16 is 18:00 in South Africa, once the working day is over.
+  DIGEST_SEND_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(16),
+  // A llama.cpp server on the private network that writes the digest prose.
+  // Without it digests still send, rendered from the events themselves.
+  SLM_BASE_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().optional(),
+  ),
   ATLASSIAN_OAUTH_CLIENT_ID: optionalCredential,
   ATLASSIAN_OAUTH_CLIENT_SECRET: optionalCredential,
   BITBUCKET_OAUTH_CLIENT_ID: optionalCredential,
@@ -67,6 +83,8 @@ export interface ApiConfig {
   betterAuthUrl: string;
   credentialEncryptionKey: string;
   database: DatabaseConfig;
+  digestRunSecret: string | null;
+  digestSendHourUtc: number;
   forgeAppId: string | null;
   forgeAppInstallUrl: string | null;
   githubApp: GitHubAppConfig | null;
@@ -74,6 +92,7 @@ export interface ApiConfig {
   port: number;
   publicAppUrl: string;
   resendApiKey: string;
+  summarizerBaseUrl: string | null;
   webhookPublicUrl: string;
 }
 
@@ -163,6 +182,8 @@ export function parseApiConfig(
     betterAuthUrl: parsed.BETTER_AUTH_URL,
     credentialEncryptionKey: parsed.CREDENTIAL_ENCRYPTION_KEY,
     database: parseDatabaseConfig(environment),
+    digestRunSecret: parsed.DIGEST_RUN_SECRET ?? null,
+    digestSendHourUtc: parsed.DIGEST_SEND_HOUR_UTC,
     forgeAppId: parsed.FORGE_APP_ID ?? null,
     forgeAppInstallUrl: parsed.FORGE_APP_INSTALL_URL ?? null,
     githubApp:
@@ -180,6 +201,7 @@ export function parseApiConfig(
     port: parsed.PORT ?? parsed.API_PORT,
     publicAppUrl: parsed.PUBLIC_APP_URL,
     resendApiKey: parsed.RESEND_API_KEY,
+    summarizerBaseUrl: parsed.SLM_BASE_URL ?? null,
     webhookPublicUrl: parsed.WEBHOOK_PUBLIC_URL ?? parsed.PUBLIC_APP_URL,
   };
 }

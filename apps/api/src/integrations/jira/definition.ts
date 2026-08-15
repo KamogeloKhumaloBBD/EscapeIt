@@ -9,6 +9,20 @@ import type { ProviderDefinition } from "../provider-registry";
 export const jiraProvider = parseProviderKey("jira");
 
 export const jiraDefinition = {
+  buildEventLink(metadata, resourceUrl) {
+    const issueKey = metadata.issueKey;
+
+    // The issue lives under the customer's own Atlassian site, so without the
+    // installation's URL there is nothing to link to.
+    if (typeof issueKey !== "string" || resourceUrl === null) {
+      return null;
+    }
+
+    return {
+      label: issueKey,
+      url: `${resourceUrl.replace(/\/$/, "")}/browse/${issueKey}`,
+    };
+  },
   capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description: "Bring Jira projects and work items into your context layer.",
   displayName: "Jira",

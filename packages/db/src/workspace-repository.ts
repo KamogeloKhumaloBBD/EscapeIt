@@ -62,6 +62,18 @@ export interface WorkspaceMemberSummary {
   role: WorkspaceMembership["role"];
 }
 
+export interface ListWorkspaceDigestRecipientsInput {
+  defaultEnabled: boolean;
+  eventKey: string;
+  workspaceId: string;
+}
+
+export interface WorkspaceDigestRecipient {
+  email: string;
+  membershipId: string;
+  name: string;
+}
+
 export interface WorkspaceInvitationPreview extends WorkspaceInvitation {
   inviterName: string;
   workspaceName: string;
@@ -431,6 +443,53 @@ export async function listWorkspaceMembers(
       case when membership.role = 'owner' then 0 else 1 end,
       lower(users.name),
       membership.id
+  `;
+}
+
+/**
+ * The workspace a scheduled digest is about. Separate from the reads above
+ * because those all resolve a workspace from a signed-in user, and a schedule
+ * has none.
+ */
+export async function findWorkspaceById(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<Workspace | null> {
+  const rows = await database<Workspace[]>`
+    select *
+    from workspaces
+    where id = ${workspaceId}
+  `;
+
+  return rows[0] ?? null;
+}
+
+/**
+ * Who a scheduled digest goes to. Like the digest activity read this takes no
+ * acting membership, because nobody is signed in when the schedule fires.
+ *
+ * Preferences are sparse overrides, so a member with no row keeps the event's
+ * registry default. That default is passed in rather than assumed here, because
+ * the registry lives in the API.
+ */
+export async function listWorkspaceDigestRecipients(
+  database: DatabaseClient,
+  input: ListWorkspaceDigestRecipientsInput,
+): Promise<WorkspaceDigestRecipient[]> {
+  return database<WorkspaceDigestRecipient[]>`
+    select
+      membership.id as "membershipId",
+      users.email,
+      users.name
+    from workspace_memberships membership
+    join users on users.id = membership."userId"
+    left join notification_preferences preference
+      on preference."membershipId" = membership.id
+      and preference."eventKey" = ${input.eventKey}
+    where
+      membership."workspaceId" = ${input.workspaceId}
+      and coalesce(preference.enabled, ${input.defaultEnabled}) = true
+    order by membership.id
   `;
 }
 

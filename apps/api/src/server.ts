@@ -2,6 +2,7 @@ import {
   appendActivityEvent,
   acceptWorkspaceInvitation,
   checkDatabaseReadiness,
+  claimDigestRun,
   clearNotificationPreferenceOverride,
   connectIntegrationAccountWithoutResource,
   connectIntegrationAccountWithResource,
@@ -26,6 +27,7 @@ import {
   findNotificationChannel,
   findMemberIntegrationAccess,
   findMcpOAuthClient,
+  findWorkspaceById,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findWorkspaceIntegration,
@@ -33,6 +35,7 @@ import {
   getWorkspaceUsageAnalytics,
   hasLiveMcpOAuthConsent,
   listIntegrationBundles,
+  listIntegrationResourceUrls,
   listIntegrationScopeExternalKeys,
   listIntegrationScopes,
   listIntegrationMcpTools,
@@ -44,15 +47,19 @@ import {
   listNotificationChannelSourcesForWorkspace,
   listNotificationPreferenceOverrides,
   listPendingWorkspaceInvitations,
+  listWorkspaceDigestEvents,
+  listWorkspaceDigestRecipients,
   listWorkspaceMembers,
   listWorkspaceMemberUsage,
   listWorkspaceToolUsage,
   listWorkspaceIntegrations,
+  listWorkspacesWithDigestActivity,
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
   parseNotificationEventKey,
   parseProviderKey,
+  recordDigestRunDelivery,
   replaceIntegrationAccountCredentials,
   replaceIntegrationBundleProviders,
   replaceIntegrationMcpTools,
@@ -89,6 +96,12 @@ import {
   createIntegrationService,
   type IntegrationServiceDependencies,
 } from "./features/integrations/integration.service";
+import { createDigestEmailSender } from "./features/digests/digest-email";
+import { createDigestRouter } from "./features/digests/digest.routes";
+import {
+  createDigestService,
+  type DigestServiceDependencies,
+} from "./features/digests/digest.service";
 import { createWorkspaceRouter } from "./features/workspaces/workspace.routes";
 import { createWorkspaceService } from "./features/workspaces/workspace.service";
 import { createMcpAccessRouter } from "./features/mcp-access/mcp-access.routes";
@@ -117,6 +130,7 @@ import type { WebhookReceiver } from "./features/webhooks/webhook-receiver";
 import { createRequireAuthentication } from "./http/authentication";
 import { createWebRequestHandler } from "./http/web-request-handler";
 import type { NotificationChannelAdapter } from "./integrations/notification-channel-adapter";
+import { createLlamaServerSummarizer } from "./integrations/summarizer/llama-server-summarizer";
 import { createTeamsAdapter } from "./integrations/teams-adapter";
 import { createJiraProviderModule } from "./integrations/jira";
 import { jiraProvider } from "./integrations/jira/definition";
@@ -727,7 +741,53 @@ const mcpToolProviders = providerModules.flatMap((providerModule) => {
     },
   ];
 });
+const digestRepository: DigestServiceDependencies["repository"] = {
+  appendActivity: (input) => appendActivityEvent(connection.client, input),
+  claimRun: (input) => claimDigestRun(connection.client, input),
+  findCurrentWorkspace: (userId) =>
+    findCurrentWorkspaceForUser(connection.client, userId),
+  findWorkspace: (workspaceId) =>
+    findWorkspaceById(connection.client, workspaceId),
+  listDigestEvents: (input) =>
+    listWorkspaceDigestEvents(connection.client, input),
+  listRecipients: (input) =>
+    listWorkspaceDigestRecipients(connection.client, input),
+  listResourceUrls: (workspaceId) =>
+    listIntegrationResourceUrls(connection.client, workspaceId),
+  listWorkspacesWithActivity: (periodStart, periodEnd) =>
+    listWorkspacesWithDigestActivity(connection.client, periodStart, periodEnd),
+  recordRunDelivery: (runId, sentCount) =>
+    recordDigestRunDelivery(connection.client, runId, sentCount),
+};
+const digestService = createDigestService({
+  appUrl: config.publicAppUrl,
+  emailSender: createDigestEmailSender({
+    from: config.authEmailFrom,
+    logger,
+    resendApiKey: config.resendApiKey,
+  }),
+  providerRegistry,
+  repository: digestRepository,
+  sendHourUtc: config.digestSendHourUtc,
+  // Absent unless a summarizer is deployed. Digests then render from the events
+  // themselves, which is a complete digest rather than a degraded one.
+  summarizer:
+    config.summarizerBaseUrl === null
+      ? null
+      : createLlamaServerSummarizer({
+          baseUrl: config.summarizerBaseUrl,
+          logger,
+        }),
+});
 const apiRouter = Router();
+apiRouter.use(
+  "/digests",
+  createDigestRouter({
+    requireAuthentication,
+    runSecret: config.digestRunSecret,
+    service: digestService,
+  }),
+);
 apiRouter.use(
   "/workspaces",
   createWorkspaceRouter({ requireAuthentication, service: workspaceService }),

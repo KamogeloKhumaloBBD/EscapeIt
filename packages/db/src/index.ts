@@ -29,8 +29,11 @@ export {
   appendActivityEvent,
   listActivity,
   listActivityByCorrelationId,
+  listWorkspaceDigestEvents,
+  listWorkspacesWithDigestActivity,
   type AppendActivityEventInput,
   type ListActivityInput,
+  type ListWorkspaceDigestEventsInput,
 } from "./activity-repository";
 export {
   activityCategories,
@@ -80,6 +83,7 @@ export {
   findIntegrationByWebhookToken,
   findMemberIntegrationAccess,
   findWorkspaceIntegration,
+  listIntegrationResourceUrls,
   listIntegrationScopeExternalKeys,
   listIntegrationScopes,
   listIntegrationMcpTools,
@@ -100,6 +104,13 @@ export {
   type SaveIntegrationAccountInput,
   type SelectedIntegrationScopeInput,
 } from "./integration-repository";
+export {
+  claimDigestRun,
+  recordDigestRunDelivery,
+  type ClaimDigestRunInput,
+  type DigestRun,
+  type DigestTrigger,
+} from "./digest-repository";
 export {
   createIntegrationBundle,
   deleteIntegrationBundle,
@@ -159,11 +170,13 @@ export {
   acceptWorkspaceInvitation,
   createWorkspaceForUser,
   createWorkspaceInvitation,
+  findWorkspaceById,
   findWorkspaceInvitationByToken,
   findCurrentWorkspaceForUser,
   findMembershipForUser,
   getWorkspaceOverviewForUser,
   listPendingWorkspaceInvitations,
+  listWorkspaceDigestRecipients,
   listWorkspaceMembers,
   markWorkspaceInvitationDeliveryFailed,
   revokeWorkspaceInvitation,
@@ -172,6 +185,8 @@ export {
   type CreateWorkspaceInput,
   type CreateWorkspaceResult,
   type CurrentWorkspace,
+  type ListWorkspaceDigestRecipientsInput,
+  type WorkspaceDigestRecipient,
   type WorkspaceInvitationPreview,
   type WorkspaceMemberSummary,
   type WorkspaceOverview,

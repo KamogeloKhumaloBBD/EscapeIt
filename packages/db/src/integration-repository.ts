@@ -833,6 +833,25 @@ export async function findIntegrationByResourceExternalId(
  * check — webhook delivery has no acting member, and the caller has already
  * been authenticated by signature or token.
  */
+/**
+ * Each connected provider's own URL, as chosen when the installation was
+ * configured. A digest needs it to link to an Atlassian issue or page, which
+ * live under the customer's own site rather than a shared host.
+ *
+ * Like the other digest reads this takes no membership, because a scheduled
+ * run has no acting member.
+ */
+export async function listIntegrationResourceUrls(
+  database: DatabaseClient,
+  workspaceId: string,
+): Promise<{ provider: ProviderKey; url: string | null }[]> {
+  return database<{ provider: ProviderKey; url: string | null }[]>`
+    select provider, configuration ->> 'url' as url
+    from integrations
+    where "workspaceId" = ${workspaceId}
+  `;
+}
+
 export async function listIntegrationScopeExternalKeys(
   database: DatabaseClient,
   integrationId: string,

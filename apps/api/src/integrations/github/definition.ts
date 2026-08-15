@@ -122,6 +122,21 @@ const githubMcpToolRows = [
 
 export const githubDefinition = {
   autoSelectSingleResourceAfterAuthorization: true,
+  buildEventLink(metadata) {
+    const repository = metadata.repository;
+    const number = metadata.number;
+
+    if (typeof repository !== "string" || typeof number !== "number") {
+      return null;
+    }
+
+    return {
+      label: `#${String(number)}`,
+      // GitHub redirects /issues/N to the pull request when N is one, so the
+      // same URL works without the event having to say which it was.
+      url: `https://github.com/${repository}/issues/${String(number)}`,
+    };
+  },
   capabilities: ["context", "user-accounts", "scopes", "notifications"],
   description:
     "Bring allowlisted GitHub repositories, code, issues, and pull requests into your context layer.",

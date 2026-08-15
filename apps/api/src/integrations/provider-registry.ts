@@ -50,9 +50,31 @@ export interface ProviderPresentationDefinition {
   };
 }
 
+export interface EventLink {
+  /**
+   * How the digest refers to the thing, exactly as it appears in the event
+   * summary — `#42`, `KAN-1`, a page title. The email turns the first match in
+   * each line into a link, so a label that never appears simply does nothing.
+   */
+  label: string;
+  url: string;
+}
+
 export interface ProviderDefinition {
   accountCredentialSchema?: ProviderConfigurationSchema;
   autoSelectSingleResourceAfterAuthorization?: boolean;
+  /**
+   * Where a webhook event happened, so a digest can link to it. `resourceUrl`
+   * is the connected installation's own URL, which Atlassian providers need
+   * because an issue or page lives under the customer's own site.
+   *
+   * Optional: a provider that cannot build a stable link simply gets none, and
+   * the digest reads the same without them.
+   */
+  buildEventLink?: (
+    metadata: JsonObject,
+    resourceUrl: string | null,
+  ) => EventLink | null;
   capabilities: readonly ProviderCapability[];
   description: string;
   displayName: string;
