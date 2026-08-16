@@ -3,6 +3,7 @@ import { PlugsConnectedIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 
 const sizes = {
+  sm: "size-9",
   md: "size-12",
   lg: "size-16",
 } as const;
@@ -23,7 +24,11 @@ export function CustomMcpMark({
         className,
       )}
     >
-      <PlugsConnectedIcon className={size === "lg" ? "size-7" : "size-5"} />
+      <PlugsConnectedIcon
+        className={
+          size === "lg" ? "size-7" : size === "sm" ? "size-4" : "size-5"
+        }
+      />
     </span>
   );
 }

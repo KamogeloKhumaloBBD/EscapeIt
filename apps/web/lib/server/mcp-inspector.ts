@@ -1,117 +1,57 @@
 import "server-only";
 
 import type { ApiState } from "@/lib/server/api-state";
+import { getCustomMcpServersState } from "@/lib/server/custom-mcp";
 import { getBundleListState } from "@/lib/server/integration-bundle";
 import {
   getIntegrationState,
   getIntegrationsState,
 } from "@/lib/server/integration";
-import type {
-  IntegrationDetail,
-  IntegrationSummary,
-} from "@/lib/validation/integration";
+import {
+  customMcpInspectorSource,
+  integrationInspectorSource,
+  type McpInspectorData,
+  type McpInspectorProvider,
+} from "@/lib/mcp-inspector-model";
+import type { IntegrationSummary } from "@/lib/validation/integration";
 
-export interface McpInspectorTool {
-  description: string;
-  displayName: string;
-  kind: "read" | "write";
-  name: string;
-}
-
-export interface McpInspectorProvider {
-  configuredToolCount: number;
-  displayName: string;
-  provider: string;
-  readiness: "dormant" | "ready" | "unavailable";
-  readinessReason: string | null;
-  tools: McpInspectorTool[];
-}
-
-export interface McpInspectorBundle {
-  description: string | null;
-  id: string;
-  name: string;
-  providers: string[];
-}
-
-export interface McpInspectorData {
-  bundles: McpInspectorBundle[];
-  providers: McpInspectorProvider[];
-}
+export type {
+  McpInspectorBundle,
+  McpInspectorData,
+  McpInspectorProvider,
+  McpInspectorTool,
+} from "@/lib/mcp-inspector-model";
 
 function unavailableProvider(
   integration: IntegrationSummary,
   message: string,
 ): McpInspectorProvider {
   return {
+    configurationHref: `/integrations/${integration.provider}`,
     configuredToolCount: integration.installation?.enabledMcpToolCount ?? 0,
+    customMcpServerId: null,
     displayName: integration.displayName,
+    id: `provider:${integration.provider}`,
     provider: integration.provider,
     readiness: "unavailable",
     readinessReason: message,
+    sourceType: "provider",
     tools: [],
-  };
-}
-
-function readinessReason(integration: IntegrationDetail): string | null {
-  if (integration.installation?.status === "error") {
-    return "The workspace installation needs attention.";
-  }
-
-  if (integration.currentAccount?.status === "error") {
-    return `Your ${integration.displayName} account needs attention.`;
-  }
-
-  switch (integration.nextStep) {
-    case "connect_account":
-      return `Your ${integration.displayName} account is not connected.`;
-    case "connect_provider":
-    case "select_resource":
-      return "The workspace provider connection is incomplete.";
-    case "select_scopes":
-      return "No workspace resources are allowlisted for this provider.";
-    case "select_tools":
-      return "No MCP tools are enabled for this provider.";
-    case "wait_for_owner":
-      return "The workspace owner needs to finish this provider's setup.";
-    case "ready":
-      return null;
-  }
-}
-
-function providerFromDetail(
-  integration: IntegrationDetail,
-): McpInspectorProvider {
-  const enabledTools = integration.mcpTools
-    .filter((tool) => tool.enabled)
-    .map(({ description, displayName, kind, name }) => ({
-      description,
-      displayName,
-      kind,
-      name,
-    }));
-  const ready = integration.nextStep === "ready";
-
-  return {
-    configuredToolCount: enabledTools.length,
-    displayName: integration.displayName,
-    provider: integration.provider,
-    readiness: ready ? "ready" : "dormant",
-    readinessReason: ready ? null : readinessReason(integration),
-    tools: ready ? enabledTools : [],
   };
 }
 
 export async function getMcpInspectorState(): Promise<
   ApiState<McpInspectorData>
 > {
-  const [integrationsState, bundlesState] = await Promise.all([
+  const [integrationsState, customMcpState, bundlesState] = await Promise.all([
     getIntegrationsState(),
+    getCustomMcpServersState(),
     getBundleListState(),
   ]);
 
   if (
     integrationsState.status === "anonymous" ||
+    customMcpState.status === "anonymous" ||
     bundlesState.status === "anonymous"
   ) {
     return { status: "anonymous" };
@@ -119,15 +59,18 @@ export async function getMcpInspectorState(): Promise<
 
   if (
     integrationsState.status !== "available" ||
+    customMcpState.status !== "available" ||
     bundlesState.status !== "available"
   ) {
     return {
       message:
         integrationsState.status === "unavailable"
           ? integrationsState.message
-          : bundlesState.status === "unavailable"
-            ? bundlesState.message
-            : "We couldn't load the MCP map. Refresh the page to try again.",
+          : customMcpState.status === "unavailable"
+            ? customMcpState.message
+            : bundlesState.status === "unavailable"
+              ? bundlesState.message
+              : "We couldn't load the MCP map. Refresh the page to try again.",
       status: "unavailable",
     };
   }
@@ -146,22 +89,26 @@ export async function getMcpInspectorState(): Promise<
   return {
     data: {
       bundles: bundlesState.data.map((bundle) => ({
+        customMcpServerIds: bundle.customMcpServers.map((server) => server.id),
         description: bundle.description,
         id: bundle.id,
         name: bundle.name,
         providers: bundle.providers.map((provider) => provider.provider),
       })),
-      providers: installedContextProviders.map((integration, index) => {
-        const detailState = detailStates[index];
-        return detailState?.status === "available"
-          ? providerFromDetail(detailState.data)
-          : unavailableProvider(
-              integration,
-              detailState?.status === "unavailable"
-                ? detailState.message
-                : "This provider is no longer available. Review its integration setup.",
-            );
-      }),
+      providers: [
+        ...installedContextProviders.map((integration, index) => {
+          const detailState = detailStates[index];
+          return detailState?.status === "available"
+            ? integrationInspectorSource(detailState.data)
+            : unavailableProvider(
+                integration,
+                detailState?.status === "unavailable"
+                  ? detailState.message
+                  : "This provider is no longer available. Review its integration setup.",
+              );
+        }),
+        ...customMcpState.data.map(customMcpInspectorSource),
+      ],
     },
     status: "available",
   };

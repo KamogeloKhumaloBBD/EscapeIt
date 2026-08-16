@@ -30,6 +30,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BrandIcon } from "@/components/brand-icon";
+import { CustomMcpMark } from "@/components/integrations/custom-mcp-mark";
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,7 +67,8 @@ import type {
   McpInspectorData,
   McpInspectorProvider,
   McpInspectorTool,
-} from "@/lib/server/mcp-inspector";
+} from "@/lib/mcp-inspector-model";
+import { inspectorSourcesForBundle } from "@/lib/mcp-inspector-model";
 import { cn } from "@/lib/utils";
 
 const ALL_PROVIDERS = "all";
@@ -75,8 +77,8 @@ const PROVIDER_RADIUS_Y = 275;
 
 type Direction = "bottom" | "left" | "right" | "top";
 type InspectorSelection =
-  | { provider: string; type: "provider" }
-  | { provider: string; tool: string; type: "tool" };
+  | { sourceId: string; type: "provider" }
+  | { sourceId: string; tool: string; type: "tool" };
 
 interface CoreNodeData extends Record<string, unknown> {
   scopeLabel: string;
@@ -93,8 +95,8 @@ interface ProviderNodeData extends Record<string, unknown> {
 
 interface ToolNodeData extends Record<string, unknown> {
   direction: Direction;
-  providerDisplayName: string;
-  providerKey: string;
+  sourceDisplayName: string;
+  sourceId: string;
   tool: McpInspectorTool;
 }
 
@@ -200,7 +202,7 @@ function CoreNodeView({ data, selected }: NodeProps<CoreFlowNode>) {
             </span>
           </p>
           <p className="text-[0.625rem] tracking-wider text-background/55 uppercase">
-            Providers ready
+            Sources ready
           </p>
         </div>
       </div>
@@ -228,12 +230,19 @@ function ProviderNodeView({ data, selected }: NodeProps<ProviderFlowNode>) {
       <HiddenHandle direction={opposite(data.direction)} type="target" />
       <HiddenHandle direction={data.direction} type="source" />
       <div className="flex items-center gap-3">
-        <ProviderMark
-          className={cn(!ready && "grayscale opacity-60")}
-          displayName={provider.displayName}
-          provider={provider.provider}
-          size="sm"
-        />
+        {provider.sourceType === "custom-mcp" ? (
+          <CustomMcpMark
+            className={cn(!ready && "grayscale opacity-60")}
+            size="sm"
+          />
+        ) : (
+          <ProviderMark
+            className={cn(!ready && "grayscale opacity-60")}
+            displayName={provider.displayName}
+            provider={provider.provider ?? ""}
+            size="sm"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">
             {provider.displayName}
@@ -347,9 +356,9 @@ function matchesProvider(
   provider: McpInspectorProvider,
   query: string,
 ): boolean {
-  return [provider.displayName, provider.provider].some((value) =>
-    value.toLocaleLowerCase().includes(query),
-  );
+  return [provider.displayName, provider.provider]
+    .filter((value): value is string => value !== null)
+    .some((value) => value.toLocaleLowerCase().includes(query));
 }
 
 function createGraph({
@@ -398,14 +407,14 @@ function createGraph({
       x: Math.cos(angle) * PROVIDER_RADIUS_X,
       y: Math.sin(angle) * PROVIDER_RADIUS_Y,
     };
-    const providerId = `provider:${provider.provider}`;
+    const providerId = provider.id;
     const providerMatch = query !== "" && matchesProvider(provider, query);
     const matchingTools = provider.tools.filter((tool) =>
       matchesTool(tool, query),
     );
     const toolsToShow =
       query === ""
-        ? expandedProviders.has(provider.provider)
+        ? expandedProviders.has(provider.id)
           ? provider.tools
           : []
         : providerMatch
@@ -413,7 +422,7 @@ function createGraph({
           : matchingTools;
 
     nodes.push({
-      ariaLabel: `${provider.displayName}. ${provider.readiness === "ready" ? `${String(provider.tools.length)} tools exposed. Activate to expand or collapse tools.` : (provider.readinessReason ?? "Provider unavailable.")}`,
+      ariaLabel: `${provider.displayName}. ${provider.readiness === "ready" ? `${String(provider.tools.length)} tools exposed. Activate to expand or collapse tools.` : (provider.readinessReason ?? "MCP source unavailable.")}`,
       ariaRole: "button",
       data: {
         direction,
@@ -427,7 +436,7 @@ function createGraph({
     });
     edges.push({
       animated: provider.readiness === "ready",
-      id: `core:${provider.provider}`,
+      id: `core:${provider.id}`,
       source: "core",
       sourceHandle: direction,
       style: {
@@ -443,14 +452,14 @@ function createGraph({
     });
 
     toolsToShow.forEach((tool, toolIndex) => {
-      const toolId = `tool:${provider.provider}:${tool.name}`;
+      const toolId = `tool:${provider.id}:${tool.name}`;
       nodes.push({
         ariaLabel: `${tool.displayName}, ${tool.kind} tool from ${provider.displayName}.`,
         ariaRole: "button",
         data: {
           direction,
-          providerDisplayName: provider.displayName,
-          providerKey: provider.provider,
+          sourceDisplayName: provider.displayName,
+          sourceId: provider.id,
           tool,
         },
         draggable: true,
@@ -489,7 +498,7 @@ function SelectionDetails({
   selection: InspectorSelection;
 }) {
   const provider = providers.find(
-    (candidate) => candidate.provider === selection.provider,
+    (candidate) => candidate.id === selection.sourceId,
   );
   if (provider === undefined) return null;
 
@@ -502,14 +511,22 @@ function SelectionDetails({
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex items-start justify-between gap-4 border-b border-border p-5">
         <div className="flex min-w-0 items-center gap-3">
-          <ProviderMark
-            displayName={provider.displayName}
-            provider={provider.provider}
-            size="sm"
-          />
+          {provider.sourceType === "custom-mcp" ? (
+            <CustomMcpMark size="sm" />
+          ) : (
+            <ProviderMark
+              displayName={provider.displayName}
+              provider={provider.provider ?? ""}
+              size="sm"
+            />
+          )}
           <div className="min-w-0">
             <p className="font-mono text-[0.625rem] tracking-wider text-muted-foreground uppercase">
-              {tool === undefined ? "Provider" : "MCP tool"}
+              {tool === undefined
+                ? provider.sourceType === "custom-mcp"
+                  ? "Custom MCP server"
+                  : "Provider"
+                : "MCP tool"}
             </p>
             <h2 className="mt-1 truncate text-lg font-semibold tracking-[-0.03em]">
               {tool?.displayName ?? provider.displayName}
@@ -562,8 +579,10 @@ function SelectionDetails({
             </div>
           </dl>
           <Button asChild className="w-full" variant="outline">
-            <Link href={`/integrations/${provider.provider}`}>
-              View integration
+            <Link href={provider.configurationHref}>
+              {provider.sourceType === "custom-mcp"
+                ? "View Custom MCP server"
+                : "View integration"}
             </Link>
           </Button>
         </div>
@@ -628,15 +647,15 @@ function GraphEmptyState({
             {noSearchResults
               ? "No matching MCP tools"
               : hasProviders
-                ? "No MCP providers in this bundle"
-                : "No MCP providers installed"}
+                ? "No MCP sources in this bundle"
+                : "No MCP sources configured"}
           </EmptyTitle>
           <EmptyDescription>
             {noSearchResults
-              ? "Try a provider name, display name, exact MCP tool name, or description."
+              ? "Try a source name, exact MCP tool name, or description."
               : hasProviders
-                ? `${selectedBundle?.name ?? "This bundle"} does not include any installed context providers.`
-                : "Install a context provider to start mapping your workspace MCP."}
+                ? `${selectedBundle?.name ?? "This bundle"} does not include any configured MCP sources.`
+                : "Configure a provider or Custom MCP server to start mapping your workspace MCP."}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -656,13 +675,10 @@ function InspectorCanvas({ data }: { data: McpInspectorData }) {
   const [selection, setSelection] = useState<InspectorSelection | null>(null);
   const selectedBundle =
     data.bundles.find((bundle) => bundle.id === bundleId) ?? null;
-  const scopeProviders = useMemo(() => {
-    if (selectedBundle === null) return data.providers;
-    const bundleProviders = new Set(selectedBundle.providers);
-    return data.providers.filter((provider) =>
-      bundleProviders.has(provider.provider),
-    );
-  }, [data.providers, selectedBundle]);
+  const scopeProviders = useMemo(
+    () => inspectorSourcesForBundle(data.providers, selectedBundle),
+    [data.providers, selectedBundle],
+  );
   const visibleProviders = useMemo(() => {
     if (query === "") return scopeProviders;
     return scopeProviders.filter(
@@ -671,7 +687,7 @@ function InspectorCanvas({ data }: { data: McpInspectorData }) {
         provider.tools.some((tool) => matchesTool(tool, query)),
     );
   }, [query, scopeProviders]);
-  const scopeLabel = selectedBundle?.name ?? "All providers";
+  const scopeLabel = selectedBundle?.name ?? "All sources";
   const graph = useMemo(
     () =>
       createGraph({
@@ -711,18 +727,18 @@ function InspectorCanvas({ data }: { data: McpInspectorData }) {
     (_event: React.MouseEvent, node: InspectorFlowNode) => {
       if (node.type === "provider") {
         const provider = node.data.provider;
-        setSelection({ provider: provider.provider, type: "provider" });
+        setSelection({ sourceId: provider.id, type: "provider" });
         if (provider.readiness === "ready") {
           setExpandedProviders((current) => {
             const next = new Set(current);
-            if (next.has(provider.provider)) next.delete(provider.provider);
-            else next.add(provider.provider);
+            if (next.has(provider.id)) next.delete(provider.id);
+            else next.add(provider.id);
             return next;
           });
         }
       } else if (node.type === "tool") {
         setSelection({
-          provider: node.data.providerKey,
+          sourceId: node.data.sourceId,
           tool: node.data.tool.name,
           type: "tool",
         });
@@ -772,7 +788,7 @@ function InspectorCanvas({ data }: { data: McpInspectorData }) {
             <SelectValue placeholder="Choose an MCP scope" />
           </SelectTrigger>
           <SelectContent align="start" position="popper">
-            <SelectItem value={ALL_PROVIDERS}>All providers</SelectItem>
+            <SelectItem value={ALL_PROVIDERS}>All sources</SelectItem>
             {data.bundles.map((bundle) => (
               <SelectItem key={bundle.id} value={bundle.id}>
                 {bundle.name}
@@ -791,7 +807,7 @@ function InspectorCanvas({ data }: { data: McpInspectorData }) {
               setQueryInput(event.target.value);
               setSelection(null);
             }}
-            placeholder="Search providers, tools, or capabilities…"
+            placeholder="Search sources, tools, or capabilities…"
             value={queryInput}
           />
           {queryInput === "" ? null : (
