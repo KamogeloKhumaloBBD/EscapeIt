@@ -11,10 +11,13 @@ export interface NotificationHealthView {
 
 function formatCheckedAt(value: string): string {
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
     timeZone: "UTC",
     timeZoneName: "short",
+    year: "numeric",
   }).format(new Date(value));
 }
 

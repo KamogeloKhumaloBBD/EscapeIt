@@ -38,6 +38,10 @@ export function createProxyRewrites(
       source: "/.well-known/oauth-protected-resource/api/mcp",
     },
     {
+      destination: `${normalizedApiInternalUrl}/oauth/custom-mcp-client.json`,
+      source: "/oauth/custom-mcp-client.json",
+    },
+    {
       destination: `${normalizedApiInternalUrl}/.well-known/:path*`,
       source: "/.well-known/:path*",
     },

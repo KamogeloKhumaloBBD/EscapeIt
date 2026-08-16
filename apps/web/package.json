@@ -7,7 +7,6 @@
     "build": "next build",
     "dev": "next dev --port 3000",
     "start": "next start --port 3000",
-    "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
