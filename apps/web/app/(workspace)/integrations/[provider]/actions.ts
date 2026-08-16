@@ -138,9 +138,17 @@ export async function integrationAction(
     };
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/integrations");
-  revalidatePath(`/integrations/${parsed.data.provider}`);
+  const refreshesPage = ![
+    "save-mcp-tools",
+    "save-scopes",
+    "set-notification-event-keys",
+  ].includes(parsed.data.intent);
+
+  if (refreshesPage) {
+    revalidatePath("/dashboard");
+    revalidatePath("/integrations");
+    revalidatePath(`/integrations/${parsed.data.provider}`);
+  }
 
   const messages: Record<(typeof parsed.data)["intent"], string> = {
     "disconnect-account": "Your provider account was disconnected.",

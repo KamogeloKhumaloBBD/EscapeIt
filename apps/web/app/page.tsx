@@ -508,7 +508,7 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#fbfaf7] text-[#15130f]">
       <div className="hero-surface">
-        <header className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-stretch gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6 lg:px-8">
+        <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
           <Link
             href="/"
             className="flex w-fit items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
@@ -516,22 +516,22 @@ export default function Home() {
             <BrandIcon className="size-6" />
             Context Layer
           </Link>
-          <div className="flex w-full flex-wrap items-center justify-center gap-2 [&_[data-slot=button]]:px-3 sm:w-auto sm:justify-end sm:gap-3 sm:[&_[data-slot=button]]:px-4">
+          <div className="flex shrink-0 items-center justify-end gap-1 [&_[data-slot=button]]:px-3 sm:gap-3 sm:[&_[data-slot=button]]:px-4">
             <Button asChild size="sm" variant="ghost">
               <Link href="/pricing">Pricing</Link>
             </Button>
-            <LandingAuthControl className="landing-header-auth [&>div]:gap-2 sm:[&>div]:gap-3" />
+            <LandingAuthControl />
           </div>
         </header>
 
         <section className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)] items-center gap-8 px-4 pb-12 pt-0 sm:gap-12 sm:px-6 sm:pb-20 lg:min-h-[760px] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14 lg:px-8 lg:pb-28">
           <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-3rem)] text-center lg:mx-0 lg:max-w-[660px] lg:text-left">
             <h1 className="mt-2 text-balance text-4xl font-semibold leading-[1.02] tracking-[-0.04em] sm:mt-6 sm:text-6xl lg:text-[4.75rem]">
-              Bring Context To Where The Work Happens
+              Bring Context To Where Work Happens
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-7 text-[#68635a] sm:mt-6 sm:text-xl sm:leading-8 lg:mx-0">
               A universal context layer that empowers your agents with secure
-              access to the tools you use.
+              access to the tools you use
             </p>
             <div className="mt-6 flex flex-col items-center gap-3 sm:mt-8 sm:flex-row sm:justify-center lg:justify-start [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:px-7">
               <LandingAuthControl />
@@ -573,8 +573,8 @@ export default function Home() {
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
                   Pick the projects, repositories, and actions available in each
-                  IDE connection. Save those choices as a group, then reuse them
-                  across your team.
+                  agent connection. Save those choices as a bundle, then reuse
+                  them across your team.
                 </p>
               </div>
               <div className="lg:order-1">

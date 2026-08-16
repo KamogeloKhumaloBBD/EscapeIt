@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useActionState,
-  useEffect,
-  useMemo,
-  useOptimistic,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { initialIntegrationActionState } from "@/app/(workspace)/integrations/[provider]/action-state";
@@ -79,10 +71,6 @@ export function ScopeSelector({
   providerDisplayName: string;
   scopeLabels: { plural: string; singular: string };
 }) {
-  const [state, formAction] = useActionState(
-    integrationAction,
-    initialIntegrationActionState,
-  );
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<readonly IntegrationScope[]>(initialItems);
@@ -92,10 +80,7 @@ export function ScopeSelector({
     () => new Map(initialSelected.map((scope) => [scope.externalId, scope])),
     [initialSelected],
   );
-  const [selected, setOptimisticSelected] = useOptimistic(
-    serverSelected,
-    (_current, next: ReadonlyMap<string, IntegrationScope>) => new Map(next),
-  );
+  const [selected, setSelected] = useState(serverSelected);
   const firstRender = useRef(true);
 
   const visibleItems = useMemo(() => {
@@ -107,14 +92,6 @@ export function ScopeSelector({
 
     return [...combined.values()];
   }, [items, selected]);
-
-  useEffect(() => {
-    if (state.status === "success" && state.message !== null) {
-      toast.success(state.message);
-    } else if (state.status === "error" && state.message !== null) {
-      toast.error(state.message);
-    }
-  }, [state]);
 
   useEffect(() => {
     if (firstRender.current) {
@@ -212,6 +189,7 @@ export function ScopeSelector({
   }
 
   function saveSelection(next: ReadonlyMap<string, IntegrationScope>) {
+    const previous = new Map(selected);
     const formData = new FormData();
     formData.set("intent", "save-scopes");
     formData.set("provider", provider);
@@ -219,9 +197,19 @@ export function ScopeSelector({
       formData.append("externalIds", externalId);
     });
 
-    startTransition(() => {
-      setOptimisticSelected(next);
-      formAction(formData);
+    setSelected(new Map(next));
+    startTransition(async () => {
+      const result = await integrationAction(
+        initialIntegrationActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setSelected(previous);
+        if (result.message !== null) toast.error(result.message);
+      } else if (result.message !== null) {
+        toast.success(result.message);
+      }
     });
   }
 

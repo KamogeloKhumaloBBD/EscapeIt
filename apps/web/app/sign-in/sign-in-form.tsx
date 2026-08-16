@@ -24,13 +24,29 @@ function SubmitButton({
   );
 }
 
-export function SignInForm({ returnTo }: { returnTo: string | null }) {
+export function SignInForm({
+  initialEmail,
+  returnTo,
+}: {
+  initialEmail: string;
+  returnTo: string | null;
+}) {
+  const signInParameters = new URLSearchParams();
+
+  if (returnTo !== null) {
+    signInParameters.set("returnTo", returnTo);
+  }
+
+  if (initialEmail !== "") {
+    signInParameters.set("email", initialEmail);
+  }
+
   const [state, formAction, isPending] = useActionState(
     signInAction,
-    { ...initialSignInState, returnTo },
-    returnTo === null
+    { ...initialSignInState, email: initialEmail, returnTo },
+    signInParameters.size === 0
       ? "/sign-in"
-      : `/sign-in?returnTo=${encodeURIComponent(returnTo)}`,
+      : `/sign-in?${signInParameters.toString()}`,
   );
 
   useEffect(() => {

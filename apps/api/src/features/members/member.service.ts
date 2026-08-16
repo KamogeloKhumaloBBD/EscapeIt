@@ -187,9 +187,10 @@ export function createMemberService({
       const invitationUrl = new URL(
         `/invite/${encodeURIComponent(token)}`,
         publicAppUrl,
-      ).toString();
+      );
+      invitationUrl.searchParams.set("email", invitation.normalizedEmail);
       const delivered = await emailSender.sendInvitation({
-        invitationUrl,
+        invitationUrl: invitationUrl.toString(),
         recipientEmail: invitation.normalizedEmail,
         workspaceName: current.workspace.name,
       });

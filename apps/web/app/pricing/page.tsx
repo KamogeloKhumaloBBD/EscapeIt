@@ -112,7 +112,7 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#fbfaf7] text-[#15130f]">
       <div className="hero-surface">
-        <header className="relative z-20 mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-6 lg:px-8">
+        <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
           <Link
             className="flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
             href="/"
@@ -121,7 +121,7 @@ export default function PricingPage() {
             Context Layer
           </Link>
 
-          <div className="flex flex-wrap items-center justify-end gap-4">
+          <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-4">
             <Link
               className="text-sm text-[#68635a] underline-offset-4 hover:text-[#15130f] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
               href="/"
@@ -140,7 +140,7 @@ export default function PricingPage() {
               Proposed pricing
             </Badge>
             <h1 className="mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.065em] sm:text-6xl">
-              Pricing that scales with the team, not the tool stack.
+              Pricing that scales with the team.
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-8 text-[#68635a] sm:text-xl">
               Start with your own workflow, then bring the whole engineering

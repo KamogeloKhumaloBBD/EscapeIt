@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { SignOutForm } from "@/components/auth/sign-out-form";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAuthSessionStatus } from "@/lib/server/auth-session";
@@ -10,12 +9,9 @@ export async function AuthControl() {
 
   if (sessionStatus === "authenticated") {
     return (
-      <div className="flex items-center gap-3">
-        <Button asChild size="sm" variant="default">
-          <Link href="/dashboard">Dashboard</Link>
-        </Button>
-        <SignOutForm />
-      </div>
+      <Button asChild size="sm" variant="default">
+        <Link href="/dashboard">Dashboard</Link>
+      </Button>
     );
   }
 

@@ -7,6 +7,7 @@ import {
   oauthAuthorizationReturnPath,
   safeReturnPath,
 } from "@/lib/validation/return-path";
+import { emailSchema } from "@/lib/validation/sign-in";
 
 export default async function SignInPage({
   searchParams,
@@ -16,6 +17,8 @@ export default async function SignInPage({
   const query = await searchParams;
   const returnTo =
     safeReturnPath(query.returnTo) ?? oauthAuthorizationReturnPath(query);
+  const parsedEmail = emailSchema.safeParse({ email: query.email });
+  const initialEmail = parsedEmail.success ? parsedEmail.data.email : "";
   const sessionStatus = await getAuthSessionStatus();
 
   if (sessionStatus === "authenticated") {
@@ -24,7 +27,7 @@ export default async function SignInPage({
 
   return (
     <SignInShell>
-      <SignInForm returnTo={returnTo} />
+      <SignInForm initialEmail={initialEmail} returnTo={returnTo} />
     </SignInShell>
   );
 }

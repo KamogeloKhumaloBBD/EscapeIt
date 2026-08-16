@@ -42,21 +42,6 @@ export default async function OnboardingPage() {
               Start with a shared home for your team&apos;s context. You&apos;ll
               connect sources and your coding agent next.
             </p>
-            <ol
-              aria-label="Getting started steps"
-              className="mt-7 grid grid-cols-3 gap-3 border-y border-[#e1dcd2] py-4"
-            >
-              {["Workspace", "Sources", "Agent"].map((label, index) => (
-                <li className="min-w-0" key={label}>
-                  <span className="block font-mono text-[0.625rem] text-[#8a8378]">
-                    0{index + 1}
-                  </span>
-                  <span className="mt-1 block truncate text-xs font-medium">
-                    {label}
-                  </span>
-                </li>
-              ))}
-            </ol>
             <OnboardingForm />
           </div>
         )}

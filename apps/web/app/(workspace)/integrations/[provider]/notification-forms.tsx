@@ -5,7 +5,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
-  useOptimistic,
+  useState,
   useTransition,
 } from "react";
 import { useFormStatus } from "react-dom";
@@ -143,22 +143,15 @@ export function ChannelSourceSelector({
   disabled?: boolean;
   options: readonly { displayName: string; provider: string }[];
 }) {
-  const [state, formAction] = useActionState(
-    notificationAction,
-    initialNotificationActionState,
-  );
   const serverSources = useMemo(
     () => new Set(currentSources),
     [currentSources],
   );
-  const [sources, setOptimisticSources] = useOptimistic(
-    serverSources,
-    (_current, next: ReadonlySet<string>) => new Set(next),
-  );
+  const [sources, setSources] = useState(serverSources);
   const [isPending, startTransition] = useTransition();
-  useActionToast(state);
 
   function saveSources(next: ReadonlySet<string>) {
+    const previous = new Set(sources);
     const formData = new FormData();
     formData.set("intent", "set-channel-sources");
     formData.set("channelId", channelId);
@@ -166,9 +159,19 @@ export function ChannelSourceSelector({
       formData.append("providers", source);
     });
 
-    startTransition(() => {
-      setOptimisticSources(next);
-      formAction(formData);
+    setSources(new Set(next));
+    startTransition(async () => {
+      const result = await notificationAction(
+        initialNotificationActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setSources(previous);
+        if (result.message !== null) toast.error(result.message);
+      } else if (result.message !== null) {
+        toast.success(result.message);
+      }
     });
   }
 

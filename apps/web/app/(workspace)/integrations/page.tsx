@@ -41,6 +41,7 @@ import {
 } from "@/components/workspace-status";
 import { getIntegrationsState } from "@/lib/server/integration";
 import { getCustomMcpServersState } from "@/lib/server/custom-mcp";
+import { getNotificationChannelsState } from "@/lib/server/notification";
 import { getCurrentWorkspaceState } from "@/lib/server/workspace";
 import type { IntegrationSummary } from "@/lib/validation/integration";
 
@@ -97,16 +98,25 @@ function PipelineStep({
 }
 
 export default async function IntegrationsPage() {
-  const [state, customState, workspaceState] = await Promise.all([
-    getIntegrationsState(),
-    getCustomMcpServersState(),
-    getCurrentWorkspaceState(),
-  ]);
+  const [state, customState, workspaceState, channelsState] = await Promise.all(
+    [
+      getIntegrationsState(),
+      getCustomMcpServersState(),
+      getCurrentWorkspaceState(),
+      getNotificationChannelsState(),
+    ],
+  );
 
-  if (state.status === "anonymous" || customState.status === "anonymous")
+  if (
+    state.status === "anonymous" ||
+    customState.status === "anonymous" ||
+    channelsState.status === "anonymous"
+  )
     redirect("/sign-in");
 
   const integrations = state.status === "available" ? state.data : [];
+  const notificationChannels =
+    channelsState.status === "available" ? channelsState.data : [];
   const hasGitHub = integrations.some(
     (integration) => integration.provider === "github",
   );
@@ -146,6 +156,14 @@ export default async function IntegrationsPage() {
                   integration.capabilities.includes("context");
                 const hasNotificationChannels =
                   integration.capabilities.includes("notification-channels");
+                const connectedChannels = notificationChannels.filter(
+                  (channel) =>
+                    channel.provider === integration.provider &&
+                    channel.status === "connected",
+                );
+                const visibleConnectedChannels = connectedChannels.slice(0, 3);
+                const hiddenConnectedChannelCount =
+                  connectedChannels.length - visibleConnectedChannels.length;
                 const accountConnected =
                   integration.currentAccount?.status === "connected";
                 const resourceSelected =
@@ -216,6 +234,25 @@ export default async function IntegrationsPage() {
                             />
                           ) : null}
                         </div>
+                      ) : hasNotificationChannels &&
+                        connectedChannels.length > 0 ? (
+                        <div className="divide-y divide-border border-y border-border">
+                          {visibleConnectedChannels.map((channel) => (
+                            <PipelineStep
+                              complete
+                              key={channel.id}
+                              label={channel.name}
+                            />
+                          ))}
+                          {hiddenConnectedChannelCount > 0 ? (
+                            <div className="py-2.5 text-xs text-muted-foreground">
+                              +{hiddenConnectedChannelCount} more connected{" "}
+                              {hiddenConnectedChannelCount === 1
+                                ? "channel"
+                                : "channels"}
+                            </div>
+                          ) : null}
+                        </div>
                       ) : hasNotificationChannels ? (
                         <div className="flex flex-1 flex-col items-center justify-center gap-2 border-y border-dashed border-border py-8 text-center">
                           <PlugsConnectedIcon
@@ -232,9 +269,12 @@ export default async function IntegrationsPage() {
 
                       <div className="mt-auto flex items-center justify-between gap-4 pt-6">
                         <span className="text-xs text-muted-foreground">
-                          {integration.nextStep === "ready"
-                            ? "Configuration complete"
-                            : "Next step available"}
+                          {hasNotificationChannels &&
+                          connectedChannels.length > 0
+                            ? `${String(connectedChannels.length)} connected ${connectedChannels.length === 1 ? "channel" : "channels"}`
+                            : integration.nextStep === "ready"
+                              ? "Configuration complete"
+                              : "Next step available"}
                         </span>
                         <Button
                           asChild

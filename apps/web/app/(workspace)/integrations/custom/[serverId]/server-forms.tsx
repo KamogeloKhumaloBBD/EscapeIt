@@ -5,7 +5,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
-  useOptimistic,
+  useState,
   useTransition,
 } from "react";
 import { useFormStatus } from "react-dom";
@@ -13,6 +13,11 @@ import { toast } from "sonner";
 
 import { initialCustomMcpActionState } from "../action-state";
 import { customMcpAction } from "../actions";
+import {
+  matchesToolFilter,
+  ToolSelectorFilters,
+  type ToolKindFilter,
+} from "@/components/integrations/tool-selector-filters";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -258,35 +263,63 @@ export function ToolApprovalForm({
   serverId: string;
   tools: readonly CustomMcpTool[];
 }) {
-  const [, action] = useFeedback();
   const serverSelected = useMemo(
     () => new Set(tools.filter((tool) => tool.enabled).map((tool) => tool.id)),
     [tools],
   );
-  const [selected, setOptimisticSelected] = useOptimistic(
-    serverSelected,
-    (_current, next: ReadonlySet<string>) => new Set(next),
-  );
+  const [selected, setSelected] = useState(serverSelected);
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<ToolKindFilter>("all");
   const [pending, startTransition] = useTransition();
   const availableTools = tools.filter((tool) => tool.available);
+  const visibleTools = useMemo(
+    () =>
+      tools.filter((tool) =>
+        matchesToolFilter(
+          {
+            description: tool.description,
+            kind: tool.kind,
+            searchableNames: [tool.title, tool.exposedName, tool.upstreamName],
+          },
+          query,
+          kindFilter,
+        ),
+      ),
+    [kindFilter, query, tools],
+  );
+  const visibleAvailableTools = visibleTools.filter((tool) => tool.available);
   const selectedAvailableCount = availableTools.filter((tool) =>
     selected.has(tool.id),
   ).length;
-  const allSelected =
-    availableTools.length > 0 &&
-    selectedAvailableCount === availableTools.length;
-  const noneSelected = selectedAvailableCount === 0;
+  const visibleSelectedCount = visibleAvailableTools.filter((tool) =>
+    selected.has(tool.id),
+  ).length;
+  const allVisibleSelected =
+    visibleAvailableTools.length > 0 &&
+    visibleSelectedCount === visibleAvailableTools.length;
+  const noneVisibleSelected = visibleSelectedCount === 0;
 
   function saveTools(next: ReadonlySet<string>) {
+    const previous = new Set(selected);
     const formData = new FormData();
     formData.set("intent", "save-tools");
     formData.set("serverId", serverId);
     next.forEach((id) => {
       formData.append("toolIds", id);
     });
-    startTransition(() => {
-      setOptimisticSelected(next);
-      action(formData);
+    setSelected(new Set(next));
+    startTransition(async () => {
+      const result = await customMcpAction(
+        initialCustomMcpActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setSelected(previous);
+        if (result.message !== null) toast.error(result.message);
+      } else if (result.message !== null) {
+        toast.success(result.message);
+      }
     });
   }
 
@@ -294,15 +327,29 @@ export function ToolApprovalForm({
     <div aria-busy={pending} className="space-y-6">
       <FieldSet disabled={pending}>
         <FieldLegend>Available MCP tools</FieldLegend>
+        <ToolSelectorFilters
+          disabled={pending}
+          kindFilter={kindFilter}
+          onKindFilterChange={setKindFilter}
+          onQueryChange={setQuery}
+          query={query}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            {selectedAvailableCount} of {availableTools.length} enabled
+            {selectedAvailableCount} of {availableTools.length} enabled ·{" "}
+            {visibleTools.length} shown
           </p>
           <div className="flex gap-2">
             <Button
-              disabled={pending || allSelected}
+              disabled={
+                pending ||
+                allVisibleSelected ||
+                visibleAvailableTools.length === 0
+              }
               onClick={() => {
-                saveTools(new Set(availableTools.map((tool) => tool.id)));
+                const next = new Set(selected);
+                visibleAvailableTools.forEach((tool) => next.add(tool.id));
+                saveTools(next);
               }}
               size="sm"
               type="button"
@@ -311,9 +358,11 @@ export function ToolApprovalForm({
               Select all
             </Button>
             <Button
-              disabled={pending || noneSelected}
+              disabled={pending || noneVisibleSelected}
               onClick={() => {
-                saveTools(new Set());
+                const next = new Set(selected);
+                visibleAvailableTools.forEach((tool) => next.delete(tool.id));
+                saveTools(next);
               }}
               size="sm"
               type="button"
@@ -324,7 +373,12 @@ export function ToolApprovalForm({
           </div>
         </div>
         <div className="divide-y divide-border border-y border-border">
-          {tools.map((tool) => {
+          {visibleTools.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              No MCP tools match these filters.
+            </p>
+          ) : null}
+          {visibleTools.map((tool) => {
             const id = `custom-tool-${tool.id}`;
             return (
               <Field

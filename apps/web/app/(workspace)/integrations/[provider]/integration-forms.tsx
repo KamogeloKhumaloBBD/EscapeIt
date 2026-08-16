@@ -15,6 +15,11 @@ import { toast } from "sonner";
 import { initialIntegrationActionState } from "@/app/(workspace)/integrations/[provider]/action-state";
 import { integrationAction } from "@/app/(workspace)/integrations/[provider]/actions";
 import {
+  matchesToolFilter,
+  ToolSelectorFilters,
+  type ToolKindFilter,
+} from "@/components/integrations/tool-selector-filters";
+import {
   AlertDialog,
   AlertDialogCancel,
   AlertDialogContent,
@@ -315,25 +320,39 @@ export function McpToolSelector({
   providerDisplayName: string;
   tools: readonly IntegrationMcpTool[];
 }) {
-  const [state, formAction] = useActionState(
-    integrationAction,
-    initialIntegrationActionState,
-  );
   const serverSelected = useMemo(
     () =>
       new Set(tools.filter((tool) => tool.enabled).map((tool) => tool.name)),
     [tools],
   );
-  const [selected, setOptimisticSelected] = useOptimistic(
-    serverSelected,
-    (_current, next: ReadonlySet<string>) => new Set(next),
-  );
+  const [selected, setSelected] = useState(serverSelected);
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<ToolKindFilter>("all");
   const [pending, startTransition] = useTransition();
-  const allSelected = tools.length > 0 && selected.size === tools.length;
-  const noneSelected = selected.size === 0;
-  useActionToast(state);
+  const visibleTools = useMemo(
+    () =>
+      tools.filter((tool) =>
+        matchesToolFilter(
+          {
+            description: tool.description,
+            kind: tool.kind,
+            searchableNames: [tool.displayName, tool.name],
+          },
+          query,
+          kindFilter,
+        ),
+      ),
+    [kindFilter, query, tools],
+  );
+  const visibleSelectedCount = visibleTools.filter((tool) =>
+    selected.has(tool.name),
+  ).length;
+  const allVisibleSelected =
+    visibleTools.length > 0 && visibleSelectedCount === visibleTools.length;
+  const noneVisibleSelected = visibleSelectedCount === 0;
 
   function saveTools(next: ReadonlySet<string>) {
+    const previous = new Set(selected);
     const formData = new FormData();
     formData.set("intent", "save-mcp-tools");
     formData.set("provider", provider);
@@ -341,9 +360,19 @@ export function McpToolSelector({
       formData.append("toolNames", name);
     });
 
-    startTransition(() => {
-      setOptimisticSelected(next);
-      formAction(formData);
+    setSelected(new Set(next));
+    startTransition(async () => {
+      const result = await integrationAction(
+        initialIntegrationActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setSelected(previous);
+        if (result.message !== null) toast.error(result.message);
+      } else if (result.message !== null) {
+        toast.success(result.message);
+      }
     });
   }
 
@@ -351,15 +380,30 @@ export function McpToolSelector({
     <div aria-busy={pending} className="space-y-6">
       <FieldSet disabled={disabled || pending}>
         <FieldLegend>Available MCP tools</FieldLegend>
+        <ToolSelectorFilters
+          disabled={disabled || pending}
+          kindFilter={kindFilter}
+          onKindFilterChange={setKindFilter}
+          onQueryChange={setQuery}
+          query={query}
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            {selected.size} of {tools.length} selected
+            {selected.size} of {tools.length} selected · {visibleTools.length}{" "}
+            shown
           </p>
           <div className="flex gap-2">
             <Button
-              disabled={disabled || pending || allSelected}
+              disabled={
+                disabled ||
+                pending ||
+                allVisibleSelected ||
+                visibleTools.length === 0
+              }
               onClick={() => {
-                saveTools(new Set(tools.map((tool) => tool.name)));
+                const next = new Set(selected);
+                visibleTools.forEach((tool) => next.add(tool.name));
+                saveTools(next);
               }}
               size="sm"
               type="button"
@@ -368,9 +412,11 @@ export function McpToolSelector({
               Select all
             </Button>
             <Button
-              disabled={disabled || pending || noneSelected}
+              disabled={disabled || pending || noneVisibleSelected}
               onClick={() => {
-                saveTools(new Set());
+                const next = new Set(selected);
+                visibleTools.forEach((tool) => next.delete(tool.name));
+                saveTools(next);
               }}
               size="sm"
               type="button"
@@ -381,7 +427,12 @@ export function McpToolSelector({
           </div>
         </div>
         <div className="divide-y divide-border border-y border-border">
-          {tools.map((tool) => {
+          {visibleTools.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              No MCP tools match these filters.
+            </p>
+          ) : null}
+          {visibleTools.map((tool) => {
             const checked = selected.has(tool.name);
             const id = `mcp-tool-${tool.name}`;
 
@@ -430,10 +481,6 @@ export function NotificationEventsChecklist({
   events: readonly IntegrationNotificationEvent[];
   provider: string;
 }) {
-  const [state, formAction] = useActionState(
-    integrationAction,
-    initialIntegrationActionState,
-  );
   const serverEnabled = useMemo(
     () =>
       new Set(
@@ -441,14 +488,11 @@ export function NotificationEventsChecklist({
       ),
     [events],
   );
-  const [enabledKeys, setOptimisticEnabledKeys] = useOptimistic(
-    serverEnabled,
-    (_current, next: ReadonlySet<string>) => new Set(next),
-  );
+  const [enabledKeys, setEnabledKeys] = useState(serverEnabled);
   const [isPending, startTransition] = useTransition();
-  useActionToast(state);
 
   function saveEvents(next: ReadonlySet<string>) {
+    const previous = new Set(enabledKeys);
     const formData = new FormData();
     formData.set("intent", "set-notification-event-keys");
     formData.set("provider", provider);
@@ -456,9 +500,19 @@ export function NotificationEventsChecklist({
       formData.append("eventKeys", key);
     });
 
-    startTransition(() => {
-      setOptimisticEnabledKeys(next);
-      formAction(formData);
+    setEnabledKeys(new Set(next));
+    startTransition(async () => {
+      const result = await integrationAction(
+        initialIntegrationActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setEnabledKeys(previous);
+        if (result.message !== null) toast.error(result.message);
+      } else if (result.message !== null) {
+        toast.success(result.message);
+      }
     });
   }
 

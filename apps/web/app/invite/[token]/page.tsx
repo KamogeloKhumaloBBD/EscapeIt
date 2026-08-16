@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { getInvitationState } from "@/lib/server/member";
 import { invitationTokenSchema } from "@/lib/validation/member";
+import { emailSchema } from "@/lib/validation/sign-in";
 
 const blockedCopy = {
   "already-member": {
@@ -38,10 +39,15 @@ const blockedCopy = {
 
 export default async function InvitationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { token: rawToken } = await params;
+  const [{ token: rawToken }, query] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const parsed = invitationTokenSchema.safeParse(rawToken);
 
   if (!parsed.success) notFound();
@@ -49,6 +55,12 @@ export default async function InvitationPage({
   const token = parsed.data;
   const state = await getInvitationState(token);
   const returnTo = `/invite/${token}`;
+  const parsedEmail = emailSchema.safeParse({ email: query.email });
+  const signInParameters = new URLSearchParams({ returnTo });
+
+  if (parsedEmail.success) {
+    signInParameters.set("email", parsedEmail.data.email);
+  }
 
   if (state.status === "anonymous") {
     return (
@@ -69,9 +81,7 @@ export default async function InvitationPage({
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link
-                  href={`/sign-in?returnTo=${encodeURIComponent(returnTo)}`}
-                >
+                <Link href={`/sign-in?${signInParameters.toString()}`}>
                   Sign in to continue
                 </Link>
               </Button>

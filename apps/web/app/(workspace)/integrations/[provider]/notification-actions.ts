@@ -86,7 +86,9 @@ export async function notificationAction(
     };
   }
 
-  revalidatePath("/integrations/teams");
+  if (parsed.data.intent === "delete-channel") {
+    revalidatePath("/integrations/teams");
+  }
 
   const messages: Record<(typeof parsed.data)["intent"], string> = {
     "delete-channel": "The notification channel was removed.",

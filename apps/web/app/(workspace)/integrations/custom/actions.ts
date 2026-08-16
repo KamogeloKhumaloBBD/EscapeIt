@@ -170,9 +170,11 @@ export async function customMcpAction(
       status: "error",
     };
   }
-  revalidatePath("/integrations");
-  revalidatePath(`/integrations/custom/${serverId}`);
-  revalidatePath("/bundles");
+  if (mutation.data.intent !== "save-tools") {
+    revalidatePath("/integrations");
+    revalidatePath(`/integrations/custom/${serverId}`);
+    revalidatePath("/bundles");
+  }
   if (mutation.data.intent === "archive") redirect("/integrations?tab=custom");
   const messages: Record<(typeof mutation.data)["intent"], string> = {
     "connect-bearer": "Your bearer credential is connected.",
