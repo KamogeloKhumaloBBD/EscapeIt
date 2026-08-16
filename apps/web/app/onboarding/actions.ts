@@ -38,7 +38,11 @@ export async function createWorkspaceAction(
     redirect("/sign-in");
   }
 
-  if (result.ok || result.status === 409) {
+  if (result.ok) {
+    redirect("/welcome?source=workspace-created");
+  }
+
+  if (result.status === 409) {
     redirect("/dashboard");
   }
 

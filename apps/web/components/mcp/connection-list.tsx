@@ -90,7 +90,7 @@ function ConnectionBundleForm({
 
   return (
     <Select disabled={pending} onValueChange={saveBundle} value={selectedValue}>
-      <SelectTrigger className="min-w-0 flex-1 sm:w-44" size="sm">
+      <SelectTrigger className="w-full min-w-0 sm:w-56" size="sm">
         <SelectValue placeholder="All connected providers" />
       </SelectTrigger>
       <SelectContent>
@@ -124,8 +124,8 @@ function ConnectionRow({
   }, [state]);
 
   return (
-    <li className="border-b p-4 last:border-b-0 sm:p-5 flex justify-between items-center">
-      <div className="flex min-w-0 items-center gap-3">
+    <li className="flex flex-col gap-4 border-b p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <div className="flex min-w-0 items-center gap-3 sm:flex-1">
         <McpClientMark clientName={connection.clientName} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">
@@ -140,13 +140,17 @@ function ConnectionRow({
           </p>
         </div>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
         {bundles.length === 0 ? null : (
           <ConnectionBundleForm bundles={bundles} connection={connection} />
         )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="sm" variant="destructive">
+            <Button
+              className="w-full sm:w-auto"
+              size="sm"
+              variant="destructive"
+            >
               Revoke
             </Button>
           </AlertDialogTrigger>

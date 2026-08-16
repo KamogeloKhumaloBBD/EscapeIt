@@ -32,7 +32,7 @@ function InviteSubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} type="submit">
+    <Button className="w-full sm:w-auto" disabled={pending} type="submit">
       {pending ? <Spinner aria-hidden="true" /> : <PaperPlaneTiltIcon />}
       {pending ? "Sending…" : "Send invitation"}
     </Button>
@@ -62,29 +62,31 @@ export function InviteMemberForm() {
       ref={formReference}
       action={formAction}
       aria-busy={pending}
-      className="flex flex-col gap-4 sm:flex-row sm:items-end justify-items-center"
+      className="w-full"
     >
-      <Field className="flex-1" data-invalid={state.fieldError !== undefined}>
+      <Field data-invalid={state.fieldError !== undefined}>
         <FieldLabel htmlFor="invitation-email">Email address</FieldLabel>
-        <Input
-          aria-describedby="invitation-email-description"
-          aria-invalid={state.fieldError === undefined ? undefined : true}
-          autoComplete="email"
-          defaultValue={state.email}
-          disabled={pending}
-          id="invitation-email"
-          maxLength={320}
-          name="email"
-          placeholder="teammate@example.com"
-          required
-          type="email"
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Input
+            aria-describedby="invitation-email-description"
+            aria-invalid={state.fieldError === undefined ? undefined : true}
+            autoComplete="email"
+            defaultValue={state.email}
+            disabled={pending}
+            id="invitation-email"
+            maxLength={320}
+            name="email"
+            placeholder="teammate@example.com"
+            required
+            type="email"
+          />
+          <InviteSubmitButton />
+        </div>
         <FieldDescription id="invitation-email-description">
           Recipients may need to check their spam or junk folder if the
           invitation doesn’t arrive.
         </FieldDescription>
       </Field>
-      <InviteSubmitButton />
     </form>
   );
 }

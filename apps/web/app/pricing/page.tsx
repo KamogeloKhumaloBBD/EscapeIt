@@ -146,10 +146,6 @@ export default function PricingPage() {
               Start with your own workflow, then bring the whole engineering
               team into one permission-aware context layer.
             </p>
-            <p className="mt-4 text-sm text-[#817b73]">
-              Prices are monthly and shown in South African rand. Billing and
-              plan enforcement are not active yet.
-            </p>
           </div>
 
           <div className="mt-14 grid grid-cols-[minmax(0,1fr)] items-stretch gap-5 lg:grid-cols-3">

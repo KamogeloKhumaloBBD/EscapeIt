@@ -47,5 +47,5 @@ export async function acceptInvitationAction(
 
   revalidatePath("/dashboard");
   revalidatePath("/members");
-  redirect("/dashboard");
+  redirect("/welcome?source=invitation-accepted");
 }

@@ -1,5 +1,4 @@
 import {
-  ArrowRightIcon,
   ChartLineIcon,
   CheckCircleIcon,
   EnvelopeSimpleIcon,
@@ -14,6 +13,7 @@ import {
   AuthControlSkeleton,
 } from "@/components/auth/auth-control";
 import { BrandIcon } from "@/components/brand-icon";
+import { CustomMcpMark } from "@/components/integrations/custom-mcp-mark";
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,17 +46,23 @@ const connectedSources = [
 ] as const;
 
 const connectionSteps = [
-  "Personal account",
-  "Workspace resource",
-  "Allowed scopes",
-  "Enabled MCP tools",
+  "Your account",
+  "Approved projects",
+  "Allowed actions",
+  "Ready in your IDE",
 ] as const;
 
-function LandingAuthControl() {
-  return (
+function LandingAuthControl({ className }: { className?: string }) {
+  const control = (
     <Suspense fallback={<AuthControlSkeleton />}>
       <AuthControl />
     </Suspense>
+  );
+
+  return className === undefined ? (
+    control
+  ) : (
+    <div className={className}>{control}</div>
   );
 }
 
@@ -182,25 +188,26 @@ function HeroWorkflow() {
 
 function ConnectionVisual() {
   const providers = [
-    { displayName: "Jira", provider: "jira" },
-    { displayName: "GitHub", provider: "github" },
-    { displayName: "Confluence", provider: "confluence" },
+    { displayName: "Jira", provider: "jira", type: "provider" },
+    { displayName: "GitHub", provider: "github", type: "provider" },
+    { displayName: "Confluence", provider: "confluence", type: "provider" },
+    { displayName: "Your MCP", provider: "custom-mcp", type: "custom" },
   ] as const;
 
   return (
-    <VisualFrame description="Jira, GitHub, and Confluence converge into Context Layer. A four-step pipeline confirms the member's personal account, workspace resource, allowed scopes, and enabled MCP tools.">
+    <VisualFrame description="Jira, GitHub, Confluence, and your own MCP server connect to Context Layer. Context Layer checks your account, approved projects, and allowed actions before bringing them into your IDE.">
       <div className="landing-feature-scene landing-connect-scene relative mx-auto min-h-[430px] max-w-xl overflow-hidden border border-[#dcd7cc] bg-[#f8f6f1] p-5 shadow-[0_22px_65px_rgba(44,37,63,0.1)] sm:p-7">
         <div className="flex items-center justify-between gap-4">
           <span className="font-mono text-[0.625rem] font-semibold tracking-[0.12em] text-[#777067] uppercase">
-            Workspace sources
+            Your tools
           </span>
           <Badge className="border-emerald-600/20 bg-emerald-50 text-emerald-700">
-            3 connected
+            4 connected
           </Badge>
         </div>
 
-        <div className="relative mt-8 grid grid-cols-3 gap-3">
-          <div className="landing-connect-bus absolute top-[1.15rem] right-[16%] left-[16%] h-px" />
+        <div className="relative mt-8 grid grid-cols-4 gap-2 sm:gap-3">
+          <div className="landing-connect-bus absolute top-[1.15rem] right-[12%] left-[12%] h-px" />
           {providers.map((provider, index) => (
             <div
               className="landing-connect-provider relative z-10 flex flex-col items-center gap-2"
@@ -208,11 +215,15 @@ function ConnectionVisual() {
               style={{ animationDelay: `${String(index * 180)}ms` }}
             >
               <span className="grid size-12 place-items-center border border-[#ded9cf] bg-white shadow-[0_8px_24px_rgba(30,25,50,0.08)] sm:size-14">
-                <ProviderMark
-                  displayName={provider.displayName}
-                  provider={provider.provider}
-                  size="sm"
-                />
+                {provider.type === "custom" ? (
+                  <CustomMcpMark className="border-0" />
+                ) : (
+                  <ProviderMark
+                    displayName={provider.displayName}
+                    provider={provider.provider}
+                    size="sm"
+                  />
+                )}
               </span>
               <span className="text-[0.625rem] font-semibold sm:text-xs">
                 {provider.displayName}
@@ -228,7 +239,7 @@ function ConnectionVisual() {
           <span>
             <span className="block text-xs font-semibold">Context Layer</span>
             <span className="mt-0.5 block text-[0.625rem] text-[#aaa3b7]">
-              One MCP endpoint
+              One connection for your IDE
             </span>
           </span>
           <span className="landing-status-pulse ml-2 size-1.5 rounded-full bg-[#8cffbd]" />
@@ -256,7 +267,7 @@ function ConnectionVisual() {
 
         <div className="landing-connect-ready mt-4 flex items-center justify-between border-t border-[#ded9cf] pt-4 text-xs text-[#777067]">
           <span>Connected</span>
-          <span className="font-mono text-[#5a41e8]">READY · 15 TOOLS</span>
+          <span className="font-mono text-[#5a41e8]">READY · 15 ACTIONS</span>
         </div>
       </div>
     </VisualFrame>
@@ -292,7 +303,7 @@ function BundleVisual() {
   ] as const;
 
   return (
-    <VisualFrame description="An illustrative access map shows your coding-agent token limited to a Delivery bundle containing Jira, GitHub, and Confluence. Bitbucket is outside the bundle and unavailable to that agent.">
+    <VisualFrame description="An access map shows that a developer and their agents can use Jira, GitHub, and Confluence from their IDE. Bitbucket is not included in this connection.">
       <div className="landing-feature-scene landing-boundary-scene relative mx-auto h-[430px] max-w-xl overflow-hidden border border-[#dcd7cc] bg-[#f8f6f1] shadow-[0_22px_65px_rgba(44,37,63,0.1)]">
         <div className="absolute top-5 left-5 z-20 flex items-center gap-2 border border-[#29242f] bg-[#17151b] px-3 py-2 text-white shadow-lg">
           <span className="grid size-7 place-items-center bg-white/10 text-[0.625rem] font-semibold">
@@ -300,17 +311,17 @@ function BundleVisual() {
           </span>
           <span>
             <span className="block text-[0.625rem] font-semibold">
-              Coding agent
+              IDE connection
             </span>
             <span className="block text-[0.5625rem] text-[#aaa3b7]">
-              Your token
+              Developer and AI
             </span>
           </span>
           <KeyIcon className="ml-1 size-3.5 text-[#9d8cff]" />
         </div>
 
         <span className="absolute top-6 right-5 z-20 font-mono text-[0.625rem] font-semibold tracking-[0.12em] text-[#777067] uppercase">
-          Access boundary
+          What this connection can use
         </span>
 
         <div className="landing-boundary absolute inset-[14%_9%_12%] border border-dashed border-[#9d8cff] bg-[#f1eeff]/45" />
@@ -346,10 +357,10 @@ function BundleVisual() {
               weight="fill"
             />
             <span className="mt-2 block text-xs font-semibold">
-              Delivery bundle
+              Delivery tools
             </span>
             <span className="mt-1 block text-[0.5625rem] text-[#aaa3b7]">
-              3 providers
+              3 connected
             </span>
           </span>
         </div>
@@ -374,14 +385,14 @@ function BundleVisual() {
                 {provider.displayName}
               </span>
               <span className="block text-[0.5625rem] text-[#777067]">
-                {provider.included ? "Available" : "Outside bundle"}
+                {provider.included ? "Available" : "Not included"}
               </span>
             </span>
           </div>
         ))}
 
         <span className="absolute bottom-5 left-5 font-mono text-[0.5625rem] text-[#777067]">
-          RESOURCES ∩ TOOLS ∩ IDENTITY
+          ONLY APPROVED TOOLS
         </span>
       </div>
     </VisualFrame>
@@ -400,13 +411,13 @@ function OperationsVisual() {
   ] as const;
 
   return (
-    <VisualFrame description="An illustrative workspace signal shows 1,284 tool calls, a 99.4 percent success rate, recent Jira, GitHub, and Confluence activity, and a daily digest delivered to Microsoft Teams.">
+    <VisualFrame description="A workspace activity view shows 1,284 requests from developers and their agents, a 99.4 percent success rate, recent Jira, GitHub, and Confluence activity, and a daily summary delivered to Microsoft Teams.">
       <div className="landing-feature-scene landing-operations-scene relative mx-auto min-h-[430px] max-w-xl overflow-hidden border border-[#dcd7cc] bg-[#17151b] p-5 text-white shadow-[0_22px_65px_rgba(44,37,63,0.14)] sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <ChartLineIcon className="size-4 text-[#9d8cff]" />
             <span className="font-mono text-[0.625rem] font-semibold tracking-[0.12em] text-[#c4bdcf] uppercase">
-              Workspace signal
+              Workspace activity
             </span>
           </div>
           <span className="flex items-center gap-1.5 text-[0.625rem] text-[#aaa3b7]">
@@ -419,7 +430,7 @@ function OperationsVisual() {
           <div>
             <p className="text-3xl font-semibold tracking-[-0.05em]">1,284</p>
             <p className="mt-1 text-[0.625rem] tracking-wide text-[#938ca0] uppercase">
-              Tool calls
+              Requests
             </p>
           </div>
           <div>
@@ -477,7 +488,7 @@ function OperationsVisual() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-semibold">
-              Daily digest delivered
+              Daily summary delivered
             </span>
             <span className="mt-0.5 block text-[0.625rem] text-[#bbb4c8]">
               Microsoft Teams · Delivery channel
@@ -497,41 +508,33 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#fbfaf7] text-[#15130f]">
       <div className="hero-surface">
-        <header className="relative z-20 mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-6 lg:px-8">
+        <header className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-stretch gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6 lg:px-8">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
+            className="flex w-fit items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
           >
             <BrandIcon className="size-6" />
             Context Layer
           </Link>
-          <div className="flex flex-wrap items-center justify-end gap-4">
-            <Link
-              className="text-sm text-[#68635a] underline-offset-4 hover:text-[#15130f] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
-              href="/pricing"
-            >
-              Pricing
-            </Link>
-            <LandingAuthControl />
+          <div className="flex w-full flex-wrap items-center justify-center gap-2 [&_[data-slot=button]]:px-3 sm:w-auto sm:justify-end sm:gap-3 sm:[&_[data-slot=button]]:px-4">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/pricing">Pricing</Link>
+            </Button>
+            <LandingAuthControl className="landing-header-auth [&>div]:gap-2 sm:[&>div]:gap-3" />
           </div>
         </header>
 
-        <section className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)] items-center gap-14 px-6 pb-24 pt-12 lg:min-h-[760px] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14 lg:px-8 lg:pb-28 lg:pt-10">
+        <section className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-[minmax(0,1fr)] items-center gap-8 px-4 pb-12 pt-0 sm:gap-12 sm:px-6 sm:pb-20 lg:min-h-[760px] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14 lg:px-8 lg:pb-28">
           <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-3rem)] text-center lg:mx-0 lg:max-w-[660px] lg:text-left">
-            <h1 className="mt-6 text-balance text-4xl font-semibold leading-[1.02] tracking-[-0.07em] sm:text-6xl lg:text-[4.75rem]">
+            <h1 className="mt-2 text-balance text-4xl font-semibold leading-[1.02] tracking-[-0.04em] sm:mt-6 sm:text-6xl lg:text-[4.75rem]">
               Bring Context To Where The Work Happens
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-8 text-[#68635a] sm:text-xl lg:mx-0">
+            <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-7 text-[#68635a] sm:mt-6 sm:text-xl sm:leading-8 lg:mx-0">
               A universal context layer that empowers your agents with secure
               access to the tools you use.
             </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:px-7">
-              <Button asChild size="lg" variant="outline">
-                <Link href="#features">
-                  See how it works
-                  <ArrowRightIcon aria-hidden="true" data-icon="inline-end" />
-                </Link>
-              </Button>
+            <div className="mt-6 flex flex-col items-center gap-3 sm:mt-8 sm:flex-row sm:justify-center lg:justify-start [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:px-7">
+              <LandingAuthControl />
             </div>
           </div>
 
@@ -541,28 +544,20 @@ export default function Home() {
 
       <section className="border-y border-[#dedbd2] bg-white/55" id="features">
         <div className="mx-auto w-full max-w-7xl px-6 py-20 lg:px-8 lg:py-28">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold tracking-[0.16em] text-[#5a41e8] uppercase">
-              One layer. Three jobs.
-            </p>
-            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
-              From connected tools to controlled, observable context.
-            </h2>
-          </div>
-
-          <div className="mt-20 space-y-24 lg:mt-28 lg:space-y-32">
+          <div className="space-y-24 lg:mt-28 lg:space-y-32">
             <article className="grid grid-cols-[minmax(0,1fr)] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
               <div className="max-w-lg">
                 <span className="font-mono text-xs font-semibold text-[#5a41e8]">
                   01 / CONNECT
                 </span>
                 <h3 className="mt-5 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
-                  Connect the tools where work already lives.
+                  Spend less time switching between tabs.
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
-                  Bring your tools into one MCP endpoint. Provider accounts stay
-                  personal, while owners choose the workspace resources and
-                  tools agents can use.
+                  Bring tickets, code, and docs into the IDE your team already
+                  uses. Connect your tools, or bring your own remote MCP server.
+                  MCP is a standard way for developer tools and AI to use
+                  information from other services.
                 </p>
               </div>
               <ConnectionVisual />
@@ -574,12 +569,12 @@ export default function Home() {
                   02 / CONTROL
                 </span>
                 <h3 className="mt-5 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
-                  Set the boundary once. Every agent stays inside it.
+                  Choose what developers and agents can use.
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
-                  Allowlist projects, repositories, and spaces; select read or
-                  write tools; then package the right providers into bundles for
-                  each agent connection.
+                  Pick the projects, repositories, and actions available in each
+                  IDE connection. Save those choices as a group, then reuse them
+                  across your team.
                 </p>
               </div>
               <div className="lg:order-1">
@@ -590,15 +585,15 @@ export default function Home() {
             <article className="grid grid-cols-[minmax(0,1fr)] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
               <div className="max-w-lg">
                 <span className="font-mono text-xs font-semibold text-[#5a41e8]">
-                  03 / OPERATE
+                  03 / KEEP TRACK
                 </span>
                 <h3 className="mt-5 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
-                  Know what agents used—and keep the team in sync.
+                  See how your connections are being used.
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
-                  Track tool usage, reliability, and recent activity. Turn
-                  provider events into focused Microsoft Teams notifications and
-                  daily workspace digests.
+                  See what developers and agents accessed, whether each request
+                  worked, and what happened recently. Send useful Microsoft
+                  Teams updates and a simple daily summary to your team.
                 </p>
               </div>
               <OperationsVisual />
@@ -609,11 +604,11 @@ export default function Home() {
 
       <section className="mx-auto w-full max-w-5xl px-6 py-20 text-center lg:px-8 lg:py-28">
         <h2 className="text-balance text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
-          Give every agent the right context.
+          Keep developers in flow.
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#68635a]">
-          Connect your workspace, choose what is accessible, and start using
-          Context Layer from the coding tools your team already prefers.
+          Bring code, tickets, and docs into the tools your team already uses,
+          so people can find answers and work with AI without leaving their IDE.
         </p>
         <div className="mt-8 flex justify-center [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:px-8">
           <LandingAuthControl />

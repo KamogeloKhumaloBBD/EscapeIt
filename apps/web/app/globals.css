@@ -507,25 +507,24 @@
 
 @media (max-width: 639px) {
   .landing-orbit-shell {
-    height: 410px;
-    max-width: calc(100vw - 3rem);
+    height: 351px;
+    max-width: calc(100vw - 2rem);
+    overflow: hidden;
   }
 
   .landing-orbit {
     left: 50%;
-    margin-left: -228.75px;
-    transform: scale(0.75);
-    transform-origin: top left;
+    transform: scale(0.65);
+    transform-origin: top center;
   }
 }
 
 @media (max-width: 479px) {
   .landing-orbit-shell {
-    height: 290px;
+    height: 270px;
   }
 
   .landing-orbit {
-    margin-left: -152.5px;
     transform: scale(0.5);
   }
 }
@@ -536,7 +535,6 @@
   }
 
   .landing-orbit {
-    margin-left: -134.2px;
     transform: scale(0.44);
   }
 }
