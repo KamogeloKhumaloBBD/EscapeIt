@@ -193,9 +193,44 @@ const createdIssueSchema = z.object({ id: z.string(), key: z.string() });
 
 const webhookRegistrationResponseSchema = z.object({
   webhookRegistrationResult: z.array(
-    z.object({ createdWebhookId: z.number().optional() }),
+    z.object({
+      createdWebhookId: z.number().optional(),
+      errors: z.array(z.string()).optional(),
+    }),
   ),
 });
+
+const registeredWebhooksSchema = z.object({
+  values: z.array(
+    z.object({
+      id: z.number(),
+      url: z.url(),
+    }),
+  ),
+});
+
+function callbackFamily(value: string): string | null {
+  try {
+    const url = new URL(value);
+    const finalSeparator = url.pathname.lastIndexOf("/");
+
+    if (finalSeparator < 0) {
+      return null;
+    }
+
+    return `${url.origin}${url.pathname.slice(0, finalSeparator + 1)}`;
+  } catch {
+    return null;
+  }
+}
+
+function webhookIds(registrationId: string): number[] {
+  return registrationId.split(",").flatMap((value) => {
+    const id = Number.parseInt(value.trim(), 10);
+
+    return Number.isNaN(id) ? [] : [id];
+  });
+}
 
 export type { JiraAttachmentContent, JiraTextValue } from "./content";
 
@@ -693,6 +728,31 @@ export function createJiraAdapter(config: {
       };
     },
     async registerWebhooks(credentials, resource, callbackUrl, selectedScopes) {
+      const webhookUrl = apiUrl(resource, "webhook");
+      const registered = registeredWebhooksSchema.safeParse(
+        await oauth.getJson(webhookUrl, credentials.accessToken),
+      );
+
+      if (!registered.success) {
+        throw new ProviderAdapterError("invalid_response");
+      }
+
+      // Jira can retain a valid dynamic webhook after Context Layer has lost
+      // its registration id (for example after replacing an installation).
+      // Reconcile callbacks owned by this deployment before registering the
+      // desired set, otherwise Jira rejects the duplicate event/JQL pair and
+      // keeps delivering to a token the application no longer recognises.
+      const expectedFamily = callbackFamily(callbackUrl);
+      const staleIds = registered.data.values
+        .filter((webhook) => callbackFamily(webhook.url) === expectedFamily)
+        .map((webhook) => webhook.id);
+
+      if (staleIds.length > 0) {
+        await oauth.deleteWithoutResponse(webhookUrl, credentials.accessToken, {
+          webhookIds: staleIds,
+        });
+      }
+
       const projectKeys = selectedScopes
         .filter((scope) => scope.scopeKey === jiraProjectScopeKey)
         .map((scope) => scope.externalKey)
@@ -702,55 +762,74 @@ export function createJiraAdapter(config: {
         return null;
       }
 
-      const webhookUrl = apiUrl(resource, "webhook");
       const jqlFilter =
         projectKeys.length === 1
           ? `project = ${projectKeys.join("")}`
           : `project IN (${projectKeys.join(", ")})`;
+      const requestedWebhooks = [
+        {
+          events: ["jira:issue_updated", "jira:issue_created"],
+          jqlFilter,
+        },
+        { events: ["comment_created"], jqlFilter },
+      ];
       const response = await oauth.postJson(
         webhookUrl,
         credentials.accessToken,
         {
           url: callbackUrl,
-          webhooks: [
-            {
-              events: ["jira:issue_updated", "jira:issue_created"],
-              jqlFilter,
-            },
-            { events: ["comment_created"], jqlFilter },
-          ],
+          webhooks: requestedWebhooks,
         },
       );
       const parsed = webhookRegistrationResponseSchema.safeParse(response);
 
       if (!parsed.success) {
-        return null;
+        throw new ProviderAdapterError("invalid_response");
       }
 
       const createdIds = parsed.data.webhookRegistrationResult
         .map((result) => result.createdWebhookId)
         .filter((id) => id !== undefined);
 
-      return createdIds.length === 0
-        ? null
-        : createdIds.map((id) => id.toString()).join(",");
+      if (
+        createdIds.length !== requestedWebhooks.length ||
+        parsed.data.webhookRegistrationResult.some(
+          (result) => result.errors !== undefined && result.errors.length > 0,
+        )
+      ) {
+        // Jira reports one result per requested webhook and can partially
+        // succeed. Remove anything it did create so the next attempt starts
+        // from a known state, but never expose Jira's raw error text.
+        if (createdIds.length > 0) {
+          try {
+            await oauth.deleteWithoutResponse(
+              webhookUrl,
+              credentials.accessToken,
+              { webhookIds: createdIds },
+            );
+          } catch {
+            // The registration failure remains the actionable error. A later
+            // reconciliation will remove any partial callback left behind.
+          }
+        }
+
+        throw new ProviderAdapterError("invalid_request");
+      }
+
+      return createdIds.map((id) => id.toString()).join(",");
     },
     async unregisterWebhooks(credentials, resource, registrationId) {
       // registerWebhooks stores the created ids comma-joined.
-      const webhookIds = registrationId.split(",").flatMap((value) => {
-        const id = Number.parseInt(value.trim(), 10);
+      const registeredIds = webhookIds(registrationId);
 
-        return Number.isNaN(id) ? [] : [id];
-      });
-
-      if (webhookIds.length === 0) {
+      if (registeredIds.length === 0) {
         return;
       }
 
       await oauth.deleteWithoutResponse(
         apiUrl(resource, "webhook"),
         credentials.accessToken,
-        { webhookIds },
+        { webhookIds: registeredIds },
       );
     },
     buildAuthorizationUrl: (state) => oauth.buildAuthorizationUrl(state),
