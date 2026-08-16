@@ -425,6 +425,7 @@ function buildSummary(
       case "PROVIDER_AUTHORIZATION_EXPIRED":
       case "authorization_expired":
       case "CREDENTIALS_UNAVAILABLE":
+      case "credentials_unavailable":
         attention = `Your ${definition.displayName} authorization has expired. Reconnect your account to restore access.`;
         break;
       case "PROVIDER_PERMISSION_REQUIRED":

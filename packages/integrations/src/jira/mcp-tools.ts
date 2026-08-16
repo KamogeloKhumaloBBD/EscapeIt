@@ -170,21 +170,20 @@ function readyAccess(
   };
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown, reconnectUrl: string): string {
   if (error instanceof JiraMcpToolError) {
     return error.publicMessage;
   }
 
   if (error instanceof ProviderAccountRuntimeError) {
     return error.code === "account_required"
-      ? "Reconnect your Jira account and try again."
-      : "Your stored Jira credentials are unavailable. Reconnect your account.";
+      ? `Reconnect your Jira account at ${reconnectUrl}, then try again.`
+      : `Your stored Jira credentials are unavailable. Reconnect your account at ${reconnectUrl}, then try again.`;
   }
 
   if (error instanceof ProviderAdapterError) {
     const messages: Record<ProviderAdapterError["code"], string> = {
-      authorization_expired:
-        "Your Jira authorization has expired. Reconnect your account and try again.",
+      authorization_expired: `Your Jira authorization has expired. Reconnect your account at ${reconnectUrl}, then try again.`,
       content_too_large:
         "The Jira attachment exceeds the supported size limit.",
       forbidden: "Your Jira account does not permit this operation.",
@@ -221,12 +220,15 @@ function toolSuccess(value: Record<string, unknown>) {
 export function createJiraMcpToolProvider({
   accountRuntime,
   adapter,
+  publicAppUrl,
   repository,
 }: {
   accountRuntime: ProviderAccountRuntime;
   adapter: JiraAdapter;
+  publicAppUrl: string;
   repository: JiraMcpRepository;
 }): McpToolProvider {
+  const reconnectUrl = new URL("/integrations/jira", publicAppUrl).toString();
   async function invoke<T>(
     principal: McpPrincipal,
     ready: ReadyJiraAccess,
@@ -285,7 +287,7 @@ export function createJiraMcpToolProvider({
           workspaceId: principal.workspaceId,
         }),
       ]);
-      return { error: errorMessage(error) };
+      return { error: errorMessage(error, reconnectUrl) };
     }
 
     try {

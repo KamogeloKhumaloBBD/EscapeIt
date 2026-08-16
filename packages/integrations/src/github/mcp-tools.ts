@@ -157,16 +157,15 @@ function readyAccess(
   };
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown, reconnectUrl: string): string {
   if (error instanceof ProviderAccountRuntimeError) {
     return error.code === "account_required"
-      ? "Reconnect your GitHub account and try again."
-      : "Your stored GitHub credentials are unavailable. Reconnect your account.";
+      ? `Reconnect your GitHub account at ${reconnectUrl}, then try again.`
+      : `Your stored GitHub credentials are unavailable. Reconnect your account at ${reconnectUrl}, then try again.`;
   }
   if (error instanceof ProviderAdapterError) {
     const messages: Record<ProviderAdapterError["code"], string> = {
-      authorization_expired:
-        "Your GitHub authorization has expired. Reconnect your account and try again.",
+      authorization_expired: `Your GitHub authorization has expired. Reconnect your account at ${reconnectUrl}, then try again.`,
       content_too_large: "The GitHub content exceeds the supported size limit.",
       forbidden: "Your GitHub account does not permit this operation.",
       inaccessible_resource:
@@ -227,12 +226,15 @@ function pullRequestWorkflowMetadata(
 export function createGitHubMcpToolProvider({
   accountRuntime,
   adapter,
+  publicAppUrl,
   repository,
 }: {
   accountRuntime: ProviderAccountRuntime;
   adapter: GitHubAdapter;
+  publicAppUrl: string;
   repository: GitHubMcpRepository;
 }): McpToolProvider {
+  const reconnectUrl = new URL("/integrations/github", publicAppUrl).toString();
   async function invoke<T>(
     principal: McpPrincipal,
     ready: ReadyGitHubAccess,
@@ -288,7 +290,7 @@ export function createGitHubMcpToolProvider({
           workspaceId: principal.workspaceId,
         }),
       ]);
-      return { error: errorMessage(error) };
+      return { error: errorMessage(error, reconnectUrl) };
     }
     try {
       const event = await repository.appendActivity({

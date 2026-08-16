@@ -35,6 +35,14 @@ interface CustomMcpToolRepository {
     membershipId: string,
     allowedServerIds: ReadonlySet<string> | null,
   ): Promise<ReadyCustomMcpAccess[]>;
+  markAccountAuthenticationError(input: {
+    accountId: string;
+    errorCode: "authorization_expired" | "credentials_unavailable";
+    expectedEnvelope: EncryptedCredentialEnvelope;
+    membershipId: string;
+    serverId: string;
+    workspaceId: string;
+  }): Promise<CustomMcpAccount | null>;
   replaceCredentials(input: {
     accountId: string;
     credentialEnvelope: EncryptedCredentialEnvelope;
@@ -43,33 +51,69 @@ interface CustomMcpToolRepository {
   }): Promise<CustomMcpAccount | null>;
 }
 
+class CustomMcpCredentialError extends Error {
+  constructor() {
+    super("Custom MCP credentials are unavailable.");
+    this.name = "CustomMcpCredentialError";
+  }
+}
+
 function readCredential(
   encryption: CredentialEncryption,
   account: CustomMcpAccount | null,
 ): RemoteMcpCredential | null {
   if (account?.credentialEnvelope === null || account === null) return null;
-  const value = encryption.decrypt(
-    account.credentialEnvelope,
-    "custom-mcp-account",
-    account.id,
-  );
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Custom MCP credentials are unavailable.");
+  try {
+    const value = encryption.decrypt(
+      account.credentialEnvelope,
+      "custom-mcp-account",
+      account.id,
+    );
+    if (typeof value !== "object" || value === null) {
+      throw new CustomMcpCredentialError();
+    }
+    const record = value as Record<string, unknown>;
+    const authMethod = record.authMethod;
+    if (
+      (authMethod === "bearer" && typeof record.token === "string") ||
+      (authMethod === "oauth" &&
+        typeof record.oauth === "object" &&
+        record.oauth !== null)
+    ) {
+      return value as RemoteMcpCredential;
+    }
+  } catch (error) {
+    if (error instanceof CustomMcpCredentialError) throw error;
   }
-  const record = value as Record<string, unknown>;
-  const authMethod = record.authMethod;
-  if (
-    (authMethod === "bearer" && typeof record.token === "string") ||
-    (authMethod === "oauth" &&
-      typeof record.oauth === "object" &&
-      record.oauth !== null)
-  ) {
-    return value as RemoteMcpCredential;
-  }
-  throw new Error("Custom MCP credentials are unavailable.");
+
+  throw new CustomMcpCredentialError();
 }
 
-function errorMessage(error: unknown): string {
+function isOAuthAuthenticationFailure(
+  error: unknown,
+  account: CustomMcpAccount | null,
+): boolean {
+  return (
+    account?.authMethod === "oauth" &&
+    (error instanceof CustomMcpCredentialError ||
+      (error instanceof RemoteMcpError &&
+        error.code === "authorization_required"))
+  );
+}
+
+function errorMessage(
+  error: unknown,
+  ready: ReadyCustomMcpAccess,
+  publicAppUrl: string,
+): string {
+  if (isOAuthAuthenticationFailure(error, ready.account)) {
+    const reconnectUrl = new URL(
+      `/integrations/custom/${encodeURIComponent(ready.server.id)}`,
+      publicAppUrl,
+    ).toString();
+    return `Your ${ready.server.name} OAuth authorization needs to be renewed. Reconnect it at ${reconnectUrl}, then try again.`;
+  }
+
   if (error instanceof RemoteMcpError) {
     if (error.code === "result_too_large") {
       return "The Custom MCP result exceeded the allowed size.";
@@ -83,6 +127,7 @@ function errorMessage(error: unknown): string {
 
 export function createCustomMcpGatewayToolProvider(input: {
   credentialEncryption: CredentialEncryption;
+  publicAppUrl: string;
   repository: CustomMcpToolRepository;
 }): CustomMcpGatewayToolProvider {
   return {
@@ -218,7 +263,7 @@ export function createCustomMcpGatewayToolProvider(input: {
                 });
                 return invoked.result;
               } catch (error) {
-                await Promise.allSettled([
+                const sideEffects: Promise<unknown>[] = [
                   input.repository.appendActivity({
                     actorMembershipId: principal.membershipId,
                     category: "mcp",
@@ -235,9 +280,34 @@ export function createCustomMcpGatewayToolProvider(input: {
                     summary: "Custom MCP tool failed",
                     workspaceId: principal.workspaceId,
                   }),
-                ]);
+                ];
+                if (
+                  isOAuthAuthenticationFailure(error, ready.account) &&
+                  ready.account?.credentialEnvelope !== null &&
+                  ready.account !== null
+                ) {
+                  sideEffects.push(
+                    input.repository.markAccountAuthenticationError({
+                      accountId: ready.account.id,
+                      errorCode:
+                        error instanceof CustomMcpCredentialError
+                          ? "credentials_unavailable"
+                          : "authorization_expired",
+                      expectedEnvelope: ready.account.credentialEnvelope,
+                      membershipId: principal.membershipId,
+                      serverId: ready.server.id,
+                      workspaceId: principal.workspaceId,
+                    }),
+                  );
+                }
+                await Promise.allSettled(sideEffects);
                 return {
-                  content: [{ type: "text", text: errorMessage(error) }],
+                  content: [
+                    {
+                      type: "text",
+                      text: errorMessage(error, ready, input.publicAppUrl),
+                    },
+                  ],
                   isError: true,
                 };
               }

@@ -391,6 +391,37 @@ export async function replaceIntegrationAccountCredentials(
   return rows[0] ?? null;
 }
 
+export async function markIntegrationAccountAuthenticationError(
+  database: DatabaseClient,
+  input: {
+    accountId: string;
+    errorCode: "authorization_expired" | "credentials_unavailable";
+    expectedEnvelope: EncryptedCredentialEnvelope;
+    integrationId: string;
+    membershipId: string;
+    workspaceId: string;
+  },
+): Promise<IntegrationAccount | null> {
+  await requireMembership(database, input.workspaceId, input.membershipId);
+  const rows = await database<IntegrationAccount[]>`
+    update integration_accounts
+    set
+      status = 'error',
+      "lastErrorCode" = ${input.errorCode},
+      "updatedAt" = now()
+    where
+      id = ${input.accountId}
+      and "workspaceId" = ${input.workspaceId}
+      and "integrationId" = ${input.integrationId}
+      and "membershipId" = ${input.membershipId}
+      and status = 'connected'
+      and "credentialEnvelope" = ${input.expectedEnvelope}
+    returning *
+  `;
+
+  return rows[0] ?? null;
+}
+
 export async function disconnectIntegrationAccount(
   database: DatabaseClient,
   workspaceId: string,

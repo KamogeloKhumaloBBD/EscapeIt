@@ -29,6 +29,7 @@ export function createJiraProviderModule({
       createJiraMcpToolProvider({
         accountRuntime,
         adapter,
+        publicAppUrl,
         repository: {
           appendActivity: (input) => repository.appendActivity(input),
           findAccess: (workspaceId, membershipId) =>

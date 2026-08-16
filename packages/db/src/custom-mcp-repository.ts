@@ -305,6 +305,37 @@ export async function replaceCustomMcpAccountCredentials(
   return rows[0] ?? null;
 }
 
+export async function markCustomMcpOAuthAccountAuthenticationError(
+  database: DatabaseClient,
+  input: {
+    accountId: string;
+    errorCode: "authorization_expired" | "credentials_unavailable";
+    expectedEnvelope: EncryptedCredentialEnvelope;
+    membershipId: string;
+    serverId: string;
+    workspaceId: string;
+  },
+): Promise<CustomMcpAccount | null> {
+  const rows = await database<CustomMcpAccount[]>`
+    update custom_mcp_accounts
+    set
+      status = 'error',
+      "lastErrorCode" = ${input.errorCode},
+      "updatedAt" = now()
+    where
+      id = ${input.accountId}
+      and "workspaceId" = ${input.workspaceId}
+      and "serverId" = ${input.serverId}
+      and "membershipId" = ${input.membershipId}
+      and "authMethod" = 'oauth'
+      and status = 'connected'
+      and "credentialEnvelope" = ${input.expectedEnvelope}
+    returning *
+  `;
+
+  return rows[0] ?? null;
+}
+
 export async function disconnectCustomMcpAccount(
   database: DatabaseClient,
   workspaceId: string,

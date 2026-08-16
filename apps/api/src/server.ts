@@ -59,6 +59,7 @@ import {
   listWorkspaceToolUsage,
   listWorkspaceIntegrations,
   listWorkspacesWithDigestActivity,
+  markIntegrationAccountAuthenticationError,
   markIntegrationAccountValidated,
   markWorkspaceInvitationDeliveryFailed,
   markWorkspaceIntegrationValidated,
@@ -618,6 +619,8 @@ const providerAccountRuntime = createProviderAccountRuntime({
         integrationId,
         membershipId,
       ),
+    markAccountAuthenticationError: (input) =>
+      markIntegrationAccountAuthenticationError(connection.client, input),
     replaceAccountCredentials: (input, expectedEnvelope) =>
       integrationRepository.replaceAccountCredentials(input, expectedEnvelope),
   },

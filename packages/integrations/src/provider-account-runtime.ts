@@ -30,6 +30,14 @@ interface ProviderAccountRepository {
     input: SaveIntegrationAccountInput,
     expectedEnvelope: EncryptedCredentialEnvelope,
   ): Promise<IntegrationAccount | null>;
+  markAccountAuthenticationError(input: {
+    accountId: string;
+    errorCode: "authorization_expired" | "credentials_unavailable";
+    expectedEnvelope: EncryptedCredentialEnvelope;
+    integrationId: string;
+    membershipId: string;
+    workspaceId: string;
+  }): Promise<IntegrationAccount | null>;
 }
 
 export interface ProviderAccountExecutionContext {
@@ -91,6 +99,32 @@ export function createProviderAccountRuntime({
   credentialEncryption: CredentialEncryption;
   repository: ProviderAccountRepository;
 }): ProviderAccountRuntime {
+  async function markAuthenticationError(
+    context: ProviderAccountExecutionContext,
+    errorCode: "authorization_expired" | "credentials_unavailable",
+  ): Promise<void> {
+    const expectedEnvelope = context.account.credentialEnvelope;
+
+    if (expectedEnvelope === null) return;
+
+    try {
+      const updated = await repository.markAccountAuthenticationError({
+        accountId: context.account.id,
+        errorCode,
+        expectedEnvelope,
+        integrationId: context.integration.id,
+        membershipId: context.membershipId,
+        workspaceId: context.workspaceId,
+      });
+
+      if (updated !== null) context.account = updated;
+    } catch {
+      // The provider failure remains the useful result for the caller. A
+      // database failure must not replace it with an internal persistence
+      // detail or expose credential state.
+    }
+  }
+
   async function refreshCredentials(
     context: ProviderAccountExecutionContext,
     adapter: IntegrationAdapter,
@@ -183,31 +217,50 @@ export function createProviderAccountRuntime({
 
   return {
     async withCredentials(context, adapter, operation) {
-      let credentials = readCredentials(credentialEncryption, context.account);
-      let refreshedBeforeRequest = false;
-
-      if (new Date(credentials.expiresAt).getTime() <= Date.now() + 60_000) {
-        credentials = await refreshCredentials(context, adapter, credentials);
-        refreshedBeforeRequest = true;
-      }
-
       try {
-        return await operation(credentials);
-      } catch (error) {
-        if (
-          !(error instanceof ProviderAdapterError) ||
-          error.code !== "authorization_expired" ||
-          refreshedBeforeRequest
-        ) {
-          throw error;
+        let credentials = readCredentials(
+          credentialEncryption,
+          context.account,
+        );
+        let refreshedBeforeRequest = false;
+
+        if (new Date(credentials.expiresAt).getTime() <= Date.now() + 60_000) {
+          credentials = await refreshCredentials(context, adapter, credentials);
+          refreshedBeforeRequest = true;
         }
 
-        const refreshed = await refreshCredentials(
-          context,
-          adapter,
-          credentials,
-        );
-        return operation(refreshed);
+        try {
+          return await operation(credentials);
+        } catch (error) {
+          if (
+            !(error instanceof ProviderAdapterError) ||
+            error.code !== "authorization_expired" ||
+            refreshedBeforeRequest
+          ) {
+            throw error;
+          }
+
+          const refreshed = await refreshCredentials(
+            context,
+            adapter,
+            credentials,
+          );
+          return await operation(refreshed);
+        }
+      } catch (error) {
+        if (
+          error instanceof ProviderAdapterError &&
+          error.code === "authorization_expired"
+        ) {
+          await markAuthenticationError(context, "authorization_expired");
+        } else if (
+          error instanceof ProviderAccountRuntimeError &&
+          error.code === "credentials_unavailable"
+        ) {
+          await markAuthenticationError(context, "credentials_unavailable");
+        }
+
+        throw error;
       }
     },
   };

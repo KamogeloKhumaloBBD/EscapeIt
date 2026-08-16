@@ -7,6 +7,8 @@ import {
   findIntegrationBundleCustomMcpServerIds,
   findMemberIntegrationAccess,
   listReadyCustomMcpAccess,
+  markCustomMcpOAuthAccountAuthenticationError,
+  markIntegrationAccountAuthenticationError,
   replaceCustomMcpAccountCredentials,
   replaceIntegrationAccountCredentials,
   resolveMcpToken,
@@ -68,6 +70,8 @@ const providerAccountRuntime = createProviderAccountRuntime({
         integrationId,
         membershipId,
       ),
+    markAccountAuthenticationError: (input) =>
+      markIntegrationAccountAuthenticationError(connection.client, input),
     replaceAccountCredentials: (input, expectedEnvelope) =>
       replaceIntegrationAccountCredentials(
         connection.client,
@@ -103,6 +107,7 @@ const toolProviders = providerModules.flatMap((providerModule) => {
 
 const customToolProvider = createCustomMcpGatewayToolProvider({
   credentialEncryption,
+  publicAppUrl: config.publicAppUrl,
   repository: {
     appendActivity: (input) => appendActivityEvent(connection.client, input),
     listReady: (workspaceId, membershipId, allowedServerIds) =>
@@ -112,6 +117,8 @@ const customToolProvider = createCustomMcpGatewayToolProvider({
         membershipId,
         allowedServerIds,
       ),
+    markAccountAuthenticationError: (input) =>
+      markCustomMcpOAuthAccountAuthenticationError(connection.client, input),
     replaceCredentials: (input) =>
       replaceCustomMcpAccountCredentials(connection.client, input),
   },

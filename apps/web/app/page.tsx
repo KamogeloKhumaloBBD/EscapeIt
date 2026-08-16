@@ -554,10 +554,10 @@ export default function Home() {
                   Spend less time switching between tabs.
                 </h3>
                 <p className="mt-5 text-lg leading-8 text-[#68635a]">
-                  Bring tickets, code, and docs into the IDE your team already
-                  uses. Connect your tools, or bring your own remote MCP server.
-                  MCP is a standard way for developer tools and AI to use
-                  information from other services.
+                  Bring tickets, code, and docs into the agentic tools your team
+                  already uses. Connect your providers, and bring your own
+                  remote MCP server. MCP is a standard way for developer tools
+                  and AI to use information from other services.
                 </p>
               </div>
               <ConnectionVisual />

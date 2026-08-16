@@ -94,7 +94,10 @@ export default async function CustomMcpDetailPage({
       ? "Not required"
       : server.currentAccount?.status === "connected"
         ? "Connected"
-        : "Not connected";
+        : server.currentAccount?.status === "error"
+          ? "Needs attention"
+          : "Not connected";
+  const accountNeedsAttention = server.currentAccount?.status === "error";
   const sections = [
     { href: "#personal-account", label: "Your connection" },
     { href: "#mcp-tools", label: "MCP tools" },
@@ -162,7 +165,9 @@ export default async function CustomMcpDetailPage({
                   href={`/api/custom-mcp-servers/${encodeURIComponent(server.id)}/oauth/start`}
                 >
                   <LinkIcon aria-hidden="true" data-icon="inline-start" />
-                  Connect with OAuth
+                  {accountNeedsAttention
+                    ? "Reconnect OAuth"
+                    : "Connect with OAuth"}
                 </a>
               </Button>
             ) : server.permissions.canConnectAccount ? (
@@ -195,12 +200,14 @@ export default async function CustomMcpDetailPage({
         </dl>
       </section>
 
-      {server.status === "error" ? (
+      {server.status === "error" || accountNeedsAttention ? (
         <Alert className="mt-8" variant="destructive">
           <WarningCircleIcon aria-hidden="true" />
           <AlertTitle>Attention required</AlertTitle>
           <AlertDescription>
-            Validate your connection or reconnect before using this server.
+            {accountNeedsAttention
+              ? "Your OAuth authorization needs to be renewed before using this server."
+              : "Validate your connection or reconnect before using this server."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -286,10 +293,15 @@ export default async function CustomMcpDetailPage({
                       <LinkIcon aria-hidden="true" />
                     </ItemMedia>
                     <ItemContent>
-                      <ItemTitle>Connect with OAuth</ItemTitle>
+                      <ItemTitle>
+                        {accountNeedsAttention
+                          ? "Reconnect with OAuth"
+                          : "Connect with OAuth"}
+                      </ItemTitle>
                       <ItemDescription>
-                        Authorize the upstream identity this server should use
-                        for your requests.
+                        {accountNeedsAttention
+                          ? "Renew the upstream authorization this server uses for your requests."
+                          : "Authorize the upstream identity this server should use for your requests."}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions className="w-full sm:ml-auto sm:w-auto">
@@ -301,7 +313,9 @@ export default async function CustomMcpDetailPage({
                             aria-hidden="true"
                             data-icon="inline-start"
                           />
-                          Connect with OAuth
+                          {accountNeedsAttention
+                            ? "Reconnect with OAuth"
+                            : "Connect with OAuth"}
                         </a>
                       </Button>
                     </ItemActions>

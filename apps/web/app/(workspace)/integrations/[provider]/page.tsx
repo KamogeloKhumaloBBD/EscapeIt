@@ -103,6 +103,7 @@ export default async function IntegrationDetailPage({
   const isInstallationConnected =
     integration.installation?.status === "connected";
   const isAccountConnected = integration.currentAccount?.status === "connected";
+  const accountNeedsAttention = integration.currentAccount?.status === "error";
   const configuredResource =
     isInstallationConnected &&
     integration.installation !== null &&
@@ -309,7 +310,8 @@ export default async function IntegrationDetailPage({
                 <Button asChild>
                   <a href={`/api/integrations/${provider}/oauth/start`}>
                     <LinkIcon aria-hidden="true" data-icon="inline-start" />
-                    Connect {integration.displayName}
+                    {accountNeedsAttention ? "Reconnect" : "Connect"}{" "}
+                    {integration.displayName}
                   </a>
                 </Button>
               ) : hasApplicationResourceSelection &&
@@ -384,7 +386,9 @@ export default async function IntegrationDetailPage({
                 <Badge variant={"secondary"}>
                   {integration.currentAccount?.status === "connected"
                     ? "Connected"
-                    : "Not connected"}
+                    : accountNeedsAttention
+                      ? "Needs attention"
+                      : "Not connected"}
                 </Badge>
               </CardAction>
             </CardHeader>
@@ -422,17 +426,22 @@ export default async function IntegrationDetailPage({
                     <LinkIcon aria-hidden="true" />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>Connect your {accountLabel}</ItemTitle>
+                    <ItemTitle>
+                      {accountNeedsAttention ? "Reconnect" : "Connect"} your{" "}
+                      {accountLabel}
+                    </ItemTitle>
                     <ItemDescription>
-                      Authorize the account that {integration.displayName}{" "}
-                      should use for your workspace identity.
+                      {accountNeedsAttention
+                        ? `Renew the authorization ${integration.displayName} uses for your workspace identity.`
+                        : `Authorize the account that ${integration.displayName} should use for your workspace identity.`}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions className="w-full sm:ml-auto sm:w-auto">
                     <Button asChild className="w-full sm:w-auto">
                       <a href={`/api/integrations/${provider}/oauth/start`}>
                         <LinkIcon aria-hidden="true" data-icon="inline-start" />
-                        Connect {accountLabel}
+                        {accountNeedsAttention ? "Reconnect" : "Connect"}{" "}
+                        {accountLabel}
                       </a>
                     </Button>
                   </ItemActions>

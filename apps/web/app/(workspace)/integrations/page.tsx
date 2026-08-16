@@ -45,10 +45,11 @@ import { getNotificationChannelsState } from "@/lib/server/notification";
 import { getCurrentWorkspaceState } from "@/lib/server/workspace";
 import type { IntegrationSummary } from "@/lib/validation/integration";
 
-function actionLabel(nextStep: string): string {
-  if (nextStep === "connect_provider") return "Connect";
-  if (nextStep === "ready") return "Manage";
-  if (nextStep === "wait_for_owner") return "View setup";
+function actionLabel(integration: IntegrationSummary): string {
+  if (integration.currentAccount?.status === "error") return "Reconnect";
+  if (integration.nextStep === "connect_provider") return "Connect";
+  if (integration.nextStep === "ready") return "Manage";
+  if (integration.nextStep === "wait_for_owner") return "View setup";
   return "Continue setup";
 }
 
@@ -285,7 +286,7 @@ export default async function IntegrationsPage() {
                           }
                         >
                           <Link href={`/integrations/${integration.provider}`}>
-                            {actionLabel(integration.nextStep)}
+                            {actionLabel(integration)}
                             <ArrowRightIcon
                               aria-hidden="true"
                               data-icon="inline-end"

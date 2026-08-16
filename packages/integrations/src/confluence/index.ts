@@ -27,6 +27,7 @@ export function createConfluenceProviderModule({
       createConfluenceMcpToolProvider({
         accountRuntime,
         adapter,
+        publicAppUrl,
         repository: {
           appendActivity: (input) => repository.appendActivity(input),
           findAccess: (workspaceId, membershipId) =>
