@@ -123,7 +123,7 @@ export default tseslint.config(
   },
   {
     // Command-line tooling, where printing to the terminal is the whole point.
-    files: ["*.{js,mjs}", "scripts/**/*.ts", "apps/*/scripts/**/*.ts"],
+    files: ["*.{js,mjs}", "scripts/**/*.{js,mjs,ts}", "apps/*/scripts/**/*.ts"],
     languageOptions: { globals: globals.node },
     rules: { "no-console": "off" },
   },

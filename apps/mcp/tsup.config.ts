@@ -1,6 +1,11 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
+  // The bundled MCP runtime includes Undici, whose CommonJS internals require
+  // Node built-ins dynamically. ESM bundles need a scoped require bridge.
+  banner: {
+    js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+  },
   clean: true,
   dts: false,
   entry: ["src/server.ts"],
