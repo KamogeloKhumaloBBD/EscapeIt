@@ -26,9 +26,14 @@ app:
   runtime:
     name: nodejs22.x
 
+# Changing this baseUrl is a major version upgrade: Atlassian makes a site admin
+# review and re-consent before an app starts sending their data somewhere new.
+# Existing installations keep running the previous version, still posting to the
+# previous address, until they accept it — so the old host has to stay reachable
+# until every install has been upgraded.
 remotes:
   - key: context-layer-api
-    baseUrl: https://web-production-a8cb2.up.railway.app
+    baseUrl: https://www.getcontextlayer.com
 
 modules:
   trigger:
