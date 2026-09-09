@@ -508,7 +508,7 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#fbfaf7] text-[#15130f]">
       <div className="hero-surface">
-        <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
+        <header className="relative z-20 mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
           <Link
             href="/"
             className="flex w-fit items-center gap-2 text-sm font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15130f]"
@@ -517,6 +517,9 @@ export default function Home() {
             Context Layer
           </Link>
           <div className="flex shrink-0 items-center justify-end gap-1 [&_[data-slot=button]]:px-3 sm:gap-3 sm:[&_[data-slot=button]]:px-4">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/how-it-works">How it works</Link>
+            </Button>
             <Button asChild size="sm" variant="ghost">
               <Link href="/pricing">Pricing</Link>
             </Button>
